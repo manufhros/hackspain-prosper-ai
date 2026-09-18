@@ -84,3 +84,22 @@ test("platform setup instructions open without starting a server or voice runtim
   expect(current().focus).toBe("detail"); expect(current().detail).toContain("bun run serve");
   expect(current().mode).toBe("OFFLINE");
 });
+
+test("OpenRouter key setup uses masked input and can be cancelled without starting services", async () => {
+  let current!: () => View;
+  let press!: (key: Key, text: string) => void;
+  const questions: { title: string; masked?: boolean }[] = [];
+  new Workbench((view, onKey) => {
+    current = view; press = onKey;
+    return { abort: new AbortController(), start() {}, draw() {}, close() {}, async choose() { return null; },
+      async ask(title, _value, masked) { questions.push({ title, masked }); return null; } };
+  });
+  press({}, "6");
+  const index = current().items.indexOf("OpenRouter API key · Keychain");
+  expect(index).toBeGreaterThanOrEqual(0);
+  for (let i = 0; i < index; i++) press({ name: "down" }, "");
+  expect(current().detail).toContain("LLM_PROVIDER=openrouter");
+  press({ name: "return" }, ""); await Bun.sleep(0);
+  expect(questions).toEqual([{ title: "OpenRouter API key (masked)", masked: true }]);
+  expect(current().mode).toBe("OFFLINE");
+});

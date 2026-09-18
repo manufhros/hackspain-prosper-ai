@@ -29,7 +29,8 @@ Evaluation input: [{ case_id, record: { actions: [...] },
   transcript?: [{ role: "agent" | "caller", text }], reference_time?: ISO }]
 Trace input: [{ connection: "socket-1", message: { event: ... } }]
 
-Local voice starts with bun start: Ollama/Qwen3.5, MLX Whisper and Piper.
+Voice starts with bun start: local Qwen by default, plus local Whisper/Piper.
+LLM_PROVIDER=openrouter + OPENROUTER_MODEL selects OpenRouter; save its key in Setup.
 No provider subscription or tunnel is required. --offline skips local setup.
 Local results are not official scores; saved answers use Friday's anchor.
 Put PLATFORM_API_KEY in .env; host defaults to hackspain.getprosperapp.com.

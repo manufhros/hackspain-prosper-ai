@@ -16,6 +16,7 @@ bun run serve --help              Show this help without starting services
 
 Requires PLATFORM_API_KEY (.env or the TUI's Keychain entry).
 VOICE_HOST=127.0.0.1  VOICE_PORT=7860  VOICE_LANGUAGE=es  VOICE_MAX_CALLS=20
+LLM_PROVIDER=local (default) or openrouter; set OPENROUTER_MODEL and its Setup Keychain key.
 Optional VOICE_SERVER_TOKEN requires Authorization: Bearer <token> on /ws.
 VOICE_VAD_THRESHOLD=0.015  VOICE_SILENCE_MS=800 tune input turn detection.
 

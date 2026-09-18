@@ -1,6 +1,6 @@
 # El Turno — hackathon workbench
 
-A Bun TUI for rehearsing the Prosper track with a local voice agent on Apple Silicon. It includes the complete task archive, real Prosper clinic reads, automated caller/receptionist conversations, microphone practice, result comparison, and a Twilio-compatible WebSocket endpoint for real platform calls.
+A Bun TUI for rehearsing the Prosper track with local speech on Apple Silicon and either local Qwen or an OpenRouter language model. It includes the complete task archive, real Prosper clinic reads, automated caller/receptionist conversations, microphone practice, result comparison, and a Twilio-compatible WebSocket endpoint for real platform calls.
 
 Add your desk-issued token to a Git-ignored `.env` (see `.env.example`):
 
@@ -14,16 +14,34 @@ bun install
 bun start
 ```
 
-Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `ollama` is missing. **`bun start` sets up and starts the local stack automatically:**
+By default the language model is local Qwen. Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `ollama` is missing. **`bun start` sets up and starts the local stack automatically:**
 
 - Installs missing `uv`/`ollama` using Homebrew and creates a private Python 3.12 environment with locked audio dependencies.
 - Downloads Qwen3.5 4B (~3.4 GB), Whisper small for MLX (~481 MB), and Piper English/Spanish/Catalan voices (~190 MB total), plus runtime dependencies. Allow several GB of disk space and time for the first launch.
-- Starts its own loopback-only Ollama process and a persistent Python audio worker, warms the models, then shows **Local voice ready**. Cached models/dependencies are reused on later starts.
-- Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Local runtime**.
+- Starts its own loopback-only Ollama process and a persistent Python audio worker, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
+- Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Voice stack**.
 
 The stack is sized for your M4 Pro / 48 GB Mac, but no native latency or quality benchmark has been run yet. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
 
 For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
+
+## Use an OpenRouter model
+
+Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these **non-secret** settings in `.env`:
+
+```dotenv
+LLM_PROVIDER=openrouter
+OPENROUTER_MODEL=provider/model-id
+OPENROUTER_MAX_TOKENS=4096
+```
+
+Replace `provider/model-id` with the exact ID of your chosen [OpenRouter model](https://openrouter.ai/models) supporting tools and structured outputs. There is no automatic model substitution or fallback to Qwen. The same settings apply to `bun start` and `bun run serve`.
+
+Store the API key using `bun start --offline` → **Setup → OpenRouter API key · Keychain**. Input is masked and stored in macOS Keychain under service `el-turno-openrouter`, account `https://openrouter.ai`. The application does not read `OPENROUTER_API_KEY` from `.env`. Quit, then start the TUI or server yourself. Restart after changing the model or key. Set `LLM_PROVIDER=local` to return to Qwen.
+
+In OpenRouter mode, setup **does not install, download or start Ollama/Qwen**. Whisper recognition and Piper synthesis still run locally and still require Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are not. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
+
+The adapter implements OpenRouter's [tool-calling protocol](https://openrouter.ai/docs/guides/features/tool-calling) and [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), including tool-call IDs and preserved reasoning metadata. `OPENROUTER_MAX_TOKENS` accepts 256–32768; increase it if the provider reports truncated output. No live OpenRouter or speech benchmark is implied by the offline tests.
 
 ## The workbench
 
@@ -189,7 +207,7 @@ This is a **transport probe**, not a successful call benchmark. It does not spea
 
 The archive is anchored to **18 September 2026 at 09:00 Europe/Madrid**. Live public answers change daily; release flags in the docs are a snapshot. The source also disagrees on starter-kit availability and treatment of harness failures. See [task provenance](task/README.md). Do not infer current contest state from these saved documents.
 
-The local receptionist is a starting implementation with isolated call state, real clinic tools, slot provenance checks and transcript/timing reports. Identity checks require a caller-supplied name and matching second identifier before exposing the chart; ambiguous spellings or dates require clarification. Consent checks require an exact, delivered offer and a supported clear acceptance. These conservative checks have offline regression coverage; natural speech, accent/noise handling, concurrent inference performance and end-to-end call outcomes still need live validation. The server now implements the Twilio-compatible transport and official resolution submission boundary. **Labs → Track & jury readiness** maps the evidence needed across every problem and the jury criteria.
+The receptionist is a starting implementation with isolated call state, real clinic tools, slot provenance checks and transcript/timing reports. Identity checks require a caller-supplied name and matching second identifier before exposing the chart; ambiguous spellings or dates require clarification. Consent checks require an exact, delivered offer and a supported clear acceptance. These conservative checks have offline regression coverage; natural speech, accent/noise handling, concurrent inference performance and end-to-end call outcomes still need live validation. The server now implements the Twilio-compatible transport and official resolution submission boundary. **Labs → Track & jury readiness** maps the evidence needed across every problem and the jury criteria.
 
 ## Local data and verification
 

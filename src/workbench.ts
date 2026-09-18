@@ -10,6 +10,7 @@ import { detailViewport, Terminal, type TerminalPort, type View, wrap } from "./
 import { isObject, nationalId, validNationalId, validate } from "./validation";
 import { type CallerUtterance } from "./voice/language";
 import { LocalRuntime } from "./voice/runtime";
+import { openRouterKeyIdentity } from "./voice/model";
 import { clinicClient, DEFAULT_PLATFORM, environmentPlatform } from "./voice/platform";
 import { resultFromRehearsal, runRehearsal, voiceSmoke } from "./voice/rehearsal";
 import { type TraceEvent } from "./voice/agent";
@@ -89,12 +90,13 @@ export class Workbench {
     else if (this.tab === 5) items = [
       { id: "origin", label: "Set platform API origin", detail: `API origin: ${this.config.origin || "not configured"}\n\nEnter the exact HTTPS API host supplied by the desk. No requests happen automatically. HTTP is accepted for localhost test servers only.\n\nEnter to configure.` },
       { id: "key", label: "API key · .env or Keychain", detail: "Set PLATFORM_API_KEY in your git-ignored .env and restart bun start. PLATFORM_API_BASE_URL defaults to https://hackspain.getprosperapp.com. The token is never displayed.\n\nAlternatively Enter stores a team key in macOS Keychain with masked input. A configured .env key takes precedence for its API origin." },
+      { id: "openrouter-key", label: "OpenRouter API key · Keychain", detail: "Enter to save an OpenRouter key with masked input in macOS Keychain. The key is never saved in .env, reports or workbench configuration.\n\nTo use it, set LLM_PROVIDER=openrouter and OPENROUTER_MODEL=provider/model in .env, then restart. Set LLM_PROVIDER=local for Qwen. Choose a model supporting tools and structured outputs.\n\nOpenRouter receives conversation text and retrieved clinic context; Whisper and Piper audio stay local. Model requests use your OpenRouter credits. No remote requests are made when saving the key." },
       { id: "endpoint", label: "Set external agent endpoint", detail: `Endpoint: ${this.config.endpoint || "not configured"}\n\nThis is for the external WebSocket transport probe, separate from the embedded local voice runner. Start that endpoint and tunnel yourself. Set the same ws(s)://host/path in dashboard Settings > Integration. The probe supports endpoints without custom auth headers.\n\nEnter to configure.` },
       { id: "readiness", label: "Runbook and remaining work", detail: readiness() },
       { id: "storage", label: "Local data and limitations", detail: `Files live under ${stateDir}\n\nConfig contains only API origin and endpoint. PLATFORM_API_KEY can be supplied through the git-ignored .env; alternatively use Keychain. Local reports contain clinic/persona data and transcripts, never keys. Temporary audio is deleted after each operation.\n\nVoice tests use real clinic reads and local final records. They do not initiate official runs or submit to Prosper. Streaming, background-noise playback, barge-in and concurrent voice inference remain separate live checks.\n\nSource: task/README.md lists provenance.` },
     ];
     else items = [
-      { id: "status", label: `Local stack · ${this.voice.state}`, detail: `Qwen3.5 4B / Whisper small (MLX) / Piper en, es, ca\nState: ${this.voice.state}\n${this.voice.error}\n\n${this.voiceLog.join("\n")}\n\nEnter to prepare/retry setup. Initial downloads: several GB. Cached on later starts. Quit stops only this workbench's processes.` },
+      { id: "status", label: `Voice stack · ${this.voice.state}`, detail: `${this.voice.modelLabel} / local Whisper small (MLX) / Piper en, es, ca\nState: ${this.voice.state}\n${this.voice.error}\n\n${this.voiceLog.join("\n")}\n\nEnter to prepare/retry setup. Speech downloads are cached. Local mode also downloads Qwen; OpenRouter skips Ollama and Qwen. Quit stops only this workbench's processes.` },
       { id: "free", label: "Free conversation · microphone or text", detail: "Talk to the receptionist about anything you want to test. No public case, caller script, expected answer, or score. Choose English, Spanish or Catalan.\n\nUses the current connection time and real Prosper clinic reads. Proposed actions stay local. Conversations have no scripted turn count or three-minute deadline; individual model/audio operations still time out if stuck.\n\nEnter starts, then Space starts recording and Space again sends your reply. t lets you type; Esc ends the conversation. The receptionist can also finish once your final intents are confirmed. A separate transcript and action report is saved under .workbench/free-*.json.\n\nRequires PLATFORM_API_KEY. Speech is turn-based; streaming and interruption handling are not implemented." },
       { id: "smoke", label: "Run speech + model smoke tests", detail: "Synthesize and transcribe English, Spanish and Catalan sentences through 8 kHz mu-law, report word error rates and timings, and check local model output. No clinic key or microphone needed.\n\nEnter to run." },
       { id: "all", label: "Rehearse all 73 public cases", detail: "Run the local caller and receptionist sequentially on every public case, including unopened problems. Real Prosper clinic reads require PLATFORM_API_KEY in .env. Final action records remain local.\n\nUp to three minutes per case; a full run can take hours. Results/checkpoints are saved after every case. c cancels a running test; Ctrl-C exits.\n\nUse Cases > v for one case or Cases > m to speak as that caller.\n\nAudio is turn-based, uses clean synthesized voices, and applies 8 kHz mu-law conversion. This does not reproduce the official noise beds, timing, caller model or barge-in." },
@@ -286,6 +288,12 @@ export class Workbench {
       if (/\s/.test(value.trim())) throw new Error("API key must not contain whitespace");
       await Bun.secrets.set({ ...keyIdentity(this.config.origin), value: value.trim() });
       this.status = "Team key saved in macOS Keychain."; return;
+    } else if (item.id === "openrouter-key") {
+      const value = await this.terminal.ask("OpenRouter API key (masked)", "", true);
+      if (!value?.trim()) return;
+      if (value.trim().length > 512 || /\s/.test(value.trim())) throw new Error("API key must be at most 512 characters without whitespace");
+      await Bun.secrets.set({ ...openRouterKeyIdentity, value: value.trim() });
+      this.status = "OpenRouter key saved in macOS Keychain. Restart to use the new key."; return;
     } else if (item.id === "endpoint") {
       const value = await this.terminal.ask("Existing ws(s) endpoint", this.config.endpoint);
       if (value === null) return;
@@ -299,10 +307,10 @@ export class Workbench {
   }
   private async setupVoice() {
     this.voiceBusy = true;
-    this.show("Preparing local voice. First launch installs missing tools and downloads several GB.\nThe cached models will be reused. Ctrl-C cancels and stops owned processes.", "Starting local setup…");
+    this.show(`Preparing voice: ${this.voice.modelLabel}.\nFirst launch installs local speech tools and downloads speech models. Local Qwen also needs Ollama; OpenRouter uses your API credits. Ctrl-C cancels and stops owned processes.`, "Starting voice setup…");
     try { await this.voice.start(); }
     finally { this.voiceBusy = false; }
-    this.show("Local speech and reasoning models are ready.\n\nPress f for a free conversation without a script. Or run Speech + model smoke tests, or select a case and press v (automated) / m (microphone).\n\nClinic key comes from PLATFORM_API_KEY in .env; no clinic requests were made by setup.", "Local voice ready");
+    this.show(`${this.voice.modelLabel} and local speech are ready.\n\nPress f for a free conversation without a script. Or run Speech + model smoke tests, or select a case and press v (automated) / m (microphone).\n\nClinic key comes from PLATFORM_API_KEY in .env; no clinic requests were made by setup.`, "Voice ready");
   }
   private voiceEvent = (event: TraceEvent) => {
     this.voiceLog.push(`${event.stage}${event.elapsed_ms ? ` ${event.elapsed_ms}ms` : ""}: ${event.detail}`);

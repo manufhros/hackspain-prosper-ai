@@ -108,7 +108,7 @@ export function evaluate(item: PublicCase, record: unknown, transcript?: Transcr
     recordMatches, differences, privacy, warnings,
   };
 }
-export interface ResultInput { case_id: string; record: unknown; transcript?: TranscriptTurn[]; reference_time?: string }
+export interface ResultInput { case_id: string; record: unknown; transcript?: TranscriptTurn[]; reference_time?: string; execution_error?: string }
 export function parseResults(value: unknown): ResultInput[] {
   if (!Array.isArray(value)) throw new Error("Results must be an array of { case_id, record, transcript?, reference_time? }");
   const ids = new Set<string>();
@@ -118,12 +118,17 @@ export function parseResults(value: unknown): ResultInput[] {
     if (ids.has(row.case_id)) throw new Error(`Duplicate case in one run: ${row.case_id}`);
     ids.add(row.case_id);
     if (row.reference_time !== undefined && (typeof row.reference_time !== "string" || !validSlot(row.reference_time))) throw new Error(`results[${i}]: reference_time needs a valid ISO timestamp with timezone`);
+    if (row.execution_error !== undefined && typeof row.execution_error !== "string") throw new Error(`results[${i}]: execution_error must be text`);
     if (row.transcript !== undefined && (!Array.isArray(row.transcript) || row.transcript.some(t => !isObject(t) || !["caller", "agent"].includes(String(t.role)) || typeof t.text !== "string"))) throw new Error(`results[${i}]: transcript must contain { role: agent|caller, text } turns`);
     return row as unknown as ResultInput;
   });
 }
 export function evaluateBatch(input: ResultInput[]) {
-  const evaluations = input.map(row => evaluate(cases.find(c => c.id === row.case_id)!, row.record, row.transcript, row.reference_time));
+  const evaluations = input.map(row => {
+    const result = evaluate(cases.find(c => c.id === row.case_id)!, row.record, row.transcript, row.reference_time);
+    if (row.execution_error) { result.status = "fail"; result.differences.push(`voice_run: ${row.execution_error}`); }
+    return result;
+  });
   const breakdown = problems.map(problem => {
     const rows = evaluations.filter(row => problem.cases.some(c => c.id === row.case_id));
     const passed = rows.filter(r => r.status === "pass").length;

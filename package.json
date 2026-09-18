@@ -1,0 +1,18 @@
+{
+  "name": "el-turno-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/cli.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "check": "bun run typecheck && bun test",
+    "evaluate": "bun src/cli.ts evaluate",
+    "doctor": "bun src/cli.ts doctor"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.3"
+  }
+}

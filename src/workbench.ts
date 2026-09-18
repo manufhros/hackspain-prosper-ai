@@ -12,6 +12,7 @@ import { LocalRuntime } from "./voice/runtime";
 import { clinicClient, DEFAULT_PLATFORM, environmentPlatform } from "./voice/platform";
 import { resultFromRehearsal, runRehearsal, voiceSmoke } from "./voice/rehearsal";
 import { type TraceEvent } from "./voice/agent";
+import { runFreeConversation, type VoiceLanguage } from "./voice/free";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
 const tabs = ["Cases", "API", "Labs", "Results", "Docs", "Setup", "Voice"];
@@ -87,6 +88,7 @@ export class Workbench {
     ];
     else items = [
       { id: "status", label: `Local stack · ${this.voice.state}`, detail: `Qwen3.5 4B / Whisper small (MLX) / Piper en, es, ca\nState: ${this.voice.state}\n${this.voice.error}\n\n${this.voiceLog.join("\n")}\n\nEnter to prepare/retry setup. Initial downloads: several GB. Cached on later starts. Quit stops only this workbench's processes.` },
+      { id: "free", label: "Free conversation · microphone or text", detail: "Talk to the receptionist about anything you want to test. No public case, caller script, expected answer, or score. Choose English, Spanish or Catalan.\n\nUses the current connection time and real Prosper clinic reads. Proposed actions stay local. Conversations have no scripted turn count or three-minute deadline; individual model/audio operations still time out if stuck.\n\nEnter starts, then Enter records eight seconds, t lets you type, and Esc ends the conversation. The receptionist can also finish once your final intents are confirmed. A separate transcript and action report is saved under .workbench/free-*.json.\n\nRequires PLATFORM_API_KEY. Speech is turn-based; streaming and interruption handling are not implemented." },
       { id: "smoke", label: "Run speech + model smoke tests", detail: "Synthesize and transcribe English, Spanish and Catalan sentences through 8 kHz mu-law, report word error rates and timings, and check local model output. No clinic key or microphone needed.\n\nEnter to run." },
       { id: "all", label: "Rehearse all 73 public cases", detail: "Run the local caller and receptionist sequentially on every public case, including unopened problems. Real Prosper clinic reads require PLATFORM_API_KEY in .env. Final action records remain local.\n\nUp to three minutes per case; a full run can take hours. Results/checkpoints are saved after every case. c cancels a running test; Ctrl-C exits.\n\nUse Cases > v for one case or Cases > m to speak as that caller.\n\nAudio is turn-based, uses clean synthesized voices, and applies 8 kHz mu-law conversion. This does not reproduce the official noise beds, timing, caller model or barge-in." },
       { id: "instructions", label: "Microphone & test instructions", detail: "1. Put PLATFORM_API_KEY in .env and restart bun start. API host defaults to https://hackspain.getprosperapp.com.\n2. Start runs the dependency/model setup automatically.\n3. Run the speech smoke check here.\n4. Choose a public case in Cases. Press v for an automated caller, or m for a microphone conversation.\n5. Microphone mode reads the case objectives, plays the receptionist, then records an eight-second response after you press Enter. macOS may request microphone permission. Type t at the recording prompt to send text instead.\n6. Inspect Results and voice report files in .workbench.\n\nThe simulated call uses the archived reference time, not today's clock. The local caller can deviate from the official script; inspect its transcript. No real appointments are booked. Native voice performance is only measured when you run this on your machine." },
@@ -110,7 +112,7 @@ export class Workbench {
     return { tab: this.tab, tabs, items: items.map(i => i.label), selected: this.selected,
       detail: this.detailOverride ?? items[this.selected]?.detail ?? "No matches. Press / to change the filter or Esc to clear it.",
       scroll: this.scroll, status: this.status, filter: this.filter,
-      footer: this.busy ? "Working… c cancels a voice test; Ctrl-C quits and stops local processes." : this.tab === 0 ? " v voice test   m microphone   e manual   a answers   i import   x export" : " Enter run/open   i import results   x export report",
+      footer: this.busy ? "Working… c cancels a voice test; Ctrl-C quits and stops local processes." : this.tab === 0 ? " f free chat   v voice test   m microphone   e manual   a answers" : " f free chat   Enter run/open   i import results   x export report",
       mode: this.voice.state === "ready" ? "LOCAL VOICE READY" : this.config.origin ? "API configured" : "OFFLINE" };
   }
   private show(value: unknown, status = "Done") { this.detailOverride = typeof value === "string" ? value : pretty(value); this.scroll = 0; this.status = status; this.terminal.draw(); }
@@ -135,6 +137,7 @@ export class Workbench {
     else if (text === "i") void this.task(() => this.importResults());
     else if (text === "x") void this.task(async () => this.show(await saveLocal(`report-${Date.now()}.json`, evaluateBatch(this.results)), "Report exported"));
     else if (text === "e" && this.tab === 0) void this.task(() => this.enterOutcome());
+    else if (text === "f") void this.task(() => this.freeConversation());
     else if (["v", "m"].includes(text) && this.tab === 0) {
       const item = this.items()[this.selected]?.case;
       if (item) void this.task(() => this.rehearse([item], text === "m"));
@@ -230,6 +233,7 @@ export class Workbench {
     if (this.tab === 2) return this.lab(item.id);
     if (this.tab === 6) {
       if (item.id === "status") return this.setupVoice();
+      if (item.id === "free") return this.freeConversation();
       if (item.id === "smoke") return this.smokeVoice();
       if (item.id === "all") return this.rehearse(cases);
       return;
@@ -262,7 +266,7 @@ export class Workbench {
     this.show("Preparing local voice. First launch installs missing tools and downloads several GB.\nThe cached models will be reused. Ctrl-C cancels and stops owned processes.", "Starting local setup…");
     try { await this.voice.start(); }
     finally { this.voiceBusy = false; }
-    this.show("Local speech and reasoning models are ready.\n\nEnter Speech + model smoke tests, or select a case and press v (automated) / m (microphone).\n\nClinic key comes from PLATFORM_API_KEY in .env; no clinic requests were made by setup.", "Local voice ready");
+    this.show("Local speech and reasoning models are ready.\n\nPress f for a free conversation without a script. Or run Speech + model smoke tests, or select a case and press v (automated) / m (microphone).\n\nClinic key comes from PLATFORM_API_KEY in .env; no clinic requests were made by setup.", "Local voice ready");
   }
   private voiceEvent = (event: TraceEvent) => {
     this.voiceLog.push(`${event.stage}${event.elapsed_ms ? ` ${event.elapsed_ms}ms` : ""}: ${event.detail}`);
@@ -275,6 +279,37 @@ export class Workbench {
     const signal = AbortSignal.any([this.runAbort.signal, this.terminal.abort.signal]);
     try { this.show(await voiceSmoke(this.voice, signal, this.voiceEvent), "Local smoke test complete"); }
     finally { this.runAbort = undefined; }
+  }
+  private async callerInput(signal: AbortSignal): Promise<string | null> {
+    const choice = await this.terminal.ask("Enter: record 8s / t: type / Esc: end call", "", false, signal);
+    if (choice === null) return null;
+    if (choice.trim().toLowerCase() === "t") return this.terminal.ask("Caller says", "", false, signal);
+    const file = `${crypto.randomUUID()}.wav`;
+    this.status = "Recording for 8 seconds… speak now. macOS may ask for microphone permission."; this.terminal.draw();
+    try {
+      const heard = await this.voice.audio("record", { seconds: 8, file }, signal);
+      this.voiceEvent({ stage: "microphone", elapsed_ms: heard.elapsed_ms, detail: heard.text || "(silence)" });
+      return heard.text ?? "";
+    } finally { await this.voice.removeAudio(file); }
+  }
+  private async freeConversation() {
+    this.show("Free conversation — say what you want to test.\n\nChoose a language, then Enter records eight seconds or t lets you type. Esc ends the conversation.\n\nUses today's connection time and real Prosper clinic data. Actions and transcripts stay local; this does not change case scores.", "Free conversation");
+    const choice = await this.terminal.ask("Language: en / es / ca", "en");
+    if (choice === null) return;
+    const language = choice.trim().toLowerCase();
+    if (!["en", "es", "ca"].includes(language)) throw new Error("Choose en, es or ca for the conversation language.");
+    const clinic = await clinicClient(this.config);
+    await this.voice.start();
+    this.runAbort = new AbortController();
+    const signal = AbortSignal.any([this.runAbort.signal, this.terminal.abort.signal]);
+    try {
+      const health = await clinic.request({ method: "GET", path: "/api/v1/clinic" }, signal);
+      if (health.status !== 200) throw new Error(`${health.status}: ${health.meaning}`);
+      this.voiceLog = ["Free conversation · no script or case score"];
+      const report = await runFreeConversation(this.voice, clinic, language as VoiceLanguage, signal, this.voiceEvent, callSignal => this.callerInput(callSignal));
+      const saved = await saveLocal(`free-${report.session_id}.json`, report);
+      this.show({ ...report, saved }, `Free conversation ${report.status}; transcript saved. Press f for a new conversation.`);
+    } finally { this.runAbort = undefined; }
   }
   private async rehearse(selected: PublicCase[], microphone = false) {
     const clinic = await clinicClient(this.config);
@@ -294,18 +329,7 @@ export class Workbench {
           this.show(this.caseDetail(item), "Read your caller objectives before starting.");
           if (await this.terminal.ask("Enter to start; Esc cancels") === null) break;
         }
-        const report = await runRehearsal(this.voice, clinic, item, signal, this.voiceEvent, microphone ? async (_answer, callSignal) => {
-          const choice = await this.terminal.ask("Enter: record 8s / t: type / Esc: end call", "", false, callSignal);
-          if (choice === null) return null;
-          if (choice.toLowerCase() === "t") return this.terminal.ask("Caller says", "", false, callSignal);
-          const file = `${crypto.randomUUID()}.wav`;
-          this.status = "Recording for 8 seconds… speak now. macOS may ask for microphone permission."; this.terminal.draw();
-          try {
-            const heard = await this.voice.audio("record", { seconds: 8, file }, callSignal);
-            this.voiceEvent({ stage: "microphone", elapsed_ms: heard.elapsed_ms, detail: heard.text || "(silence)" });
-            return heard.text ?? "";
-          } finally { await this.voice.removeAudio(file); }
-        } : undefined);
+        const report = await runRehearsal(this.voice, clinic, item, signal, this.voiceEvent, microphone ? (_answer, callSignal) => this.callerInput(callSignal) : undefined);
         const row = resultFromRehearsal(report);
         batchResults.push(row);
         this.results = [...this.results.filter(r => r.case_id !== row.case_id), row];

@@ -35,11 +35,15 @@ For browsing, manual results, or API exploration without model downloads/startup
 | **Results** | Import an evaluation run; compare every field against all acceptable outcomes; inspect privacy signals; export a diagnostic report. Unattempted cases earn zero. |
 | **Docs** | Read every archived Markdown document, including the complete API reference, raw schema and public cases. |
 | **Setup** | Configure the API origin, optionally store a key in macOS Keychain instead of `.env`, and set an external endpoint. |
-| **Voice** | Inspect/retry setup, run multilingual speech/model smoke tests, or rehearse all 73 public cases sequentially. |
+| **Voice** | Start a free conversation, inspect/retry setup, run multilingual speech/model smoke tests, or rehearse all 73 public cases sequentially. |
 
 Use `1`–`7` or `Tab` to change sections, arrows or `j`/`k` to select, `PgUp`/`PgDn` to scroll details, `/` to search, `Enter` to open/run, and `Esc` to clear the current view/filter. In Cases, `v` runs a voice rehearsal, `m` opens microphone mode, `e` enters an outcome and `a` reveals answers. `i` imports results; `x` exports a report. `c` cancels a running voice test; `q` or `Ctrl-C` quits. Forms use `Enter` to accept, `Esc` to cancel, and `Ctrl-U` to clear. Set `NO_COLOR=1` for plain rendering. Minimum terminal size is 40×12; 100×30 or larger gives a side-by-side view.
 
 ## First rehearsal
+
+**To try it without a script:** press `f` from any section, or open **Voice → Free conversation**. Choose `en`, `es` or `ca`, then talk to the receptionist about whatever you want to test. Press Enter to record eight seconds, `t` to type a reply, or Esc to end. The agent can also finish after you confirm your final intents; press `f` to start another conversation.
+
+Free conversations use the current connection time and real Prosper clinic data, with no case selection, persona, answer key, score, scripted turn cap or three-minute deadline. Individual operations still have their usual timeouts. Transcripts, timings and any proposed actions are saved separately to `.workbench/free-*.json`; case results stay unchanged. Speech remains turn-based and actions remain local. Availability is limited to the clinic API's published calendar (7 September–16 October 2026).
 
 1. Run `bun start` and wait for local setup to finish. In **Voice**, run **Speech + model smoke tests** to measure English, Spanish and Catalan TTS → 8 kHz mu-law → ASR word error rates and timings.
 2. Open **Cases**, select a case and press `v`. A separate local model plays the caller from their public persona/objectives. The receptionist receives the simulated connection time and real clinic tools; neither model receives the expected-answer oracle.

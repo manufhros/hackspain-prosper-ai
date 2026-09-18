@@ -21,6 +21,16 @@ test("keyboard navigation, search, action cancellation and import errors without
   type("a"); expect(current().detail).toContain("ARCHIVED ACCEPTABLE OUTCOMES");
   type("2"); expect(current().items).toHaveLength(17);
   type("7"); expect(current().items).toContain("Run speech + model smoke tests");
+  expect(current().items).toContain("Free conversation · microphone or text");
+  type("", { name: "down" });
+  answers.push(null); type("", { name: "return" }); await idle();
+  expect(questions.at(-1)).toBe("Language: en / es / ca");
+  expect(current().detail).toContain("does not change case scores");
+  type("1"); answers.push(null); type("f"); await idle();
+  expect(questions.at(-1)).toBe("Language: en / es / ca");
+  answers.push("invalid"); type("f"); await idle();
+  expect(current().detail).toContain("Choose en, es or ca");
+  type("7");
   type("", { name: "tab" }); expect(current().tab).toBe(0);
   type("", { name: "tab", shift: true }); expect(current().tab).toBe(6);
   type("3"); expect(current().items).toContain("Submission contract");

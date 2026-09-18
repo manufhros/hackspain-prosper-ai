@@ -18,7 +18,8 @@ bun run check                     Typecheck and unit tests; no servers
 
 TUI: 1–7 or Tab sections; arrows/j/k select; PgUp/PgDn read;
 / filter; Enter open/run; e enter outcome; a toggle archived answers;
-v voice rehearsal; m microphone; i import; x export; c cancel voice test;
+f free conversation; v voice rehearsal; m microphone;
+i import; x export; c cancel voice test;
 Esc back; q or Ctrl-C quit and stop owned local processes.
 
 Evaluation input: [{ case_id, record: { actions: [...] },

@@ -20,6 +20,9 @@ test("keyboard navigation, search, action cancellation and import errors without
   expect(current().detail).not.toContain("ARCHIVED ACCEPTABLE OUTCOMES");
   type("a"); expect(current().detail).toContain("ARCHIVED ACCEPTABLE OUTCOMES");
   type("2"); expect(current().items).toHaveLength(17);
+  type("7"); expect(current().items).toContain("Run speech + model smoke tests");
+  type("", { name: "tab" }); expect(current().tab).toBe(0);
+  type("", { name: "tab", shift: true }); expect(current().tab).toBe(6);
   type("3"); expect(current().items).toContain("Submission contract");
   type("", { name: "return" }); await idle();
   expect(current().detail).toContain("WORKBENCH SELF-CHECK");

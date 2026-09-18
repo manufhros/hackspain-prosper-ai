@@ -8,9 +8,13 @@ import { inspectTrace, probeEndpoint } from "./protocol";
 import { loadConfig, readJson, saveConfig, saveLocal, stateDir, type Config } from "./storage";
 import { detailViewport, Terminal, type TerminalPort, type View, wrap } from "./terminal";
 import { isObject, nationalId, validNationalId, validate } from "./validation";
+import { LocalRuntime } from "./voice/runtime";
+import { clinicClient, DEFAULT_PLATFORM, environmentPlatform } from "./voice/platform";
+import { resultFromRehearsal, runRehearsal, voiceSmoke } from "./voice/rehearsal";
+import { type TraceEvent } from "./voice/agent";
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
-const tabs = ["Cases", "API", "Labs", "Results", "Docs", "Setup"];
+const tabs = ["Cases", "API", "Labs", "Results", "Docs", "Setup", "Voice"];
 type Item = { id: string; label: string; detail: string; case?: PublicCase; endpoint?: Endpoint };
 export class Workbench {
   private tab = 0;
@@ -24,14 +28,28 @@ export class Workbench {
   private results: ResultInput[] = [];
   private config: Config = { origin: "", endpoint: "" };
   private terminal: TerminalPort;
+  private voiceLog: string[] = [];
+  private voice: LocalRuntime;
+  private voiceBusy = false;
+  private runAbort?: AbortController;
   constructor(createTerminal: (view: () => View, onKey: (key: Key, text: string) => void) => TerminalPort = (view, onKey) => new Terminal(view, onKey)) {
     this.terminal = createTerminal(() => this.view(), (key, text) => this.handleKey(key, text));
+    this.voice = new LocalRuntime(message => {
+      this.voiceLog.push(message); this.voiceLog = this.voiceLog.slice(-80);
+      this.status = message;
+      if (this.voiceBusy) { this.detailOverride = this.voiceLog.slice(-18).join("\n"); this.scroll = 0; }
+      this.terminal.draw();
+    });
+    this.terminal.abort.signal.addEventListener("abort", () => { this.runAbort?.abort(); this.voice.stop(); }, { once: true });
   }
-  async start() {
+  async start(localVoice = true) {
     this.config = await loadConfig();
+    if (process.env.PLATFORM_API_KEY || process.env.PLATFORM_API_BASE_URL) this.config.origin = environmentPlatform().origin;
+    if (!this.config.origin) this.config.origin = DEFAULT_PLATFORM;
     try { this.results = parseResults(await readJson(join(stateDir, "results.json"))); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") this.status = `Saved results not loaded: ${error instanceof Error ? error.message : error}`; }
     this.terminal.start();
+    if (localVoice) { this.tab = 6; await this.task(() => this.setupVoice()); }
   }
   private caseDetail(item: PublicCase) {
     const problem = problems.find(p => p.id === item.problem_id)!;
@@ -42,7 +60,7 @@ export class Workbench {
       ...item.persona.objectives.map(objective => `• ${objective}`), "",
       "PERSONA DATA (public fixture, not a live directory)", pretty(item.persona.data),
       "", `Audio: ${item.audio.background}; SNR: ${item.audio.signal_to_noise_db ?? "n/a"} dB`,
-      "", "Press e to enter an outcome; i to import actual results; a to reveal archived answers.",
+      "", "v runs an automated local voice rehearsal; m lets you play the caller by microphone. e enters a manual outcome; a reveals answers.",
       ...(this.answers ? ["", "ARCHIVED ACCEPTABLE OUTCOMES — not today's live oracle", pretty(item.expected)] : []),
       "", "PROBLEM REQUIREMENT", problemStatement(problem.number),
     ].join("\n");
@@ -60,12 +78,18 @@ export class Workbench {
       items = [{ id: "summary", label: `Summary · ${report.attempted}/${report.total} attempted`, detail: this.reportText() },
         ...report.evaluations.map(row => ({ id: row.case_id, label: `${row.status.toUpperCase()} ${row.case_id}`, detail: pretty(row) }))];
     } else if (this.tab === 4) items = Object.entries(documents).map(([name, contents]) => ({ id: name, label: name, detail: contents }));
-    else items = [
+    else if (this.tab === 5) items = [
       { id: "origin", label: "Set platform API origin", detail: `API origin: ${this.config.origin || "not configured"}\n\nEnter the exact HTTPS API host supplied by the desk. No requests happen automatically. HTTP is accepted for localhost test servers only.\n\nEnter to configure.` },
-      { id: "key", label: "Store team key in Keychain", detail: "Enter the pk-… team key using masked input. Stored with Bun.secrets in macOS Keychain, scoped to the API origin. No plaintext .env file. The key is not read until an API request.\n\nEnter to save or replace." },
-      { id: "endpoint", label: "Set existing agent endpoint", detail: `Endpoint: ${this.config.endpoint || "not configured"}\n\nUser starts the voice agent and tunnel. This workbench starts no servers. Set the same ws(s)://host/path in dashboard Settings > Integration. The transport probe currently supports endpoints without custom auth headers.\n\nEnter to configure.` },
+      { id: "key", label: "API key · .env or Keychain", detail: "Set PLATFORM_API_KEY in your git-ignored .env and restart bun start. PLATFORM_API_BASE_URL defaults to https://hackspain.getprosperapp.com. The token is never displayed.\n\nAlternatively Enter stores a team key in macOS Keychain with masked input. A configured .env key takes precedence for its API origin." },
+      { id: "endpoint", label: "Set external agent endpoint", detail: `Endpoint: ${this.config.endpoint || "not configured"}\n\nThis is for the external WebSocket transport probe, separate from the embedded local voice runner. Start that endpoint and tunnel yourself. Set the same ws(s)://host/path in dashboard Settings > Integration. The probe supports endpoints without custom auth headers.\n\nEnter to configure.` },
       { id: "readiness", label: "Runbook and remaining work", detail: readiness() },
-      { id: "storage", label: "Local data and limitations", detail: `Files live under ${stateDir}\n\nConfig contains only API origin and endpoint. Local results and reports may contain clinic/persona data; ignored by Git, directory 0700, files 0600. No request bodies, keys or API responses are logged to disk automatically.\n\nNo voice provider selected. No official runs initiated by this tool. Model quality, noise, interruption, actual 20-call performance, and jury criteria still need live rehearsal.\n\nSource: task/README.md lists provenance and known documentation discrepancies.` },
+      { id: "storage", label: "Local data and limitations", detail: `Files live under ${stateDir}\n\nConfig contains only API origin and endpoint. PLATFORM_API_KEY can be supplied through the git-ignored .env; alternatively use Keychain. Local reports contain clinic/persona data and transcripts, never keys. Temporary audio is deleted after each operation.\n\nVoice tests use real clinic reads and local final records. They do not initiate official runs or submit to Prosper. Streaming, background-noise playback, barge-in and concurrent voice inference remain separate live checks.\n\nSource: task/README.md lists provenance.` },
+    ];
+    else items = [
+      { id: "status", label: `Local stack · ${this.voice.state}`, detail: `Qwen3.5 4B / Whisper small (MLX) / Piper en, es, ca\nState: ${this.voice.state}\n${this.voice.error}\n\n${this.voiceLog.join("\n")}\n\nEnter to prepare/retry setup. Initial downloads: several GB. Cached on later starts. Quit stops only this workbench's processes.` },
+      { id: "smoke", label: "Run speech + model smoke tests", detail: "Synthesize and transcribe English, Spanish and Catalan sentences through 8 kHz mu-law, report word error rates and timings, and check local model output. No clinic key or microphone needed.\n\nEnter to run." },
+      { id: "all", label: "Rehearse all 73 public cases", detail: "Run the local caller and receptionist sequentially on every public case, including unopened problems. Real Prosper clinic reads require PLATFORM_API_KEY in .env. Final action records remain local.\n\nUp to three minutes per case; a full run can take hours. Results/checkpoints are saved after every case. c cancels a running test; Ctrl-C exits.\n\nUse Cases > v for one case or Cases > m to speak as that caller.\n\nAudio is turn-based, uses clean synthesized voices, and applies 8 kHz mu-law conversion. This does not reproduce the official noise beds, timing, caller model or barge-in." },
+      { id: "instructions", label: "Microphone & test instructions", detail: "1. Put PLATFORM_API_KEY in .env and restart bun start. API host defaults to https://hackspain.getprosperapp.com.\n2. Start runs the dependency/model setup automatically.\n3. Run the speech smoke check here.\n4. Choose a public case in Cases. Press v for an automated caller, or m for a microphone conversation.\n5. Microphone mode reads the case objectives, plays the receptionist, then records an eight-second response after you press Enter. macOS may request microphone permission. Type t at the recording prompt to send text instead.\n6. Inspect Results and voice report files in .workbench.\n\nThe simulated call uses the archived reference time, not today's clock. The local caller can deviate from the official script; inspect its transcript. No real appointments are booked. Native voice performance is only measured when you run this on your machine." },
     ];
     const filter = this.filter.toLowerCase();
     return filter ? items.filter(item => `${item.label}\n${item.id}\n${item.detail}`.toLowerCase().includes(filter)) : items;
@@ -86,16 +110,17 @@ export class Workbench {
     return { tab: this.tab, tabs, items: items.map(i => i.label), selected: this.selected,
       detail: this.detailOverride ?? items[this.selected]?.detail ?? "No matches. Press / to change the filter or Esc to clear it.",
       scroll: this.scroll, status: this.status, filter: this.filter,
-      footer: this.busy ? "Working… Ctrl-C exits and cancels active requests." : " Enter run/open   e enter outcome   a answers   i import results   x export report",
-      mode: this.config.origin ? "API configured / explicit requests" : "OFFLINE" };
+      footer: this.busy ? "Working… c cancels a voice test; Ctrl-C quits and stops local processes." : this.tab === 0 ? " v voice test   m microphone   e manual   a answers   i import   x export" : " Enter run/open   i import results   x export report",
+      mode: this.voice.state === "ready" ? "LOCAL VOICE READY" : this.config.origin ? "API configured" : "OFFLINE" };
   }
   private show(value: unknown, status = "Done") { this.detailOverride = typeof value === "string" ? value : pretty(value); this.scroll = 0; this.status = status; this.terminal.draw(); }
   private reset() { this.scroll = 0; this.detailOverride = undefined; }
   private handleKey(key: Key, text: string) {
-    if (text === "q" && !this.busy) { this.terminal.close(); return; }
+    if (text === "q") { this.terminal.close(); return; }
+    if (text === "c" && this.runAbort) { this.runAbort.abort(); return; }
     if (this.busy) return;
-    if (key.name === "tab" || /^[1-6]$/.test(text ?? "")) {
-      this.tab = key.name === "tab" ? (this.tab + (key.shift ? 5 : 1)) % tabs.length : Number(text) - 1;
+    if (key.name === "tab" || /^[1-7]$/.test(text ?? "")) {
+      this.tab = key.name === "tab" ? (this.tab + (key.shift ? tabs.length - 1 : 1)) % tabs.length : Number(text) - 1;
       this.selected = 0; this.filter = ""; this.reset();
     } else if (["up", "down"].includes(key.name ?? "") || ["j", "k"].includes(text)) {
       this.selected += key.name === "up" || text === "k" ? -1 : 1; this.reset();
@@ -110,6 +135,10 @@ export class Workbench {
     else if (text === "i") void this.task(() => this.importResults());
     else if (text === "x") void this.task(async () => this.show(await saveLocal(`report-${Date.now()}.json`, evaluateBatch(this.results)), "Report exported"));
     else if (text === "e" && this.tab === 0) void this.task(() => this.enterOutcome());
+    else if (["v", "m"].includes(text) && this.tab === 0) {
+      const item = this.items()[this.selected]?.case;
+      if (item) void this.task(() => this.rehearse([item], text === "m"));
+    }
     else if (key.name === "return") void this.task(() => this.activate());
     this.terminal.draw();
   }
@@ -187,7 +216,9 @@ export class Workbench {
     const answer = await this.terminal.ask(request.method === "POST" ? "Type submit to send this action" : "Send request? y/N");
     if (answer !== (request.method === "POST" ? "submit" : "y")) return;
     this.status = "Request in flight… (15s timeout)"; this.terminal.draw();
-    const key = endpoint.path.endsWith("/health") ? null : await Bun.secrets.get(keyIdentity(this.config.origin));
+    const environment = environmentPlatform();
+    const key = endpoint.path.endsWith("/health") ? null : environment.key && environment.origin === this.config.origin
+      ? environment.key : await Bun.secrets.get(keyIdentity(this.config.origin));
     const response = await new PlatformClient(this.config.origin, key).request(request, this.terminal.abort.signal);
     this.show(response, `${response.status} · ${response.elapsed_ms} ms · response kept in memory only`);
   }
@@ -197,6 +228,12 @@ export class Workbench {
     if (item.case) return this.enterOutcome();
     if (item.endpoint) return this.api(item.endpoint);
     if (this.tab === 2) return this.lab(item.id);
+    if (this.tab === 6) {
+      if (item.id === "status") return this.setupVoice();
+      if (item.id === "smoke") return this.smokeVoice();
+      if (item.id === "all") return this.rehearse(cases);
+      return;
+    }
     if (this.tab !== 5) return;
     if (item.id === "origin") {
       const value = await this.terminal.ask("API origin", this.config.origin);
@@ -219,6 +256,67 @@ export class Workbench {
       this.config.endpoint = value;
     } else return;
     await saveConfig(this.config); this.reset(); this.status = "Configuration saved. No network request made.";
+  }
+  private async setupVoice() {
+    this.voiceBusy = true;
+    this.show("Preparing local voice. First launch installs missing tools and downloads several GB.\nThe cached models will be reused. Ctrl-C cancels and stops owned processes.", "Starting local setup…");
+    try { await this.voice.start(); }
+    finally { this.voiceBusy = false; }
+    this.show("Local speech and reasoning models are ready.\n\nEnter Speech + model smoke tests, or select a case and press v (automated) / m (microphone).\n\nClinic key comes from PLATFORM_API_KEY in .env; no clinic requests were made by setup.", "Local voice ready");
+  }
+  private voiceEvent = (event: TraceEvent) => {
+    this.voiceLog.push(`${event.stage}${event.elapsed_ms ? ` ${event.elapsed_ms}ms` : ""}: ${event.detail}`);
+    this.voiceLog = this.voiceLog.slice(-80);
+    this.show(this.voiceLog.slice(-20).join("\n"), "Voice test running · c cancels · Ctrl-C exits");
+  };
+  private async smokeVoice() {
+    await this.voice.start();
+    this.runAbort = new AbortController();
+    const signal = AbortSignal.any([this.runAbort.signal, this.terminal.abort.signal]);
+    try { this.show(await voiceSmoke(this.voice, signal, this.voiceEvent), "Local smoke test complete"); }
+    finally { this.runAbort = undefined; }
+  }
+  private async rehearse(selected: PublicCase[], microphone = false) {
+    const clinic = await clinicClient(this.config);
+    await this.voice.start();
+    this.runAbort = new AbortController();
+    const signal = AbortSignal.any([this.runAbort.signal, this.terminal.abort.signal]);
+    const batch = `voice-${Date.now()}`;
+    const batchResults: ResultInput[] = [];
+    try {
+      // Fail before looping over 73 cases if credentials are invalid or revoked.
+      const health = await clinic.request({ method: "GET", path: "/api/v1/clinic" }, signal);
+      if (health.status !== 200) throw new Error(`${health.status}: ${health.meaning}`);
+      for (const [index, item] of selected.entries()) {
+        if (signal.aborted) break;
+        this.voiceLog = [`${index + 1}/${selected.length}: ${item.id}`, `Simulated connection: ${item.reference_time}`];
+        if (microphone) {
+          this.show(this.caseDetail(item), "Read your caller objectives before starting.");
+          if (await this.terminal.ask("Enter to start; Esc cancels") === null) break;
+        }
+        const report = await runRehearsal(this.voice, clinic, item, signal, this.voiceEvent, microphone ? async (_answer, callSignal) => {
+          const choice = await this.terminal.ask("Enter: record 8s / t: type / Esc: end call", "", false, callSignal);
+          if (choice === null) return null;
+          if (choice.toLowerCase() === "t") return this.terminal.ask("Caller says", "", false, callSignal);
+          const file = `${crypto.randomUUID()}.wav`;
+          this.status = "Recording for 8 seconds… speak now. macOS may ask for microphone permission."; this.terminal.draw();
+          try {
+            const heard = await this.voice.audio("record", { seconds: 8, file }, callSignal);
+            this.voiceEvent({ stage: "microphone", elapsed_ms: heard.elapsed_ms, detail: heard.text || "(silence)" });
+            return heard.text ?? "";
+          } finally { await this.voice.removeAudio(file); }
+        } : undefined);
+        const row = resultFromRehearsal(report);
+        batchResults.push(row);
+        this.results = [...this.results.filter(r => r.case_id !== row.case_id), row];
+        await saveLocal(`${batch}-${index + 1}.json`, report);
+        await saveLocal(`${batch}-results.json`, batchResults);
+        await saveLocal("results.json", this.results);
+        this.show(report, `${index + 1}/${selected.length}: ${report.evaluation.status}`);
+        if (this.voice.state !== "ready") break; // Failed worker needs setup retry; do not mark the remaining cases as tested.
+      }
+      this.show({ ...evaluateBatch(batchResults), saved: `${stateDir}/${batch}-*.json`, cancelled: signal.aborted }, "Voice rehearsal finished; actions stayed local.");
+    } finally { this.runAbort = undefined; }
   }
   private async lab(id: string) {
     if (id === "contract") this.show(contractDiagnostics());

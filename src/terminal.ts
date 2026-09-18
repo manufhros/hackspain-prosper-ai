@@ -34,9 +34,10 @@ export function render(view: View, width: number, height: number, color = true):
   width = Math.max(1, width); height = Math.max(1, height);
   if (width < 40 || height < 12) return fit("Resize terminal to at least 40 x 12. q exits.", width);
   const paint = (value: string, code: string) => color ? `\x1b[${code}m${value}\x1b[0m` : value;
+  const sections = view.tabs.map((tab, i) => `${i === view.tab ? "[" : " "}${i + 1} ${tab}${i === view.tab ? "]" : " "}`).join(" ");
   const lines = [
     paint(fit(` EL TURNO  /  test workbench${width > 65 ? "     " + view.mode : ""}`, width), "1;38;5;121;48;5;235"),
-    fit(view.tabs.map((tab, i) => `${i === view.tab ? "[" : " "}${i + 1} ${tab}${i === view.tab ? "]" : " "}`).join(" "), width),
+    fit(Bun.stringWidth(sections) <= width ? sections : ` [${view.tab + 1} ${view.tabs[view.tab]}]  Tab / 1–${view.tabs.length} sections`, width),
     paint(fit(` ${view.filter ? `Filter: ${view.filter}` : "73 public cases / 18 problems / provider-neutral"}`, width), "38;5;245"),
   ];
   const bodyHeight = height - 6;
@@ -70,7 +71,7 @@ export interface TerminalPort {
   abort: AbortController;
   start(): void;
   draw(): void;
-  ask(title: string, initial?: string, hidden?: boolean): Promise<string | null>;
+  ask(title: string, initial?: string, hidden?: boolean, signal?: AbortSignal): Promise<string | null>;
   close(): void;
 }
 export class Terminal implements TerminalPort {
@@ -103,8 +104,8 @@ export class Terminal implements TerminalPort {
     process.stdout.write("\x1b[H\x1b[2J" + render(this.view(), process.stdout.columns || 100, process.stdout.rows || 30, !process.env.NO_COLOR));
     this.promptDraw?.();
   }
-  async ask(title: string, initial = "", hidden = false): Promise<string | null> {
-    if (this.closed) return null;
+  async ask(title: string, initial = "", hidden = false, signal?: AbortSignal): Promise<string | null> {
+    if (this.closed || signal?.aborted) return null;
     return new Promise(resolve => {
       let value = initial;
       const draw = () => {
@@ -115,8 +116,10 @@ export class Terminal implements TerminalPort {
         while (Bun.stringWidth(shown) > available) shown = [...shown].slice(1).join("");
         process.stdout.write(`\x1b[${process.stdout.rows || 30};1H\x1b[2K` + fit(`${prefix}${shown}  [Enter / Esc]`, width));
       };
-      const finish = (answer: string | null) => { this.reader = undefined; this.promptCancel = undefined; this.promptDraw = undefined; resolve(answer); this.draw(); };
+      const cancel = () => finish(null);
+      const finish = (answer: string | null) => { signal?.removeEventListener("abort", cancel); this.reader = undefined; this.promptCancel = undefined; this.promptDraw = undefined; resolve(answer); this.draw(); };
       this.promptCancel = () => finish(null);
+      signal?.addEventListener("abort", cancel, { once: true });
       this.promptDraw = draw;
       this.reader = (text, key) => {
         if (key.name === "escape") finish(null);

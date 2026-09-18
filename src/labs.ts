@@ -73,7 +73,7 @@ export function readiness(): string {
   return [
     "BUILD & REHEARSE", "",
     "1. Desk-issued team account, dashboard password, API key and EUR100 budget.",
-    "2. Provider-neutral agent still to build: per-call STT / reasoning / TTS, 8 kHz mu-law audio and local interruption handling. Clear does not stop harness playback.",
+    "2. Embedded local rehearsal: Qwen3.5 / MLX Whisper / Piper with real clinic reads and 8 kHz mu-law conversion. Still needed for official calls: streaming Twilio endpoint and interruption handling. Clear does not stop harness playback.",
     "3. Identify patient using two fields; caller ID is only a hint. Read the note and visit history, distinguish caller from patient.",
     "4. Use real clinic, directory, availability and upcoming appointment IDs. Ask about a second insurance policy; never invent self-pay.",
     "5. Submit every final intent, with explicit reason when refusing. Save start.callSid, submit before close +30 seconds; receipt is not a verdict.",

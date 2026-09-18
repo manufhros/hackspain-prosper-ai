@@ -45,6 +45,9 @@ Bun.serve<SocketData>({
       });
     }
     if (url.pathname === "/debug") {
+      if (process.env.ENABLE_DEBUG_ENDPOINT !== "true") {
+        return json({ error: "Not found" }, 404);
+      }
       return json(dumpDebug());
     }
     if (url.pathname === "/ws" || url.pathname === "/web") {

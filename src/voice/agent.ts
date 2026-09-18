@@ -4,6 +4,7 @@ import { isObject, madridDay } from "../validation";
 import { completionRecord, completionSpeech, simulatedSubmission } from "./resolution";
 import { type Inference, type Message, type ToolCall } from "./runtime";
 import { ConversationLanguage, textLanguage } from "./language";
+import { callerSupplied, verifiedPatient } from "./identity";
 
 export interface ClinicReader { request: PlatformClient["request"] }
 export interface TraceEvent { stage: string; elapsed_ms: number; detail: string }
@@ -145,29 +146,57 @@ export class Receptionist {
     }
     const endpoint = readEndpoints.find(e => toolName(e.path) === name);
     if (!endpoint) throw new Error("Tool not allowed. Only read-only clinic tools and complete_call exist.");
+    const callerTurns = this.transcript.filter(t => t.role === "caller").map(t => t.text);
+    if (name === "directory") {
+      for (const [field, value] of Object.entries(args)) {
+        const carrierHint = field === "phone" && value === this.options.callerPhone;
+        if (value != null && !carrierHint && !callerSupplied(field, value, callerTurns))
+          throw new Error(`Ask the caller for ${field === "national_id" ? "DNI/NIE" : field}; never invent identifiers or search with a service name. For a birth date, ask for the month by name if ambiguous.`);
+      }
+    }
+    if (["appointments", "availability"].includes(name) && (!args.patient_id || !this.patients.has(String(args.patient_id))))
+      throw new Error("Verify the patient with directory(name plus a caller-supplied exact second identifier) before accessing appointments or patient-specific availability.");
     const response = await this.clinic.request(prepareRequest(endpoint, args), signal);
     if (response.status !== 200) throw new Error(`Clinic returned ${response.status}: ${response.meaning}`);
     if (!isObject(response.data)) throw new Error("Clinic returned an unexpected response");
     const data = response.data;
-    if (Array.isArray(data.matches)) for (const patient of data.matches) if (isObject(patient) && typeof patient.patient_id === "string") this.patients.add(patient.patient_id);
+    if (Array.isArray(data.matches)) {
+      const candidates = data.matches.filter(isObject);
+      const patient = candidates.length === 1 ? candidates[0] : undefined;
+      if (!patient || typeof patient.patient_id !== "string" || !verifiedPatient(patient, args, callerTurns))
+        return { matches: [], candidate_count: candidates.length, identity_verified: false,
+          instruction: candidates.length ? "Ask for the caller's full patient name and an exact second identifier (DNI/NIE, phone, or date of birth). Do not reveal candidate details or treat caller ID as verification."
+            : "No matching patient for those supplied fields. Clarify possible transcription errors before offering registration. Do not substitute a different person's record." };
+      this.patients.add(patient.patient_id);
+      const { national_id: _id, phone: _phone, date_of_birth: _birth, ...chart } = patient;
+      return { matches: [chart], identity_verified: true };
+    }
     if (Array.isArray(data.slots)) {
       // Retain provenance for the patient against whom eligibility was quoted.
       for (const slot of data.slots) if (isObject(slot)) this.slots.push({ ...slot, patient_id: args.patient_id });
     }
     if (Array.isArray(data.appointments)) for (const appointment of data.appointments) {
       if (isObject(appointment) && typeof appointment.appointment_id === "string" && typeof appointment.start_time === "string"
-        && Date.parse(appointment.start_time) > Date.parse(this.referenceTime)) this.appointments.set(appointment.appointment_id, appointment);
+        && appointment.patient_id === args.patient_id && Date.parse(appointment.start_time) > Date.parse(this.referenceTime)) this.appointments.set(appointment.appointment_id, appointment);
     }
     // Expose the earliest page, and say explicitly what was omitted. The model can
     // narrow the date/provider/site query; it never sees the expected fixture.
-    if (Array.isArray(data.slots)) return { ...data, slots: [...data.slots].sort((a, b) => String(a.start_time).localeCompare(String(b.start_time))).slice(0, 24), total_slots: data.slots.length, showing: "earliest 24; narrow the query for other days/sites" };
+    if (Array.isArray(data.slots)) {
+      const slots = data.slots.filter(isObject).filter(slot => typeof slot.start_time === "string" && madridDay(slot.start_time) > madridDay(this.referenceTime))
+        .sort((a, b) => Date.parse(String(a.start_time)) - Date.parse(String(b.start_time)));
+      return { ...data, slots: slots.slice(0, 24).map(slot => ({ ...slot, spoken_date: this.spokenDate(String(slot.start_time)) })),
+        total_slots: slots.length, showing: "earliest 24 eligible future slots for THIS query only; narrow by requested site/provider/date before claiming earliest" };
+    }
     return data;
+  }
+  private spokenDate(timestamp: string) {
+    return new Intl.DateTimeFormat(this.currentLanguage, { timeZone: "Europe/Madrid", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(timestamp));
   }
   private checkGrounding(actions: Action[]) {
     for (const action of actions) {
       if (action.action === "BOOK" && !this.patients.has(String(action.patient_id))) throw new Error("BOOK patient_id must come from a directory lookup");
       const appointment = this.appointments.get(String(action.appointment_id));
-      if (["RESCHEDULE", "CANCEL"].includes(action.action) && !appointment) throw new Error("Use an upcoming appointment_id from the appointments tool");
+      if (["RESCHEDULE", "CANCEL"].includes(action.action) && (!appointment || !this.patients.has(String(appointment.patient_id)))) throw new Error("Use an upcoming appointment_id from the appointments tool");
       if (["BOOK", "RESCHEDULE"].includes(action.action)) {
         if (madridDay(String(action.slot)) <= madridDay(this.referenceTime)) throw new Error("Same-day and past slots are not bookable");
         const patient = action.action === "BOOK" ? action.patient_id : appointment?.patient_id;

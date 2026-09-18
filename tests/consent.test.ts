@@ -36,3 +36,14 @@ test("accepted intents survive other questions and payload repairs; emergencies 
   expect(() => consent.check([action, cancel])).not.toThrow();
   expect(() => new Consent().check([{ action: "ESCALATE", reason: "medical_emergency" }])).not.toThrow();
 });
+
+test("a spoken day/time acceptance must match the offered Madrid slot exactly", () => {
+  for (const text of ["El 19 a las 11 está bien.", "The 19th at 11 works."]) {
+    const consent = new Consent(); consent.offer([action], true); consent.hear(text);
+    expect(() => consent.check([action])).not.toThrow();
+  }
+  for (const text of ["El 19 a las 12 está bien.", "The 20th at 11 works.", "The 19th at 11:15 works."]) {
+    const consent = new Consent(); consent.offer([action], true); consent.hear(text);
+    expect(() => consent.check([action])).toThrow();
+  }
+});

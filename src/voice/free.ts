@@ -2,6 +2,7 @@ import { type Outcome, type TranscriptTurn } from "../data";
 import { Receptionist, type ClinicReader, type TraceEvent } from "./agent";
 import { spokenRoundtrip } from "./rehearsal";
 import { simulatedSubmission, type SubmissionPreview } from "./resolution";
+import { type CallerUtterance, utteranceParts } from "./language";
 import { type Inference } from "./runtime";
 
 export type VoiceLanguage = "en" | "es" | "ca";
@@ -26,7 +27,7 @@ export interface FreeConversationReport {
 export async function runFreeConversation(
   inference: Inference, clinic: ClinicReader, language: VoiceLanguage, signal: AbortSignal,
   update: (event: TraceEvent) => void,
-  input: (signal: AbortSignal) => Promise<string | null>,
+  input: (signal: AbortSignal) => Promise<CallerUtterance | null>,
 ): Promise<FreeConversationReport> {
   const started = performance.now();
   const referenceTime = new Date().toISOString();
@@ -47,7 +48,9 @@ export async function runFreeConversation(
       const text = await input(signal);
       signal.throwIfAborted();
       if (text === null) break; // Ending a free conversation is not a failed test.
-      const utterance = text.trim() || "[The line was silent or unintelligible. Ask me to repeat.]";
+      const parts = utteranceParts(text);
+      if (parts.language) agent.setLanguage(parts.language);
+      const utterance = parts.text.trim() || "[The line was silent or unintelligible. Ask me to repeat.]";
       emit({ stage: "caller", elapsed_ms: 0, detail: utterance });
       answer = await agent.turn(utterance, signal);
     }

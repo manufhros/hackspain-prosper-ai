@@ -8,6 +8,7 @@ import { inspectTrace, probeEndpoint } from "./protocol";
 import { loadConfig, readJson, saveConfig, saveLocal, stateDir, type Config } from "./storage";
 import { detailViewport, Terminal, type TerminalPort, type View, wrap } from "./terminal";
 import { isObject, nationalId, validNationalId, validate } from "./validation";
+import { type CallerUtterance } from "./voice/language";
 import { LocalRuntime } from "./voice/runtime";
 import { clinicClient, DEFAULT_PLATFORM, environmentPlatform } from "./voice/platform";
 import { resultFromRehearsal, runRehearsal, voiceSmoke } from "./voice/rehearsal";
@@ -323,8 +324,8 @@ export class Workbench {
     try { this.show(await voiceSmoke(this.voice, signal, this.voiceEvent), "Local smoke test complete"); }
     finally { this.runAbort = undefined; }
   }
-  private async callerInput(signal: AbortSignal, language: string): Promise<string | null> {
-    return microphoneInput(this.terminal, this.voice, signal, language, message => {
+  private async callerInput(signal: AbortSignal): Promise<CallerUtterance | null> {
+    return microphoneInput(this.terminal, this.voice, signal, message => {
       this.status = message; this.terminal.draw();
     });
   }
@@ -346,7 +347,7 @@ export class Workbench {
       this.conversation = []; this.follow = true;
       this.detailOverride = "FREE CONVERSATION\n\nWaiting for the receptionist…";
       this.status = "Receptionist is thinking…"; this.terminal.draw();
-      const report = await runFreeConversation(this.voice, clinic, language as VoiceLanguage, signal, this.voiceEvent, callSignal => this.callerInput(callSignal, language));
+      const report = await runFreeConversation(this.voice, clinic, language as VoiceLanguage, signal, this.voiceEvent, callSignal => this.callerInput(callSignal));
       const saved = await saveLocal(`free-${report.session_id}.json`, report);
       this.show([
         `FREE CONVERSATION · ${report.status.toUpperCase()}`, `${report.language.toUpperCase()} · ${Math.round(report.elapsed_ms / 1000)}s`,
@@ -379,7 +380,7 @@ export class Workbench {
         this.conversation = []; this.follow = true;
         this.detailOverride = `${item.id}\n\nWaiting for the receptionist…`;
         this.status = "Receptionist is thinking…"; this.terminal.draw();
-        const report = await runRehearsal(this.voice, clinic, item, signal, this.voiceEvent, microphone ? (_answer, callSignal) => this.callerInput(callSignal, item.language) : undefined);
+        const report = await runRehearsal(this.voice, clinic, item, signal, this.voiceEvent, microphone ? (_answer, callSignal) => this.callerInput(callSignal) : undefined);
         const row = resultFromRehearsal(report);
         batchResults.push(row);
         this.results = [...this.results.filter(r => r.case_id !== row.case_id), row];

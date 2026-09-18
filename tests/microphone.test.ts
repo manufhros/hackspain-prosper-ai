@@ -9,7 +9,7 @@ function fixture(choices: (string | null)[], texts: (string | null)[] = [], tran
   const inference = {
     async audio(operation: string, fields: Record<string, unknown>, signal: AbortSignal): Promise<AudioReply> {
       operations.push({ operation, fields, aborted: signal.aborted });
-      return { elapsed_ms: 1, ...(operation === "record_stop" ? { file: fields.file as string } : {}), ...(operation === "transcribe" ? { text: transcripts.shift() ?? "" } : {}) };
+      return { elapsed_ms: 1, ...(operation === "record_stop" ? { file: fields.file as string } : {}), ...(operation === "transcribe" ? { text: transcripts.shift() ?? "", language: "ca" } : {}) };
     },
     async removeAudio(file: string) { removed.push(file); },
   };
@@ -18,11 +18,11 @@ function fixture(choices: (string | null)[], texts: (string | null)[] = [], tran
     async ask() { return texts.shift() ?? null; },
   };
   return { operations, removed, messages, timeouts, abort, inference, terminal,
-    run: () => microphoneInput(terminal, inference, abort.signal, "es", message => messages.push(message)) };
+    run: () => microphoneInput(terminal, inference, abort.signal, message => messages.push(message)) };
 }
 test("Space starts and stops immediately, transcription auto-detects language, and audio is removed", async () => {
   const f = fixture(["space", "space"]);
-  expect(await f.run()).toBe("Hola, una cita.");
+  expect(await f.run()).toEqual({ text: "Hola, una cita.", language: "ca" });
   expect(f.operations.map(x => x.operation)).toEqual(["record_start", "record_stop", "transcribe"]);
   expect(f.operations[2]!.fields).not.toHaveProperty("language");
   expect(f.removed).toEqual([f.operations[1]!.fields.file as string]);
@@ -36,7 +36,7 @@ test("Esc discards a take without transcription and returns to caller controls",
 });
 test("silent takes retry, automatic cutoff sends, and cancelling text returns to controls", async () => {
   const f = fixture(["t", "space", "timeout", "space", "space"], [null], ["", "Good morning"]);
-  expect(await f.run()).toBe("Good morning");
+  expect(await f.run()).toEqual({ text: "Good morning", language: "ca" });
   expect(f.messages).toContain("30-second limit reached · transcribing…");
   expect(f.messages).toContain("No speech detected. Space to try again, or t to type.");
   expect(f.removed).toHaveLength(2);

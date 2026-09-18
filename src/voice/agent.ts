@@ -46,6 +46,7 @@ export class Receptionist {
   get currentLanguage() { return this.speech.current; }
   private patients = new Set<string>();
   private slots: ObjectValue[] = [];
+  private latestAvailability?: ObjectValue;
   private appointments = new Map<string, ObjectValue>();
   constructor(private inference: Inference, private clinic: ClinicReader, readonly referenceTime: string, private language: string,
     private update: (event: TraceEvent) => void = () => {},
@@ -200,10 +201,12 @@ export class Receptionist {
     }
     if (["appointments", "availability"].includes(name) && (!args.patient_id || !this.patients.has(String(args.patient_id))))
       throw new Error("Verify the patient with directory(name plus a caller-supplied exact second identifier) before accessing appointments or patient-specific availability.");
+    if (name === "availability") this.latestAvailability = undefined;
     const response = await this.clinic.request(prepareRequest(endpoint, args), signal);
     if (response.status !== 200) throw new Error(`Clinic returned ${response.status}: ${response.meaning}`);
     if (!isObject(response.data)) throw new Error("Clinic returned an unexpected response");
     const data = response.data;
+    if (name === "availability") this.latestAvailability = data;
     if (Array.isArray(data.providers)) for (const provider of data.providers) if (isObject(provider) && typeof provider.id === "string" && typeof provider.name === "string") this.providers.set(provider.id, provider.name);
     if (Array.isArray(data.locations)) for (const location of data.locations) if (isObject(location) && typeof location.id === "string" && typeof location.name === "string") this.locations.set(location.id, location.name);
     if (Array.isArray(data.matches)) {
@@ -261,6 +264,9 @@ export class Receptionist {
   }
   private checkGrounding(actions: Action[]) {
     for (const action of actions) {
+      if (action.action === "NO_ACTION" && action.reason === "type_not_offered" && Array.isArray(this.latestAvailability?.slots) && this.latestAvailability.slots.length
+        && !(Array.isArray(this.latestAvailability.blocked) && this.latestAvailability.blocked.some(item => isObject(item) && item.restriction === "type_not_offered")))
+        throw new Error("Availability returned an eligible appointment type. Explain that review is the clinic's category for this appointment, not a different service. A label misunderstanding is not type_not_offered.");
       if (action.action === "BOOK" && !this.patients.has(String(action.patient_id))) throw new Error("BOOK patient_id must come from a directory lookup");
       const appointment = this.appointments.get(String(action.appointment_id));
       if (["RESCHEDULE", "CANCEL"].includes(action.action) && (!appointment || !this.patients.has(String(appointment.patient_id)))) throw new Error("Use an upcoming appointment_id from the appointments tool");

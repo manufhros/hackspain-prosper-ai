@@ -3,6 +3,7 @@ import { evaluate, type ResultInput } from "../evaluate";
 import { fold, isObject } from "../validation";
 import { Receptionist, type ClinicReader, type TraceEvent } from "./agent";
 import { simulatedSubmission, type SubmissionPreview } from "./resolution";
+import { type CallerUtterance, utteranceParts } from "./language";
 import { type Inference, type Message } from "./runtime";
 
 export interface RehearsalReport {
@@ -32,7 +33,7 @@ export function callerMessages(item: PublicCase): Message[] {
   ].join("\n") }];
 }
 export async function runRehearsal(inference: Inference, clinic: ClinicReader, item: PublicCase, parent: AbortSignal,
-  update: (event: TraceEvent) => void, microphone?: (agentSpeech: string, signal: AbortSignal) => Promise<string | null>): Promise<RehearsalReport> {
+  update: (event: TraceEvent) => void, microphone?: (agentSpeech: string, signal: AbortSignal) => Promise<CallerUtterance | null>): Promise<RehearsalReport> {
   const signal = AbortSignal.any([parent, AbortSignal.timeout(180000)]);
   const started = performance.now();
   const events: TraceEvent[] = [];
@@ -51,7 +52,9 @@ export async function runRehearsal(inference: Inference, clinic: ClinicReader, i
       if (microphone) {
         const text = await microphone(answer, signal);
         if (text === null) throw new Error("Call cancelled by user");
-        utterance = text;
+        const parts = utteranceParts(text);
+        if (parts.language) agent.setLanguage(parts.language);
+        utterance = parts.text;
         emit({ stage: "caller", elapsed_ms: 0, detail: utterance });
       } else {
         caller.push({ role: "user", content: heard || "[No audible speech. Ask the receptionist to repeat.]" });

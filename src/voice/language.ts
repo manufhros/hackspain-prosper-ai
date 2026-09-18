@@ -1,5 +1,8 @@
 import { fold } from "../validation";
 
+export type CallerUtterance = string | { text: string; language?: string };
+export const utteranceParts = (input: CallerUtterance) => typeof input === "string" ? { text: input, language: undefined } : input;
+
 export type SpeechLanguage = "en" | "es" | "ca";
 export const speechLanguage = (value: string): value is SpeechLanguage => ["en", "es", "ca"].includes(value);
 
@@ -20,7 +23,7 @@ export function textLanguage(text: string): SpeechLanguage | undefined {
 export function requestedLanguage(text: string): SpeechLanguage | undefined {
   const value = fold(text);
   // Require a language request, not a mention of a doctor's languages.
-  const request = /(?:speak|reply|respond|answer|continue|talk to me|habla(?:r|me)?|hablamos|responde(?:r|me)?|contesta(?:r|me)?|parla(?:r|m)?|respon(?:dre)?|continua(?:r|mos|rme)?)\s+(?:to me\s+|me\s+|in\s+|en\s+)?(english|ingles|angles|spanish|espanol|castellano|castella|catalan|catala)\b/g;
+  const request = /(?:speak|reply|respond|answer|continue|talk to me|habla(?:rme|r|me)?|hablamos|responde(?:r|me)?|contesta(?:r|me)?|parla(?:r|m)?|respon(?:dre)?|continua(?:r|mos|rme)?)\s+(?:to me\s+|me\s+|in\s+|en\s+)?(english|ingles|angles|spanish|espanol|castellano|castella|catalan|catala)\b/g;
   let result: SpeechLanguage | undefined;
   for (const match of value.matchAll(request)) {
     if (/\b(?:no|not|don't|do not)\s*$/.test(value.slice(0, match.index))) continue;

@@ -23,7 +23,7 @@ export function callerSupplied(field: string, value: unknown, turns: string[]): 
   if (field === "date_of_birth") return turns.some(text => suppliedBirthDate(text, value));
   const expected = field === "phone" ? phone(value) : compact(value);
   if (!expected || (field === "phone" && expected.length !== 9)) return false;
-  return turns.some(text => new RegExp(`(?:^|[^0-9])${expected}(?![0-9])`).test(compact(text)));
+  return turns.some(text => new RegExp(`(?:^|[^0-9])${field === "phone" ? "(?:0034|34)?" : ""}${expected}(?![0-9])`).test(compact(text)));
 }
 
 export function verifiedPatient(patient: ObjectValue, query: ObjectValue, turns: string[]): boolean {

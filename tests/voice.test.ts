@@ -335,3 +335,20 @@ test("an emergency completion needs neither identification nor a confirmation qu
   expect(agent.record).toEqual(emergency); expect(response).toContain("urgent medical attention");
   expect(response).not.toContain("?"); expect(inference.seen).toHaveLength(1);
 });
+
+test("an eligible review cannot turn into a type-not-offered refusal", async () => {
+  const inference = new FakeInference([directory(), availability(), complete({ actions: [{ action: "NO_ACTION", reason: "type_not_offered" }] }), say("This is a general practice appointment.")]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "I need a general practice appointment", signal());
+  expect(agent.record).toBeUndefined();
+  expect(agent.messages.find(m => m.tool_name === "complete_call")?.content).toContain("not a different service");
+});
+
+test("microphone language hints reach free conversation instructions and speech synthesis", async () => {
+  const inference = new FakeInference([say("Hola"), say("Bon dia")]);
+  const inputs = [{ text: "Arenal", language: "ca" }, null];
+  const report = await runFreeConversation(inference, noClinic, "es", signal(), () => {}, async () => inputs.shift()!);
+  expect(report.status).toBe("ended");
+  expect(inference.audioCalls.filter(c => c.operation === "speak").map(c => c.fields.language)).toEqual(["es", "ca"]);
+  expect(inference.seen.at(-1)!.messages[0]!.content).toContain("ACTIVE RESPONSE LANGUAGE: ca");
+});

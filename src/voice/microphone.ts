@@ -1,5 +1,6 @@
 import { type TerminalPort } from "../terminal";
 import { type Inference } from "./runtime";
+import { type CallerUtterance } from "./language";
 
 export const RECORDING_LIMIT_MS = 30_000;
 
@@ -7,9 +8,9 @@ export const RECORDING_LIMIT_MS = 30_000;
 export async function microphoneInput(
   terminal: Pick<TerminalPort, "ask" | "choose">,
   inference: Pick<Inference, "audio" | "removeAudio">,
-  signal: AbortSignal, language: string,
+  signal: AbortSignal,
   status: (message: string) => void,
-): Promise<string | null> {
+): Promise<CallerUtterance | null> {
   while (!signal.aborted) {
     const choice = await terminal.choose("YOUR TURN · Space: talk · t: type · Esc: end call", ["space", "return", "t"], signal);
     if (choice === null) return null;
@@ -40,7 +41,7 @@ export async function microphoneInput(
       const captured = await inference.audio("record_stop", { file }, signal);
       recording = false;
       const heard = captured.file ? await inference.audio("transcribe", { file }, signal) : captured;
-      if (heard.text?.trim()) return heard.text.trim();
+      if (heard.text?.trim()) return { text: heard.text.trim(), language: heard.language };
       status("No speech detected. Space to try again, or t to type.");
     } finally {
       try {

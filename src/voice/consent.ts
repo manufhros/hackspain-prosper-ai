@@ -23,6 +23,15 @@ export function acceptsOffer(text: string): boolean {
   return /^(?:that (?:works|is fine|suits me)|it works(?: for me)?|please book (?:it|that|that slot)|book (?:it|that|that slot)|i(?:'ll| will) take it|esa opcion me parece perfecta|me viene (?:muy )?bien|esa me viene bien|confirmo|confirm it|confirmo esa cita|em va be)(?:\s+(?:please|thanks|thank you|gracias|por favor))?$/.test(stripped);
 }
 
+function acceptsOfferedTime(text: string, actions: Action[]): boolean {
+  if (actions.length !== 1 || !["BOOK", "RESCHEDULE"].includes(actions[0]!.action)) return false;
+  const match = fold(text).match(/^(?:el |the )?(\d{1,2})(?:st|nd|rd|th)? (?:a las |a les |at )(\d{1,2})(?::(\d{2}))? (?:esta bien|me viene bien|em va be|works(?: for me)?|is fine)[.!]*$/);
+  if (!match || typeof actions[0]!.slot !== "string") return false;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(new Date(actions[0]!.slot)).map(part => [part.type, part.value]));
+  return Number(match[1]) === Number(parts.day) && Number(match[2]) === Number(parts.hour) && Number(match[3] ?? 0) === Number(parts.minute);
+}
+
 export class Consent {
   private pending?: { actions: Action[]; delivered: boolean };
   private accepted = new Set<string>();
@@ -31,7 +40,7 @@ export class Consent {
   interrupt() { this.pending = undefined; }
   hear(text: string) {
     if (isCorrection(text)) this.accepted.clear();
-    if (this.pending?.delivered && acceptsOffer(text)) for (const action of this.pending.actions) this.accepted.add(actionKey(action));
+    if (this.pending?.delivered && (acceptsOffer(text) || acceptsOfferedTime(text, this.pending.actions))) for (const action of this.pending.actions) this.accepted.add(actionKey(action));
     // A question is not a yes later in the same turn. Re-offer after answering it.
     this.pending = undefined;
   }

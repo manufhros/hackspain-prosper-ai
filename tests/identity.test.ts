@@ -26,6 +26,9 @@ test("identity requires supplied name and exact matching second field, not a cal
   expect(callerSupplied("date_of_birth", "2001-09-19", ["19 de setembre de 2001"])).toBe(true);
   expect(callerSupplied("date_of_birth", "2001-02-01", ["01/02/2001"])).toBe(false);
   expect(callerSupplied("national_id", "48064716Y", ["My DNI is 48,064,716 Y"])).toBe(true);
+  expect(callerSupplied("phone", "636308034", ["My phone is +34 636 308 034"])).toBe(true);
+  expect(callerSupplied("phone", "636308034", ["0034 636 308 034"])).toBe(true);
+  expect(callerSupplied("phone", "636308034", ["6363080345"])).toBe(false);
 });
 
 test("carrier lookup cannot expose name, insurance or identifiers or unlock appointments", async () => {

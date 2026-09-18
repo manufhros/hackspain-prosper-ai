@@ -1,0 +1,27 @@
+{
+  "name": "hackspain-prosper-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "node --env-file=.env --import tsx src/agent/server.ts",
+    "agent:configure": "node --env-file=.env --import tsx src/scripts/configure-agent.ts",
+    "clinic:fetch": "node --env-file=.env --import tsx src/scripts/fetch-clinic.ts",
+    "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",
+    "test": "node --env-file=.env --import tsx --test src/agent/*.test.ts",
+    "test:live": "node --env-file=.env --import tsx src/scripts/check.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "ws": "^8.21.3"
+  }
+}

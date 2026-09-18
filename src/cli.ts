@@ -8,6 +8,9 @@ const help = `El Turno — Bun hackathon test workbench
 
 bun start                         TUI + automatic local voice setup/start
 bun start --offline               TUI without downloads or local processes
+bun run serve                    Prosper-compatible /ws endpoint + real test submissions
+bun run serve --dry-run          Endpoint with local-only results
+bun run serve --help             Server/tunnel configuration; no startup
 bun src/cli.ts cases               List all 73 archived public cases
 bun src/cli.ts case <id>           Inspect one complete public fixture
 bun src/cli.ts template            Empty results for every public case (JSON)
@@ -30,7 +33,8 @@ Local voice starts with bun start: Ollama/Qwen3.5, MLX Whisper and Piper.
 No provider subscription or tunnel is required. --offline skips local setup.
 Local results are not official scores; saved answers use Friday's anchor.
 Put PLATFORM_API_KEY in .env; host defaults to hackspain.getprosperapp.com.
-Clinic lookups are real and read-only. Voice actions remain local.
+Clinic lookups are real and read-only. TUI voice actions remain local.
+The separate serve command submits resolutions for incoming platform test calls.
 Practice, Run All, integration settings and recordings use the dashboard.
 Exit codes: 0 success/pass; 1 failed/unverified diagnostic; 2 invalid input.
 `;
@@ -38,6 +42,7 @@ async function main() {
   const [command, argument] = process.argv.slice(2);
   if (!command || command === "--offline") { const { Workbench } = await import("./workbench"); await new Workbench().start(command !== "--offline"); return; }
   if (["--help", "-h", "help"].includes(command)) { console.log(help); return; }
+  if (command === "serve") { const { runServer } = await import("./telephony/server"); await runServer(process.argv.slice(3)); return; }
   if (command === "cases") {
     console.log(problems.flatMap(p => p.cases.map(c => `${c.id}\t${c.language}\t${c.summary || c.persona.objectives[0]}`)).join("\n")); return;
   }

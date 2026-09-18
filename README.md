@@ -1,6 +1,6 @@
 # El Turno — hackathon workbench
 
-A Bun TUI for rehearsing the Prosper track with a local voice agent on Apple Silicon. It includes the complete task archive, real Prosper clinic reads, automated caller/receptionist conversations, microphone practice, and result comparison.
+A Bun TUI for rehearsing the Prosper track with a local voice agent on Apple Silicon. It includes the complete task archive, real Prosper clinic reads, automated caller/receptionist conversations, microphone practice, result comparison, and a Twilio-compatible WebSocket endpoint for real platform calls.
 
 Add your desk-issued token to a Git-ignored `.env` (see `.env.example`):
 
@@ -94,6 +94,52 @@ Results have this format. The record below is only a demonstration, not an agent
 
 The CLI prints JSON and does not save input. Exit code `0` means all supplied results passed the **local** comparison, `1` means a failed/unverified/empty evaluation, and `2` means invalid input. A partial batch can exit `0`; the report always shows attempted coverage against all 73 cases. Use the full template when testing complete coverage. Duplicate case IDs in one run are rejected.
 
+## Run real Prosper platform tests
+
+The separate server mode accepts the track's Twilio Media Streams format at `/ws`, speaks with the existing local models, and submits confirmed resolutions to the six documented test routes using the incoming `start.callSid`. No Twilio account or phone number is needed. The TUI remains local-only.
+
+Quit an existing voice-enabled TUI first to avoid running two copies of the models. With your existing API key configured, start the endpoint yourself:
+
+```sh
+bun run serve
+```
+
+Wait for `Ready: ws://127.0.0.1:7860/ws`, then start a WebSocket-capable tunnel in another terminal:
+
+```sh
+ngrok http 7860
+```
+
+In **Prosper → Settings → Integration**, set **Endpoint** to `wss://<your-ngrok-host>/ws`. Use the public host printed by ngrok; include both `wss://` and `/ws`. Keep both terminals running, then use **Call** beside one public case before trying **Run All**. If ngrok is not installed/authenticated, complete its [agent setup](https://ngrok.com/docs/getting-started/) first. This application does not start or configure a tunnel.
+
+For endpoint authentication, set `VOICE_SERVER_TOKEN` to a separate shared secret and restart the server. Configure **Headers** in Prosper as `Authorization: Bearer <that same secret>`. The value is never printed by the server or passed to the local model/audio processes. Without this setting, anyone who knows the public URL can connect. Do not use your Prosper API key as the endpoint token.
+
+```sh
+curl http://127.0.0.1:7860/healthz
+bun run serve --help
+# For transport/audio diagnostics without result POSTs:
+bun run serve --dry-run
+```
+
+`serve` performs **real test submissions**; `--dry-run` never submits. Synthetic `workbench-…` probe IDs are rejected in live mode. A `200` receipt acknowledges an action, and `409` means it was already received; neither proves a passing score. Failed actions are saved and are not retried automatically. Multi-intent calls submit one request per action. A caller disconnect flushes the last spoken turn and permits bounded completion within the contract's 30-second window; incomplete calls do not invent a fallback resolution.
+
+Every connection gets separate conversation, audio buffers, call/stream IDs, and submission state. Up to 20 calls are admitted by default. Outbound audio is paced in 20 ms, mono, 8 kHz mu-law frames without WAV headers. Caller speech stops further playback locally; the implementation does not rely on the harness honoring `clear`. Audio is transcribed after a detected pause, so this is utterance-based ASR, not streaming recognition. The initial greeting uses `VOICE_LANGUAGE` (Spanish by default), and ASR language detection switches subsequent turns among English, Spanish, and Catalan.
+
+The models are shared, and native speech operations run through a bounded serial queue; cancelling one caller does not kill other callers' native jobs. **20 isolated sessions in mocked tests do not establish real-time performance for 10/20 live calls.** Start with one public practice case. Silence detection uses an adjustable energy threshold and may need tuning for the track's noise beds; this has not been benchmarked against the live harness.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `VOICE_HOST` / `VOICE_PORT` | `127.0.0.1` / `7860` | Loopback listener for your tunnel; `--port` overrides the port. |
+| `VOICE_LANGUAGE` | `es` | Initial greeting: `en`, `es`, or `ca`. |
+| `VOICE_MAX_CALLS` | `20` | Concurrent connection limit, 1–20. |
+| `VOICE_SERVER_TOKEN` | unset | Optional Bearer authentication on `/ws`. |
+| `VOICE_VAD_THRESHOLD` | `0.015` | Normalized RMS threshold; raise if noise triggers turns, lower if quiet speech is missed. |
+| `VOICE_SILENCE_MS` | `800` | Pause before transcribing a caller turn, 200–3000 ms. |
+
+Reports are private `.workbench/platform-<session-id>.json` files with the real `call_id`, intended record, per-action receipts, generated transcript, stage/interruption events, and errors. Generated text is not proof that every word was played; interruption events identify superseded answers. Raw incoming audio stays in bounded memory and is not saved. Ctrl-C stops this server's owned processes and saves partial call reports. A failed runtime makes `/healthz` return `503`; restart the server after inspecting its output.
+
+The transport and route shapes follow [the archived track contract](task/contract.md), [Twilio Media Streams](https://www.twilio.com/docs/voice/media-streams/websocket-messages), and [Bun 1.4.2 WebSockets](https://github.com/oven-sh/bun/blob/bun-v1.4.2/docs/runtime/http/websockets.mdx). No listening server, tunnel, or authenticated platform call was started during automated verification.
+
 ## Live clinic and action testing
 
 The default API origin is `https://hackspain.getprosperapp.com`. `PLATFORM_API_KEY` in `.env` is sent as `X-Api-Key`. `PLATFORM_API_BASE_URL` can override the origin. Environment credentials stay scoped to that origin and are excluded from local model/audio child processes. `.env` is Git-ignored; do not put its contents into reports or commits.
@@ -128,7 +174,7 @@ bun run doctor
 
 When **you have started** your agent and tunnel, configure its `ws://` or `wss://` URL in Setup and use **Labs → Probe an existing endpoint**. It opens 1/5/10/20 sockets, sends synthetic call IDs and one second of silence in paced frames, observes output for five seconds, and reports malformed output/cross-stream messages. Configure your agent to treat `workbench-…` IDs as local diagnostics; they are not registered platform calls and cannot be submitted there. The probe currently supports endpoints without custom authentication headers. Connecting can incur charges if your agent starts a provider session.
 
-This is a **transport probe**, not a successful call benchmark. It does not speak, recognize speech, test scheduling, mix the published noise recordings, assess language, or verify barge-in. Non-silence bytes do not prove intelligible audio. The 20-session offline self-check tests the workbench's own simulator only. The embedded local voice runner is separate and exposes no public Twilio WebSocket endpoint. Official calls still need that integration and a tunnel.
+This is a **transport probe**, not a successful call benchmark. It does not speak, recognize speech, test scheduling, mix the published noise recordings, assess language, or verify barge-in. Non-silence bytes do not prove intelligible audio. The 20-session offline self-check tests the workbench's own simulator only. The TUI rehearsal runner stays separate from `bun run serve`. Use the server mode above and your own tunnel for official calls. The TUI probe cannot supply the optional Bearer header; use it only against a deliberately unauthenticated dry-run endpoint.
 
 ## What the local comparator does—and its limits
 
@@ -141,7 +187,7 @@ This is a **transport probe**, not a successful call benchmark. It does not spea
 
 The archive is anchored to **18 September 2026 at 09:00 Europe/Madrid**. Live public answers change daily; release flags in the docs are a snapshot. The source also disagrees on starter-kit availability and treatment of harness failures. See [task provenance](task/README.md). Do not infer current contest state from these saved documents.
 
-The local receptionist is a starting implementation with isolated call state, real clinic tools, slot provenance checks and transcript/timing reports. Remaining product work includes robust identity/consent checks, intent handling under real speech, Twilio streaming and interruption handling, final platform submissions, noise evaluation, concurrent calls, and live practice under load. **Labs → Track & jury readiness** maps the evidence needed across every problem and the jury criteria.
+The local receptionist is a starting implementation with isolated call state, real clinic tools, slot provenance checks and transcript/timing reports. Remaining product work includes robust identity/consent checks, intent handling under real speech, noise-robust turn detection, concurrent inference performance, and live practice under load. The server now implements the Twilio-compatible transport and official resolution submission boundary. **Labs → Track & jury readiness** maps the evidence needed across every problem and the jury criteria.
 
 ## Local data and verification
 
@@ -152,4 +198,10 @@ bun run check
 python3 tests/recording_test.py
 ```
 
-Checks use finite CLI commands, in-memory protocol sessions, mocked inference and mocked HTTP; no servers are started. They cover every archived acceptable outcome as **validator fixtures**, negative/multi-action outcomes, privacy signals, date boundaries, API encoding/statuses, local file permissions, terminal layout, agent tool restrictions/provenance, caller answer isolation, audio cleanup, cancellation, and persistence of failed voice runs. Passing these tests does not verify native installation/inference speed, microphone quality, Keychain integration, a live terminal session, tunnel, or authenticated organiser endpoint.
+Checks use finite CLI commands, in-memory protocol sessions, mocked inference and mocked HTTP; no servers are started. They also test the server handlers and overlapping socket state machines in memory without opening a port. They cover every archived acceptable outcome as **validator fixtures**, negative/multi-action outcomes, privacy signals, date boundaries, API encoding/statuses, local file permissions, terminal layout, agent tool restrictions/provenance, caller answer isolation, audio cleanup, cancellation, and persistence of failed voice runs. Passing these tests does not verify native installation/inference speed, microphone quality, Keychain integration, a live terminal session, tunnel, or authenticated organiser endpoint.
+
+When the private Python dependencies are already installed, the finite wire-codec check uses synthetic models and no audio devices:
+
+```sh
+.workbench/voice/venv/bin/python -W ignore::DeprecationWarning tests/telephony_worker_test.py
+```

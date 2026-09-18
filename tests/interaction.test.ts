@@ -71,3 +71,16 @@ test("section state persists, arrows focus details, Enter reads a case, and help
   press({ name: "left" }, ""); expect(current().focus).toBe("list");
   press({ name: "end" }, ""); expect(current().selected).toBe(3);
 });
+
+test("platform setup instructions open without starting a server or voice runtime", async () => {
+  let current!: () => View;
+  let press!: (key: Key, text: string) => void;
+  new Workbench((view, onKey) => {
+    current = view; press = onKey;
+    return { abort: new AbortController(), start() {}, draw() {}, close() {}, async choose() { throw new Error("Unexpected input"); }, async ask() { throw new Error("Unexpected input"); } };
+  });
+  press({}, "7"); press({ name: "end" }, ""); press({ name: "return" }, ""); await Bun.sleep(0);
+  expect(current().items[current().selected]).toBe("Platform calls · server setup");
+  expect(current().focus).toBe("detail"); expect(current().detail).toContain("bun run serve");
+  expect(current().mode).toBe("OFFLINE");
+});

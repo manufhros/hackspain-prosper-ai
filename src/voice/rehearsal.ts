@@ -44,7 +44,7 @@ export async function runRehearsal(inference: Inference, clinic: ClinicReader, i
     let answer = await agent.turn("", signal);
     for (let turn = 0; turn <= 24; turn++) {
       emit({ stage: "agent", elapsed_ms: 0, detail: answer });
-      const heard = await spokenRoundtrip(inference, answer, item.language, signal, emit, !!microphone);
+      const heard = await spokenRoundtrip(inference, answer, agent.currentLanguage, signal, emit, !!microphone);
       if (agent.record) break;
       if (turn === 24) throw new Error("Caller turn limit reached without a final record");
       let utterance: string;

@@ -39,7 +39,7 @@ export async function microphoneInput(
       status(stop === "timeout" ? "30-second limit reached · transcribing…" : "Microphone off · transcribing…");
       const captured = await inference.audio("record_stop", { file }, signal);
       recording = false;
-      const heard = captured.file ? await inference.audio("transcribe", { file, language }, signal) : captured;
+      const heard = captured.file ? await inference.audio("transcribe", { file }, signal) : captured;
       if (heard.text?.trim()) return heard.text.trim();
       status("No speech detected. Space to try again, or t to type.");
     } finally {

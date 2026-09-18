@@ -33,7 +33,7 @@ class FakeInference implements Inference {
   async removeAudio(file: string) { this.removed.push(file); this.speech.delete(file); }
 }
 test("free conversation accepts arbitrary input, reads the clinic and ends without a case score", async () => {
-  const inference = new FakeInference([say("Hello"), call("clinic", {}), say("We open at nine.")]);
+  const inference = new FakeInference([say("Hola"), call("clinic", {}), say("We open at nine.")]);
   const requests: string[] = [];
   const clinic: ClinicReader = { async request(request) {
     expect(request.method).toBe("GET"); requests.push(request.path);
@@ -46,10 +46,10 @@ test("free conversation accepts arbitrary input, reads the clinic and ends witho
   expect(report).not.toHaveProperty("case_id"); expect(report).not.toHaveProperty("evaluation");
   expect(report.record).toBeUndefined();
   expect(Date.parse(report.reference_time)).toBeGreaterThanOrEqual(before);
-  expect(report.transcript).toEqual([{ role: "agent", text: "Hello" }, { role: "caller", text: "What time do you open?" }, { role: "agent", text: "We open at nine." }]);
+  expect(report.transcript).toEqual([{ role: "agent", text: "Hola" }, { role: "caller", text: "What time do you open?" }, { role: "agent", text: "We open at nine." }]);
   expect(requests).toEqual(["/api/v1/clinic"]);
   expect(inference.seen.every(c => c.tools.length > 0)).toBe(true); // no generated caller
-  expect(inference.audioCalls.filter(c => c.operation === "speak").every(c => c.fields.language === "es" && c.fields.play === true)).toBe(true);
+  expect(inference.audioCalls.filter(c => c.operation === "speak").map(c => c.fields.language)).toEqual(["es", "en"]);
 });
 test("free conversations can continue beyond the scripted rehearsal turn cap", async () => {
   const inference = new FakeInference(Array.from({ length: 27 }, () => say("Anything else?")));
@@ -259,7 +259,7 @@ test("a microphone booking finishes on one acceptance and exports the mock test 
 test("free chat saves the mock resolution without requesting another caller reply", async () => {
   const record = { actions: [{ action: "NO_ACTION", reason: "out_of_scope" }] };
   let inputs = 0;
-  const report = await runFreeConversation(new FakeInference([say("Hello"), call("complete_call", record)]), noClinic, "es", signal(), () => {}, async () => {
+  const report = await runFreeConversation(new FakeInference([say("Hola"), call("complete_call", record)]), noClinic, "es", signal(), () => {}, async () => {
     inputs++; return "No necesito cita, gracias.";
   });
   expect(inputs).toBe(1); expect(report.status).toBe("completed"); expect(report.record).toEqual(record);

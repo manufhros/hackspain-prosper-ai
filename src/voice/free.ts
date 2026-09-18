@@ -41,7 +41,7 @@ export async function runFreeConversation(
     while (true) {
       signal.throwIfAborted();
       emit({ stage: "agent", elapsed_ms: 0, detail: answer });
-      await spokenRoundtrip(inference, answer, language, signal, emit, true);
+      await spokenRoundtrip(inference, answer, agent.currentLanguage, signal, emit, true);
       signal.throwIfAborted();
       if (agent.record) { status = "completed"; break; }
       const text = await input(signal);

@@ -20,11 +20,11 @@ function fixture(choices: (string | null)[], texts: (string | null)[] = [], tran
   return { operations, removed, messages, timeouts, abort, inference, terminal,
     run: () => microphoneInput(terminal, inference, abort.signal, "es", message => messages.push(message)) };
 }
-test("Space starts and stops immediately, transcription uses the chosen language, and audio is removed", async () => {
+test("Space starts and stops immediately, transcription auto-detects language, and audio is removed", async () => {
   const f = fixture(["space", "space"]);
   expect(await f.run()).toBe("Hola, una cita.");
   expect(f.operations.map(x => x.operation)).toEqual(["record_start", "record_stop", "transcribe"]);
-  expect(f.operations[2]!.fields.language).toBe("es");
+  expect(f.operations[2]!.fields).not.toHaveProperty("language");
   expect(f.removed).toEqual([f.operations[1]!.fields.file as string]);
   expect(f.timeouts).toEqual([undefined, RECORDING_LIMIT_MS]);
 });

@@ -177,6 +177,7 @@ export class PlatformCall {
           this.emit({ stage: "caller", elapsed_ms: heard.elapsed_ms, detail: text });
         }
         let answer = await this.agent.turn(text, this.signal);
+        this.language = this.agent.currentLanguage;
         if (version !== this.version || this.segmenter.speaking || this.inputs.length) {
           this.agent.reopenAfterInterruption();
           this.emit({ stage: "interruption", elapsed_ms: 0, detail: "New caller speech superseded a pending answer; nothing submitted" });

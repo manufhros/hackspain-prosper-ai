@@ -22,6 +22,10 @@ export class Workbench {
   private selected = 0;
   private scroll = 0;
   private filter = "";
+  private focus: "list" | "detail" = "list";
+  private follow = false;
+  private help = false;
+  private sections = new Map<number, { selected: number; scroll: number; filter: string; focus: "list" | "detail"; detail?: string }>();
   private status = "Offline. No API requests until you explicitly run one.";
   private detailOverride?: string;
   private answers = false;
@@ -110,30 +114,58 @@ export class Workbench {
     const items = this.items();
     this.selected = Math.max(0, Math.min(this.selected, items.length - 1));
     return { tab: this.tab, tabs, items: items.map(i => i.label), selected: this.selected,
-      detail: this.detailOverride ?? items[this.selected]?.detail ?? "No matches. Press / to change the filter or Esc to clear it.",
+      detail: this.help ? this.helpText() : this.detailOverride ?? items[this.selected]?.detail ?? "No matches. Press / to change the filter or Esc to clear it.",
+      focus: this.focus, fullscreen: this.busy || this.help, follow: this.follow,
       scroll: this.scroll, status: this.status, filter: this.filter,
-      footer: this.busy ? "Working… c cancels a voice test; Ctrl-C quits and stops local processes." : this.tab === 0 ? " f free chat   v voice test   m microphone   e manual   a answers" : " f free chat   Enter run/open   i import results   x export report",
+      footer: this.busy ? "Working… c cancels a voice test; Ctrl-C quits and stops local processes." : this.tab === 0 ? "Enter details · m microphone · v rehearse · f free chat · e outcome · a answers" : "Enter open/run · f free chat · i import · x export",
       mode: this.voice.state === "ready" ? "LOCAL VOICE READY" : this.config.origin ? "API configured" : "OFFLINE" };
   }
-  private show(value: unknown, status = "Done") { this.detailOverride = typeof value === "string" ? value : pretty(value); this.scroll = 0; this.status = status; this.terminal.draw(); }
+  private show(value: unknown, status = "Done") { this.focus = "detail"; this.follow = false; this.detailOverride = typeof value === "string" ? value : pretty(value); this.scroll = 0; this.status = status; this.terminal.draw(); }
   private reset() { this.scroll = 0; this.detailOverride = undefined; }
+  private helpText() {
+    return ["KEYBOARD SHORTCUTS", "", "NAVIGATION", "1–7 / Tab / Shift-Tab   Change section (position and search are preserved)",
+      "← / →                  Focus list / details", "↑↓ or j/k              Move in the focused pane", "Enter                  Open details or run the selected action",
+      "PgUp / PgDn            Scroll details, including during voice runs", "Home / End             First / last item or detail line; End resumes live follow",
+      "/                      Search this section", "Esc                    Close help/details, then clear search", "?                      Show / hide this help", "q / Ctrl-C             Quit", "",
+      "CASES & VOICE", "f                      Free conversation", "m / v                  Microphone / automated rehearsal", "e / a                  Enter outcome / reveal acceptable answers",
+      "c                      Cancel a running voice test", "", "RESULTS", "i / x                  Import results / export report", "",
+      "INPUT", "←→ / Home / End        Edit within a field", "Ctrl-U                 Clear input", "Enter / Esc            Accept / cancel"].join("\n");
+  }
   private handleKey(key: Key, text: string) {
     if (text === "q") { this.terminal.close(); return; }
     if (text === "c" && this.runAbort) { this.runAbort.abort(); return; }
+    if (text === "?") { this.help = !this.help; this.scroll = 0; this.follow = false; this.terminal.draw(); return; }
+    const scrollKey = ["pageup", "pagedown", "home", "end"].includes(key.name ?? "");
+    const direction = ["up", "down"].includes(key.name ?? "") || ["j", "k"].includes(text);
+    if (scrollKey && (this.focus === "detail" || this.busy || this.help || key.name?.startsWith("page")) || direction && (this.focus === "detail" || this.busy || this.help)) {
+      const viewport = detailViewport(process.stdout.columns || 100, process.stdout.rows || 30, this.busy || this.help);
+      const max = Math.max(0, wrap(this.view().detail, viewport.width).length - viewport.height);
+      const current = this.follow ? max : this.scroll;
+      const delta = key.name === "pageup" ? -viewport.height : key.name === "pagedown" ? viewport.height : key.name === "up" || text === "k" ? -1 : 1;
+      this.scroll = key.name === "home" ? 0 : key.name === "end" ? max : Math.min(max, Math.max(0, current + delta));
+      this.focus = "detail";
+      this.follow = !!this.runAbort && key.name === "end";
+      this.terminal.draw(); return;
+    }
+    if (this.help) { if (key.name === "escape") { this.help = false; this.scroll = 0; } this.terminal.draw(); return; }
     if (this.busy) return;
     if (key.name === "tab" || /^[1-7]$/.test(text ?? "")) {
+      this.sections.set(this.tab, { selected: this.selected, scroll: this.scroll, filter: this.filter, focus: this.focus, detail: this.detailOverride });
       this.tab = key.name === "tab" ? (this.tab + (key.shift ? tabs.length - 1 : 1)) % tabs.length : Number(text) - 1;
-      this.selected = 0; this.filter = ""; this.reset();
-    } else if (["up", "down"].includes(key.name ?? "") || ["j", "k"].includes(text)) {
-      this.selected += key.name === "up" || text === "k" ? -1 : 1; this.reset();
-    } else if (key.name === "pagedown" || key.name === "pageup") {
-      const page = Math.max(1, (process.stdout.rows || 30) - 8);
-      const viewport = detailViewport(process.stdout.columns || 100, process.stdout.rows || 30);
-      const max = Math.max(0, wrap(this.view().detail, viewport.width).length - viewport.height);
-      this.scroll = Math.min(max, Math.max(0, this.scroll + (key.name === "pageup" ? -page : page)));
-    } else if (key.name === "escape") { this.filter = ""; this.reset(); }
+      const saved = this.sections.get(this.tab);
+      this.selected = saved?.selected ?? 0; this.scroll = saved?.scroll ?? 0; this.filter = saved?.filter ?? "";
+      this.focus = saved?.focus ?? "list"; this.detailOverride = saved?.detail; this.follow = false;
+    } else if (direction || key.name === "home" || key.name === "end") {
+      this.selected = key.name === "home" ? 0 : key.name === "end" ? this.items().length - 1 : this.selected + (key.name === "up" || text === "k" ? -1 : 1); this.reset();
+    } else if (key.name === "right") { this.focus = "detail"; }
+    else if (key.name === "left") { this.focus = "list"; }
+    else if (key.name === "escape") {
+      if (this.detailOverride) { this.reset(); this.focus = "list"; }
+      else if (this.focus === "detail") this.focus = "list";
+      else { this.filter = ""; this.reset(); }
+    }
     else if (text === "a" && this.tab === 0) { this.answers = !this.answers; this.reset(); }
-    else if (text === "/") void this.task(async () => { const query = await this.terminal.ask("Search"); if (query !== null) { this.filter = query; this.selected = 0; this.reset(); } });
+    else if (text === "/") void this.task(async () => { const query = await this.terminal.ask("Search"); if (query !== null) { this.filter = query; this.selected = 0; this.focus = "list"; this.reset(); } });
     else if (text === "i") void this.task(() => this.importResults());
     else if (text === "x") void this.task(async () => this.show(await saveLocal(`report-${Date.now()}.json`, evaluateBatch(this.results)), "Report exported"));
     else if (text === "e" && this.tab === 0) void this.task(() => this.enterOutcome());
@@ -228,7 +260,7 @@ export class Workbench {
   private async activate() {
     const item = this.items()[this.selected];
     if (!item) return;
-    if (item.case) return this.enterOutcome();
+    if (item.case || this.tab === 3 || this.tab === 4) { this.focus = "detail"; return; }
     if (item.endpoint) return this.api(item.endpoint);
     if (this.tab === 2) return this.lab(item.id);
     if (this.tab === 6) {

@@ -12,6 +12,7 @@ test("keyboard navigation, search, action cancellation and import errors without
   new Workbench((view, onKey) => {
     current = view; press = onKey;
     return { abort: new AbortController(), start() {}, draw() {}, close() { closed = true; },
+      async choose() { return null; },
       async ask(title) { questions.push(title); return answers.shift() ?? null; } };
   });
   const type = (text: string, key: Key = {}) => press(key, text);
@@ -46,4 +47,27 @@ test("keyboard navigation, search, action cancellation and import errors without
   answers.push(`/nonexistent-${crypto.randomUUID()}.json`); type("i"); await idle();
   expect(current().status).toContain("Could not complete action");
   type("q"); expect(closed).toBe(true);
+});
+
+test("section state persists, arrows focus details, Enter reads a case, and help is dismissible", async () => {
+  let current!: () => View;
+  let press!: (key: Key, text: string) => void;
+  let questions = 0;
+  new Workbench((view, onKey) => {
+    current = view; press = onKey;
+    return { abort: new AbortController(), start() {}, draw() {}, close() {}, async choose() { return null; },
+      async ask() { questions++; return "third_party"; } };
+  });
+  press({}, "/"); await Bun.sleep(1);
+  press({ name: "down" }, "");
+  expect(current().selected).toBe(1);
+  press({ name: "return" }, ""); await Bun.sleep(1);
+  expect(current().focus).toBe("detail"); expect(questions).toBe(1);
+  press({ name: "down" }, ""); expect(current().scroll).toBe(1); expect(current().selected).toBe(1);
+  press({}, "2"); press({}, "1");
+  expect(current().filter).toBe("third_party"); expect(current().selected).toBe(1); expect(current().scroll).toBe(1);
+  press({}, "?"); expect(current().detail).toContain("KEYBOARD SHORTCUTS");
+  press({ name: "escape" }, ""); expect(current().detail).not.toContain("KEYBOARD SHORTCUTS");
+  press({ name: "left" }, ""); expect(current().focus).toBe("list");
+  press({ name: "end" }, ""); expect(current().selected).toBe(3);
 });

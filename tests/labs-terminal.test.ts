@@ -39,3 +39,19 @@ test("terminal renders empty/error states, scrolls, and strips remote control se
   expect(Bun.stringWidth(fit("España 🎉", 10))).toBe(10);
   expect(render(view, 20, 5, false)).toContain("Resize terminal");
 });
+
+test("narrow layouts give the focused pane the whole body and show useful shortcuts", () => {
+  const list = render({ ...view, focus: "list" }, 40, 12, false);
+  const detail = render({ ...view, focus: "detail" }, 40, 12, false);
+  expect(list).toContain("Two");
+  expect(list).not.toContain("Clínica");
+  expect(detail).toContain("Clínica");
+  expect(detail).toContain("? help");
+  expect(detail).not.toContain("Two");
+});
+test("live transcript follows the newest wrapped lines and can pause for scrollback", () => {
+  const detail = Array.from({ length: 80 }, (_, i) => `Turn ${i + 1}`).join("\n");
+  expect(render({ ...view, detail, fullscreen: true, follow: true }, 80, 24, false)).toContain("Turn 80");
+  expect(render({ ...view, detail, fullscreen: true, follow: false, scroll: 0 }, 80, 24, false)).not.toContain("Turn 80");
+  expect(fit("e\u0301👩‍💻", 3).trimEnd()).toBe("e\u0301👩‍💻");
+});

@@ -1,5 +1,5 @@
 import { cases, problems, type Action, type Outcome, type PublicCase, type TranscriptTurn } from "./data";
-import { fold, isObject, madridDay, nationalId, phone, validateOutcome } from "./validation";
+import { fold, isObject, madridDay, nationalId, phone, validateOutcome, validSlot } from "./validation";
 
 export interface Evaluation {
   case_id: string;
@@ -103,7 +103,7 @@ export function evaluate(item: PublicCase, record: unknown, transcript?: Transcr
   const stale = referenceTime !== undefined && madridDay(referenceTime) !== madridDay(item.reference_time);
   if (stale) warnings.push(`Date anchor differs: saved ${item.reference_time}; result ${referenceTime}. Fetch today's answers on the dashboard.`);
   return {
-    case_id: item.id, status: differences.length ? (stale ? "needs_review" : "fail")
+    case_id: item.id, status: differences.length ? (stale && !errors.length && privacy !== "leak_detected" ? "needs_review" : "fail")
       : stale || privacy === "missing_transcript" ? "needs_review" : "pass",
     recordMatches, differences, privacy, warnings,
   };
@@ -117,7 +117,7 @@ export function parseResults(value: unknown): ResultInput[] {
     if (!cases.some(c => c.id === row.case_id)) throw new Error(`Unknown case: ${row.case_id}`);
     if (ids.has(row.case_id)) throw new Error(`Duplicate case in one run: ${row.case_id}`);
     ids.add(row.case_id);
-    if (row.reference_time !== undefined && (typeof row.reference_time !== "string" || !Number.isFinite(Date.parse(row.reference_time)))) throw new Error(`results[${i}]: invalid reference_time`);
+    if (row.reference_time !== undefined && (typeof row.reference_time !== "string" || !validSlot(row.reference_time))) throw new Error(`results[${i}]: reference_time needs a valid ISO timestamp with timezone`);
     if (row.transcript !== undefined && (!Array.isArray(row.transcript) || row.transcript.some(t => !isObject(t) || !["caller", "agent"].includes(String(t.role)) || typeof t.text !== "string"))) throw new Error(`results[${i}]: transcript must contain { role: agent|caller, text } turns`);
     return row as unknown as ResultInput;
   });

@@ -58,7 +58,7 @@ export function validate(value: unknown, input: Schema, path = "body"): string[]
     if (s.const !== undefined && value !== s.const) errors.push(`${path}: expected ${s.const}`);
     if (s.format === "date" && !validDate(value)) errors.push(`${path}: invalid ISO date`);
     if (s.format === "date-time" && !validSlot(value)) errors.push(`${path}: valid ISO timestamp with explicit timezone required`);
-    if (path.endsWith(".national_id") && !validNationalId(value)) errors.push(`${path}: invalid DNI/NIE check letter or format`);
+    if ((path === "national_id" || path.endsWith(".national_id")) && !validNationalId(value)) errors.push(`${path}: invalid DNI/NIE check letter or format`);
   } else if (s.type === "boolean" && typeof value !== "boolean") errors.push(`${path}: expected boolean`);
   return errors;
 }

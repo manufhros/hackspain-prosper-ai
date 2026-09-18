@@ -53,7 +53,9 @@ test("search_availability remaps orthopedics and fills dates", async () => {
     ctx({
       availability: async (q) => {
         query = q;
-        return { providers: [], slots: [], blocked: [], appointment_type: { id: "review" } };
+        return { providers: [], slots: [], blocked: [], appointment_type: {
+          id: "review", name: "Review", duration_minutes: 15, new_patient_requirement: "", guidance: "",
+        } };
       },
     }),
     "search_availability",

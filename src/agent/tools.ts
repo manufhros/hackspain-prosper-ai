@@ -84,6 +84,9 @@ export function asSpecialty(value: unknown): string | undefined {
 
 export function addYmd(ymd: string, days: number): string {
   const [year, month, day] = ymd.split("-").map(Number);
+  if (year === undefined || month === undefined || day === undefined || ![year, month, day].every(Number.isFinite)) {
+    throw new Error("Invalid calendar date");
+  }
   const next = new Date(Date.UTC(year, month - 1, day + days));
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }

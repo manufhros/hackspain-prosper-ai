@@ -5,6 +5,7 @@ import { clinicClient } from "../voice/platform";
 import { LocalRuntime } from "../voice/runtime";
 import { defaultVad, SharedAudio } from "./audio";
 import { PlatformCall, type CallOptions } from "./call";
+import { LiveTranscript } from "./transcript";
 
 export const serverHelp = `Prosper / Twilio-compatible voice endpoint
 
@@ -23,6 +24,7 @@ Then start your tunnel yourself: ngrok http 7860
 Set Prosper Settings > Integration > Endpoint to wss://<tunnel-host>/ws.
 Set its Authorization header too if VOICE_SERVER_TOKEN is configured.
 GET /healthz reports readiness. Per-call reports: .workbench/platform-*.json.
+Live transcripts print with numbered conversation labels and start/end separators.
 No Twilio account, phone number, TwiML endpoint or signature is required by this track.
 `;
 export function serverConfig(env: Record<string, string | undefined>, args: string[]) {
@@ -108,10 +110,13 @@ export async function runServer(args: string[]) {
   const clinic = await clinicClient(await loadConfig());
   const lifetime = new AbortController();
   const voice = new LocalRuntime(message => console.log(message));
+  const transcript = new LiveTranscript();
   const handlers = serverHandlers(config, { inference: voice, audio: new SharedAudio(voice, lifetime.signal), clinic, lifetime: lifetime.signal,
+    onEvent: transcript.event,
     async report(report) {
-      const saved = await saveLocal(`platform-${report.session_id}.json`, report);
-      console.log(`Call ${report.session_id}: ${report.status}; ${report.submissions.filter(s => s.accepted).length} actions accepted. Report: ${saved}`);
+      let saved: string | undefined;
+      try { saved = await saveLocal(`platform-${report.session_id}.json`, report); }
+      finally { transcript.finish(report, saved); }
     } }, () => voice.state === "ready" && !lifetime.signal.aborted);
   let server: Server<SocketData> | undefined;
   const shutdown = () => { lifetime.abort(new Error("Server shutting down")); voice.stop(); };

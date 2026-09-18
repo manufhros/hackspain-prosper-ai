@@ -7,6 +7,7 @@ import { delay, SharedAudio, VoiceActivity, type VadOptions } from "./audio";
 import { ResolutionSubmitter, type SubmissionReceipt } from "./submission";
 
 export interface CallSocket { send(message: string): number; close(code: number, reason: string): void }
+export interface CallIdentity { session_id: string; call_id?: string }
 export interface PlatformCallReport {
   session_id: string; call_id?: string; stream_sid?: string; mode: "platform" | "dry_run";
   reference_time: string; elapsed_ms: number; status: "completed" | "ended" | "error";
@@ -18,6 +19,7 @@ export interface CallOptions {
   lifetime: AbortSignal; live: boolean; language: string; vad: VadOptions;
   claim(callId: string): boolean;
   report(report: PlatformCallReport): Promise<void>;
+  onEvent?(call: CallIdentity, event: TraceEvent): void;
   now?: () => number; sleep?: typeof delay;
 }
 
@@ -70,6 +72,7 @@ export class PlatformCall {
   };
   private emit = (event: TraceEvent) => {
     this.events.push(event); if (this.events.length > 500) this.events.shift();
+    this.options.onEvent?.({ session_id: this.id, call_id: this.inspector.callId }, event);
   };
   receive(raw: string | Buffer) {
     if (this.ended) return;
@@ -91,6 +94,7 @@ export class PlatformCall {
         const phone = typeof custom.from_number === "string" && /^\+[1-9]\d{6,14}$/.test(custom.from_number) ? custom.from_number : undefined;
         this.agent = new Receptionist(this.options.inference, this.options.clinic, new Date(this.started).toISOString(), this.language, this.emit, { mode: "platform", callerPhone: phone });
         this.submitter = new ResolutionSubmitter(this.options.clinic, callId, this.options.live, this.options.lifetime, this.now);
+        this.emit({ stage: "start", elapsed_ms: 0, detail: this.options.live ? "Real test submissions" : "Dry run" });
         this.callTimer = setTimeout(() => this.end(), 180_000); this.callTimer.unref();
         this.greeting = true; void this.pump();
       } else if (message.event === "media" && !this.finalizing) {

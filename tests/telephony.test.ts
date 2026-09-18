@@ -3,6 +3,7 @@ import { wireMessages } from "../src/protocol";
 import { defaultVad, SharedAudio } from "../src/telephony/audio";
 import { PlatformCall, type PlatformCallReport } from "../src/telephony/call";
 import { ResolutionSubmitter } from "../src/telephony/submission";
+import { LiveTranscript } from "../src/telephony/transcript";
 import { type ClinicReader } from "../src/voice/agent";
 import { type Inference, type Message } from "../src/voice/runtime";
 import { type ObjectValue, type Outcome } from "../src/data";
@@ -21,6 +22,8 @@ function fixture(replies: Message[] = [say("Hola"), complete()], live = true, st
   const requests: { path: string; method: string; body?: ObjectValue }[] = [];
   const seen: Message[][] = [];
   const audioCalls: string[] = [];
+  const output: string[] = [];
+  const transcript = new LiveTranscript(text => output.push(text));
   const inference: Inference = {
     async chat(messages, _tools, signal) { signal.throwIfAborted(); seen.push(structuredClone(messages)); const message = replies.shift(); if (!message) throw new Error("No fake response"); return { message, elapsed_ms: 1 }; },
     async audio(op, _fields, signal) { signal.throwIfAborted(); audioCalls.push(op); return op === "speak" ? { payload: speech.toString("base64"), elapsed_ms: 1 } : { text: "No necesito cita", language: "es", elapsed_ms: 1 }; },
@@ -31,7 +34,8 @@ function fixture(replies: Message[] = [say("Hola"), complete()], live = true, st
   const options = { inference, audio: new SharedAudio(inference, lifetime.signal), clinic, lifetime: lifetime.signal,
     live, language: "es", vad: defaultVad,
     claim: (id: string) => { if (claimed.has(id)) return false; claimed.add(id); return true; },
-    report: async (report: PlatformCallReport) => { reports.push(report); },
+    onEvent: transcript.event,
+    report: async (report: PlatformCallReport) => { reports.push(report); transcript.finish(report, `/reports/${report.session_id}.json`); },
     socket: { send: (raw: string) => { sent.push(JSON.parse(raw)); return raw.length; }, close() {} },
     sleep: async (ms: number, signal: AbortSignal) => { signal.throwIfAborted(); sleeps.push(ms); },
   };
@@ -44,12 +48,17 @@ function fixture(replies: Message[] = [say("Hola"), complete()], live = true, st
       const media = wire.media(index); media.media.payload = (index < frames ? speech : silence).toString("base64"); call.receive(JSON.stringify(media));
     }
   };
-  return { call, start, utterance, lifetime, reports, sent, sleeps, requests, seen, audioCalls, options, inference, clinic };
+  return { call, start, utterance, lifetime, reports, sent, sleeps, requests, seen, audioCalls, output, options, inference, clinic };
 }
 
 test("platform call greets, transcribes mu-law, submits its actual callSid and sends paced audio", async () => {
   const f = fixture(); const wire = f.start(); await tick();
+  expect(f.reports).toHaveLength(0);
+  expect(f.output).toContain("[Call 1] RECEPTIONIST: Hola");
+  expect(f.output[0]).toContain("CONVERSATION START · real-call-1");
   f.utterance(wire); await f.call.done;
+  expect(f.output).toContain("[Call 1] CALLER: No necesito cita");
+  expect(f.output.some(line => line.includes("[Call 1] ===== CONVERSATION END · completed · 1 actions accepted"))).toBe(true);
   expect(f.requests).toEqual([{ method: "POST", path: "/api/v1/submit/no-action", body: { reason: "out_of_scope", call_id: "real-call-1" } }]);
   expect(f.reports[0]!.status).toBe("completed"); expect(f.reports[0]!.mode).toBe("platform");
   expect(f.reports[0]!.submissions[0]!.accepted).toBe(true);
@@ -100,6 +109,26 @@ test("twenty overlapping calls retain independent histories, IDs and submissions
   expect(f.requests).toHaveLength(20); expect(new Set(f.requests.map(r => r.body!.call_id)).size).toBe(20);
   expect(f.reports.every(r => r.status === "completed")).toBe(true);
   for (const { sent, i } of calls) expect(sent.every(message => message.streamSid === `MZ-${i}`)).toBe(true);
+  for (let i = 0; i < 20; i++) {
+    const label = `[Call ${i + 2}]`; // fixture's initial, ended socket was Call 1
+    expect(f.output).toContain(`\n${label} ===== CONVERSATION START · real-${i} =====`);
+    expect(f.output).toContain(`${label} CALLER: No necesito cita`);
+    expect(f.output).toContain(`${label} RECEPTIONIST: Hola`);
+    expect(f.output.filter(line => line.startsWith(`${label} ===== CONVERSATION END`))).toHaveLength(1);
+  }
+});
+
+test("live transcript keeps control characters and multiline text inside the conversation label", () => {
+  const output: string[] = [], transcript = new LiveTranscript(text => output.push(text));
+  const call = { session_id: "test-session", call_id: "test-call" };
+  transcript.event(call, { stage: "caller", elapsed_ms: 0, detail: "Hola\n[Call 2] forged\r\u001b[2J\u0007adiós" });
+  transcript.event(call, { stage: "interruption", elapsed_ms: 0, detail: "Playback stopped" });
+  transcript.event(call, { stage: "tool", elapsed_ms: 0, detail: "Internal tool detail" });
+  expect(output).toEqual([
+    "\n[Call 1] ===== CONVERSATION START · test-call =====",
+    "[Call 1] CALLER: Hola [Call 2] forged adiós",
+    "[Call 1] INTERRUPTED: Playback stopped",
+  ]);
 });
 test("one socket rejects a reused callSid while the original socket stays usable", async () => {
   const f = fixture(); f.start("shared-id"); await tick();

@@ -136,6 +136,8 @@ The models are shared, and native speech operations run through a bounded serial
 | `VOICE_VAD_THRESHOLD` | `0.015` | Normalized RMS threshold; raise if noise triggers turns, lower if quiet speech is missed. |
 | `VOICE_SILENCE_MS` | `800` | Pause before transcribing a caller turn, 200–3000 ms. |
 
+The `serve` terminal prints live **CALLER** and **RECEPTIONIST** turns, with numbered conversation labels on every line and start/end separators. Each start shows the platform call ID; overlapping calls keep their own label. Caller text appears after transcription, receptionist text before playback, and interruptions are labeled explicitly. Call endings show status, accepted actions, and the saved report path.
+
 Reports are private `.workbench/platform-<session-id>.json` files with the real `call_id`, intended record, per-action receipts, generated transcript, stage/interruption events, and errors. Generated text is not proof that every word was played; interruption events identify superseded answers. Raw incoming audio stays in bounded memory and is not saved. Ctrl-C stops this server's owned processes and saves partial call reports. A failed runtime makes `/healthz` return `503`; restart the server after inspecting its output.
 
 The transport and route shapes follow [the archived track contract](task/contract.md), [Twilio Media Streams](https://www.twilio.com/docs/voice/media-streams/websocket-messages), and [Bun 1.4.2 WebSockets](https://github.com/oven-sh/bun/blob/bun-v1.4.2/docs/runtime/http/websockets.mdx). No listening server, tunnel, or authenticated platform call was started during automated verification.

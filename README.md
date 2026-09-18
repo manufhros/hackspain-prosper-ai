@@ -53,6 +53,10 @@ Free conversations use the current connection time and real Prosper clinic data,
 
 This is a turn-based local rehearsal. It does **not** reproduce the organiser's caller model, published background-noise beds, streaming/barge-in, concurrent-call performance or official scoring. Noise cases currently use clean audio. Clinic reads use the live API while the simulated date uses the archived case timestamp; inspect mismatches if the live world changes. Proposed bookings/cancellations are never written by the voice runner. Use dashboard practice for official evidence.
 
+Local completion is a mock of the track's resolution, not an appointment write. Once the caller accepts the final specific action, the receptionist calls `complete_call` with `{ "actions": [...] }`. The workbench validates the fields and retrieved patient/slot/appointment data, saves the resolution, plays a short closing message, and ends the chat without another model turn or confirmation. Three rejected completion attempts end the run with a visible error instead of an endless loop.
+
+The finished screen and saved free/case reports contain the exact `record: { "actions": [...] }` shape used by the track, plus `platform_submission: false` and a `submission_preview` with one `POST /api/v1/submit/<action>` payload per action. These requests are **never sent**. Their `<start.callSid>` value is an explicit placeholder; only an official test's incoming call ID can replace it, never the local conversation UUID. `REGISTER` retains `new_patient` in the record and flattens its demographics in the submission preview. See [the track contract](task/contract.md#3-post-apiv1submitaction).
+
 For manual evaluation:
 
 1. Start with `bun start --offline`, select a case, and read the caller's objectives. Keep answers hidden while solving it.

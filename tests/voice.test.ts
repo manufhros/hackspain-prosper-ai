@@ -237,3 +237,33 @@ test("repeated invalid completion stops locally instead of asking for endless co
   expect(inference.seen).toHaveLength(3); expect(agent.record).toBeUndefined();
   expect(agent.events.filter(e => e.stage === "tool")).toHaveLength(3);
 });
+
+test("a microphone booking finishes on one acceptance and exports the mock test payload", async () => {
+  const inference = new FakeInference([directory(), availability(), say("¿Le viene bien esta cita?"), call("complete_call", booking)]);
+  const { clinic, requests } = clinicFixture();
+  let confirmations = 0;
+  const report = await runRehearsal(inference, clinic, bookCase, signal(), () => {}, async () => {
+    confirmations++; return "Sí, esa opción me parece perfecta.";
+  });
+  expect(confirmations).toBe(1); expect(report.error).toBeUndefined();
+  expect(report.record).toEqual(booking); expect(report.evaluation.status).toBe("pass");
+  expect(report.platform_submission).toBe(false);
+  expect(report.submission_preview).toEqual([{ method: "POST", path: "/api/v1/submit/book", body: {
+    patient_id: action.patient_id, provider_id: action.provider_id, location_id: action.location_id,
+    appointment_type_id: action.appointment_type_id, slot: action.slot, policy_id: action.policy_id, call_id: "<start.callSid>",
+  } }]);
+  expect(requests).toHaveLength(2);
+  expect(inference.audioCalls.filter(c => c.operation === "speak")).toHaveLength(2);
+  expect(inference.seen).toHaveLength(4);
+});
+test("free chat saves the mock resolution without requesting another caller reply", async () => {
+  const record = { actions: [{ action: "NO_ACTION", reason: "out_of_scope" }] };
+  let inputs = 0;
+  const report = await runFreeConversation(new FakeInference([say("Hello"), call("complete_call", record)]), noClinic, "es", signal(), () => {}, async () => {
+    inputs++; return "No necesito cita, gracias.";
+  });
+  expect(inputs).toBe(1); expect(report.status).toBe("completed"); expect(report.record).toEqual(record);
+  expect(report.platform_submission).toBe(false);
+  expect(report.submission_preview).toEqual([{ method: "POST", path: "/api/v1/submit/no-action", body: { reason: "out_of_scope", call_id: "<start.callSid>" } }]);
+  expect(report.transcript.at(-1)?.text).toBe(completionSpeech("es"));
+});

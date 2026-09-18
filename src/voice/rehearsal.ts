@@ -2,9 +2,11 @@ import { type PublicCase, type TranscriptTurn } from "../data";
 import { evaluate, type ResultInput } from "../evaluate";
 import { fold, isObject } from "../validation";
 import { Receptionist, type ClinicReader, type TraceEvent } from "./agent";
+import { simulatedSubmission, type SubmissionPreview } from "./resolution";
 import { type Inference, type Message } from "./runtime";
 
 export interface RehearsalReport {
+  platform_submission: false; submission_preview: SubmissionPreview;
   case_id: string; mode: "automated_voice" | "microphone"; reference_time: string;
   record: { actions: import("../data").Action[] }; transcript: TranscriptTurn[];
   events: TraceEvent[]; elapsed_ms: number; error?: string; limitations: string[];
@@ -67,6 +69,7 @@ export async function runRehearsal(inference: Inference, clinic: ClinicReader, i
   // A matching record cannot turn an interrupted/incomplete audio run into success.
   if (error) { evaluation.status = "fail"; evaluation.differences.push(`voice_run: ${error}`); }
   return { case_id: item.id, mode: microphone ? "microphone" : "automated_voice", reference_time: item.reference_time,
+    platform_submission: false, submission_preview: agent.record ? simulatedSubmission(agent.record).submission_preview : [],
     record, transcript: agent.transcript, events, elapsed_ms: Math.round(performance.now() - started), error, evaluation,
     limitations: ["Local caller model, not the organiser's caller/harness.", "Serial, turn-based audio with 8 kHz mu-law conversion; no streaming or barge-in assessment.",
       "Published background-noise recordings are not included; noise cases run in clean audio.", "Clinic reads are real; final actions stay local. Simulation uses the archived case's connection time."] };

@@ -23,6 +23,8 @@ export function simulatedSubmission(record: Outcome) {
   };
 }
 
+export type SubmissionPreview = ReturnType<typeof simulatedSubmission>["submission_preview"];
+
 export function completionSpeech(language: string): string {
   return ({
     en: "I've recorded the outcome of this simulation. Thank you for calling. Goodbye.",

@@ -349,8 +349,10 @@ export class Workbench {
       const saved = await saveLocal(`free-${report.session_id}.json`, report);
       this.show([
         `FREE CONVERSATION · ${report.status.toUpperCase()}`, `${report.language.toUpperCase()} · ${Math.round(report.elapsed_ms / 1000)}s`,
-        ...(report.error ? ["", `Error: ${report.error}`] : []), "", this.conversation.join("\n\n"),
-        "", "PROPOSED ACTIONS (local only)", pretty(report.record?.actions ?? []), "", `Full report: ${saved}`,
+        ...(report.error ? ["", `Error: ${report.error}`] : []),
+        "", "TEST RESOLUTION (simulated; nothing submitted)", report.record ? pretty(report.record) : "No valid resolution captured.",
+        "", "TRANSCRIPT", this.conversation.join("\n\n"),
+        "", "SUBMISSION PREVIEW (call_id must be the real start.callSid)", pretty(report.submission_preview), "", `Full report: ${saved}`,
       ].join("\n"), `Conversation ${report.status} · f starts a new call`);
     } finally { this.runAbort = undefined; }
   }
@@ -385,8 +387,10 @@ export class Workbench {
         await saveLocal("results.json", this.results);
         this.show([
           `${item.id} · ${report.evaluation.status.toUpperCase()}`, ...(report.error ? [`Error: ${report.error}`] : []),
-          "", this.conversation.join("\n\n"), "", "PROPOSED ACTIONS (local only)", pretty(report.record.actions),
-          "", "COMPARISON", ...report.evaluation.differences, "", `Full report: ${stateDir}/${batch}-${index + 1}.json`,
+          "", "TEST RESOLUTION (simulated; nothing submitted)", pretty(report.record),
+          "", "COMPARISON", ...report.evaluation.differences, "", "TRANSCRIPT", this.conversation.join("\n\n"),
+          "", "SUBMISSION PREVIEW (call_id must be the real start.callSid)", pretty(report.submission_preview),
+          "", `Full report: ${stateDir}/${batch}-${index + 1}.json`,
         ].join("\n"), `${index + 1}/${selected.length}: ${report.evaluation.status} · see Results for comparison`);
         if (this.voice.state !== "ready") break; // Failed worker needs setup retry; do not mark the remaining cases as tested.
       }

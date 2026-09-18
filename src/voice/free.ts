@@ -1,6 +1,7 @@
 import { type Outcome, type TranscriptTurn } from "../data";
 import { Receptionist, type ClinicReader, type TraceEvent } from "./agent";
 import { spokenRoundtrip } from "./rehearsal";
+import { simulatedSubmission, type SubmissionPreview } from "./resolution";
 import { type Inference } from "./runtime";
 
 export type VoiceLanguage = "en" | "es" | "ca";
@@ -11,6 +12,8 @@ export interface FreeConversationReport {
   reference_time: string;
   status: "completed" | "ended" | "cancelled" | "error";
   record?: Outcome;
+  platform_submission: false;
+  submission_preview: SubmissionPreview;
   transcript: TranscriptTurn[];
   events: TraceEvent[];
   elapsed_ms: number;
@@ -53,6 +56,7 @@ export async function runFreeConversation(
     error = cause instanceof Error ? cause.message : String(cause);
   }
   return { session_id: crypto.randomUUID(), mode: "free_conversation", language, reference_time: referenceTime,
-    status, ...(agent.record ? { record: agent.record } : {}), transcript: agent.transcript, events,
+    status, platform_submission: false, submission_preview: agent.record ? simulatedSubmission(agent.record).submission_preview : [],
+    ...(agent.record ? { record: agent.record } : {}), transcript: agent.transcript, events,
     elapsed_ms: Math.round(performance.now() - started), ...(error ? { error } : {}) };
 }

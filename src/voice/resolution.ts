@@ -25,7 +25,8 @@ export function simulatedSubmission(record: Outcome) {
 
 export type SubmissionPreview = ReturnType<typeof simulatedSubmission>["submission_preview"];
 
-export function completionSpeech(language: string): string {
+export function completionSpeech(language: string, mode: "rehearsal" | "platform" = "rehearsal"): string {
+  if (mode === "platform") return ({ en: "Thank you for calling. Goodbye.", es: "Gracias por llamar. Hasta luego.", ca: "Gràcies per trucar. Fins aviat." } as Record<string, string>)[language] ?? "Thank you for calling. Goodbye.";
   return ({
     en: "I've recorded the outcome of this simulation. Thank you for calling. Goodbye.",
     es: "He guardado el resultado de esta simulación. Gracias por llamar. Hasta luego.",

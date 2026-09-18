@@ -35,8 +35,9 @@ export class Receptionist {
   private patients = new Set<string>();
   private slots: ObjectValue[] = [];
   private appointments = new Map<string, ObjectValue>();
-  constructor(private inference: Inference, private clinic: ClinicReader, readonly referenceTime: string, private readonly language: string,
-    private update: (event: TraceEvent) => void = () => {}) {
+  constructor(private inference: Inference, private clinic: ClinicReader, readonly referenceTime: string, private language: string,
+    private update: (event: TraceEvent) => void = () => {},
+    private options: { mode?: "rehearsal" | "platform"; callerPhone?: string } = {}) {
     // No public case, persona, expected outcome or protected-field oracle enters this context.
     this.messages = [{ role: "system", content: [
       "You are the receptionist of Clinica Arenal in a local scheduling rehearsal. Sound like a helpful human receptionist. Use one or two short sentences per turn and at most one question. Speak in the caller's current language, including appointment types and specialties.",
@@ -54,6 +55,24 @@ export class Receptionist {
       "complete_call records the final action list locally: REGISTER, BOOK, RESCHEDULE, CANCEL, NO_ACTION or ESCALATE. An explicit refusal still requires an action. The clinic is read-only even in the hackathon. Official tests report would-be writes to POST /api/v1/submit/<action>, one per action, using the real start.callSid. This rehearsal mocks those submissions locally: do not try to create or update appointments, invent a call_id, or call a submission endpoint. Pass {\"actions\":[...]} directly to complete_call, with action verbs and exact API fields; do not wrap it inside record. A successful call automatically plays a closing statement and ends the chat.",
       "If a tool rejects a record, repair its arguments using retrieved facts and retain the caller's consent when the proposed action is unchanged. Repeating a confirmation question does not fix a tool error. If the actual option must change, explain it and confirm only that change. Never claim success while a tool error is unresolved or fabricate a result.",
     ].join("\n") }];
+    if (options.mode === "platform") {
+      this.messages[0]!.content = this.messages[0]!.content
+        .replace("in a local scheduling rehearsal", "answering a Prosper platform test call")
+        .replace("This rehearsal mocks those submissions locally", "The transport submits the final resolution to the official test routes")
+        .replace("A successful call automatically plays a closing statement and ends the chat.", "The transport submits your captured record before playing a closing statement. Do not speak about simulations or internal tools to the caller.");
+    }
+    if (options.callerPhone) this.messages[0]!.content += `\nCarrier caller-ID hint: ${JSON.stringify(options.callerPhone)}. You may look up the chart with directory(phone), but still verify identity; this number does not prove who is calling or who the patient is.`;
+  }
+  setLanguage(language: string) {
+    if (!["en", "es", "ca"].includes(language) || language === this.language) return;
+    this.language = language;
+    this.messages.push({ role: "system", content: `The caller's latest speech was recognized as ${language}. Respond in this language unless they explicitly request another.` });
+  }
+  reopenAfterInterruption() {
+    if (!this.record || this.options.mode !== "platform") return;
+    this.record = undefined;
+    this.transcript.pop(); this.messages.pop(); // the generated closing statement was never played
+    this.messages.push({ role: "system", content: "The caller interrupted before submission. No actions have been submitted. Resolve their latest correction before calling complete_call again with ALL final intents." });
   }
   private emit(stage: string, elapsed_ms: number, detail: string) { const event = { stage, elapsed_ms, detail }; this.events.push(event); this.update(event); }
   async turn(text: string, signal: AbortSignal): Promise<string> {
@@ -62,7 +81,9 @@ export class Receptionist {
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
     for (let step = 0; step < 10; step++) {
       signal.throwIfAborted();
-      const reply = await this.inference.chat(this.messages, agentTools, signal);
+      const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
+        ? { ...tool, function: { ...tool.function, description: "Capture ALL final, confirmed intents as {actions: [...]}. The transport submits the record to Prosper using this call's real ID and ends the call. Do not call HTTP write tools or ask for another confirmation." } } : tool) : agentTools;
+      const reply = await this.inference.chat(this.messages, tools, signal);
       this.emit("reasoning", reply.elapsed_ms, "Local receptionist response");
       this.messages.push(reply.message);
       const calls = reply.message.tool_calls ?? [];
@@ -80,7 +101,7 @@ export class Receptionist {
           if (this.record) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
-            const answer = completionSpeech(this.language);
+            const answer = completionSpeech(this.language, this.options.mode);
             this.messages.push({ role: "assistant", content: answer });
             this.transcript.push({ role: "agent", text: answer });
             return answer;
@@ -104,7 +125,7 @@ export class Receptionist {
       const record = completionRecord(args);
       this.checkGrounding(record.actions);
       this.record = structuredClone(record);
-      return simulatedSubmission(this.record);
+      return this.options.mode === "platform" ? { accepted_locally: true, platform_submission: "pending", record: this.record } : simulatedSubmission(this.record);
     }
     const endpoint = readEndpoints.find(e => toolName(e.path) === name);
     if (!endpoint) throw new Error("Tool not allowed. Only read-only clinic tools and complete_call exist.");

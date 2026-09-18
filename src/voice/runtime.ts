@@ -11,7 +11,7 @@ import { OpenRouterChat } from "./openrouter";
 export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; tool_call_id?: string; reasoning_details?: unknown[] }
 export interface ToolCall { id?: string; arguments_text?: string; function: { name: string; arguments: ObjectValue } }
 export interface ChatReply { message: Message; elapsed_ms: number; metrics?: Record<string, number | string> }
-export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number }
+export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean }
 export interface Inference {
   chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply>;
   audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply>;

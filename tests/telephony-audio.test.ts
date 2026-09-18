@@ -37,3 +37,34 @@ test("one caller cancelling cannot abort native audio or another caller", async 
   expect(pending).toHaveLength(1); pending.shift()!({ elapsed_ms: 2 });
   expect((await second).elapsed_ms).toBe(2);
 });
+
+
+test("simultaneous fixed greetings share synthesis while cancellation stays per caller", async () => {
+  const lifetime = new AbortController(), caller = new AbortController();
+  let resolve!: (reply: AudioReply) => void, syntheses = 0;
+  const queue = new SharedAudio({ audio: async () => { syntheses++; return new Promise(done => resolve = done); } }, lifetime.signal);
+  const phrase = { text: "Clínica Arenal", language: "es", wire: true, cache: true };
+  const first = queue.run("speak", phrase, caller.signal);
+  const others = Array.from({ length: 4 }, () => queue.run("speak", phrase, new AbortController().signal));
+  await Bun.sleep(0); expect(syntheses).toBe(1);
+  caller.abort(); await expect(first).rejects.toThrow();
+  resolve({ payload: "synthetic", elapsed_ms: 5 });
+  const replies = await Promise.all(others);
+  expect(replies.every(reply => reply.cache_hit && reply.queue_ms !== undefined)).toBe(true);
+  expect(syntheses).toBe(1);
+  expect((await queue.run("speak", phrase, new AbortController().signal)).cache_hit).toBe(true);
+});
+
+test("patient speech is not cached and queue wait is measured separately", async () => {
+  const lifetime = new AbortController(); let release!: () => void, calls = 0;
+  const queue = new SharedAudio({ audio: async () => {
+    if (++calls === 1) await new Promise<void>(resolve => release = resolve);
+    return { payload: "synthetic", elapsed_ms: 1 };
+  } }, lifetime.signal);
+  const fields = { text: "Patient appointment details", language: "en", wire: true };
+  const first = queue.run("speak", fields, lifetime.signal), second = queue.run("speak", fields, lifetime.signal);
+  await Bun.sleep(10); release(); await first;
+  const reply = await second;
+  expect(calls).toBe(2); expect(reply.cache_hit).toBe(false); expect(reply.queue_ms).toBeGreaterThanOrEqual(5);
+  expect(reply.elapsed_ms).toBe(1);
+});

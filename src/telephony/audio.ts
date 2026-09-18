@@ -63,18 +63,33 @@ export function delay(ms: number, signal: AbortSignal): Promise<void> {
 export class SharedAudio {
   private tail: Promise<unknown> = Promise.resolve();
   private queued = 0;
+  private speechCache = new Map<string, Promise<AudioReply>>();
   constructor(private inference: Pick<Inference, "audio">, private lifetime: AbortSignal) {}
   run(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
     signal.throwIfAborted(); this.lifetime.throwIfAborted();
+    const queuedAt = performance.now();
+    // Only explicitly marked, fixed service phrases are cached. Patient speech is not.
+    const cacheKey = operation === "speak" && fields.cache === true && fields.wire === true
+      ? JSON.stringify([fields.language, fields.text]) : undefined;
+    const cached = cacheKey ? this.speechCache.get(cacheKey) : undefined;
+    if (cached) return abortable(cached.then(reply => ({ ...reply, elapsed_ms: 0,
+      queue_ms: Math.round(performance.now() - queuedAt), total_ms: Math.round(performance.now() - queuedAt), cache_hit: true })), signal);
     if (this.queued >= 60) return Promise.reject(new Error("Audio queue is full"));
     this.queued++;
     const work = this.tail.then(async () => {
-      signal.throwIfAborted(); this.lifetime.throwIfAborted();
-      // A cancelled call stops waiting immediately; an already running native
-      // operation finishes privately before the next caller uses the worker.
-      return this.inference.audio(operation, fields, this.lifetime);
+      if (!cacheKey) signal.throwIfAborted();
+      this.lifetime.throwIfAborted();
+      const queue_ms = Math.round(performance.now() - queuedAt);
+      // Cancellation releases the caller immediately without killing another call's worker.
+      const reply = await this.inference.audio(operation, fields, this.lifetime);
+      return { ...reply, queue_ms, total_ms: Math.round(performance.now() - queuedAt), cache_hit: false };
     }).finally(() => { this.queued--; });
     this.tail = work.catch(() => {});
+    if (cacheKey) {
+      if (this.speechCache.size >= 24) this.speechCache.delete(this.speechCache.keys().next().value!);
+      this.speechCache.set(cacheKey, work);
+      void work.catch(() => { if (this.speechCache.get(cacheKey) === work) this.speechCache.delete(cacheKey); });
+    }
     return abortable(work, signal);
   }
 }

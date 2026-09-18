@@ -22,9 +22,9 @@ export class LiveTranscript {
   }
 
   event = (call: CallIdentity, event: TraceEvent) => {
-    if (!["start", "caller", "agent", "interruption"].includes(event.stage)) return;
+    if (!["start", "caller", "agent", "service", "interruption", "slow_turn", "timeout", "idle", "output_incomplete"].includes(event.stage)) return;
     const prefix = this.label(call);
-    const speaker = { start: "MODE", caller: "CALLER", agent: "RECEPTIONIST", interruption: "INTERRUPTED" }[event.stage];
+    const speaker = { start: "MODE", caller: "CALLER", agent: "RECEPTIONIST", service: "STATUS", interruption: "INTERRUPTED", slow_turn: "WAIT", timeout: "TIMEOUT", idle: "SILENCE", output_incomplete: "AUDIO" }[event.stage];
     this.write(`${prefix} ${speaker}: ${line(event.detail)}`);
   };
 
@@ -33,6 +33,7 @@ export class LiveTranscript {
     for (const error of report.errors) this.write(`${prefix} ERROR: ${line(error)}`);
     const accepted = report.submissions.filter(receipt => receipt.accepted).length;
     this.write(`${prefix} ===== CONVERSATION END · ${report.status} · ${report.mode === "dry_run" ? "dry run, no submissions" : `${accepted} actions accepted`} =====`);
+    if (report.end_reason) this.write(`${prefix} END REASON: ${report.end_reason}${report.close_code !== undefined ? ` (WebSocket ${report.close_code})` : ""}`);
     this.write(`${prefix} Report: ${saved ? line(saved) : "could not be saved"}\n`);
     this.labels.delete(report.session_id);
   }

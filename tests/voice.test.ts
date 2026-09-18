@@ -400,3 +400,21 @@ test("already accepted actions cannot be offered aloud again", async () => {
   expect(agent.record).toEqual(booking); expect(closing).not.toContain("Does that work");
   expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
 });
+
+
+test("cancelled tool work rolls back unmatched provider calls before the next turn", async () => {
+  const pending = directory(); pending.tool_calls![0]!.id = "cancelled-directory";
+  const inference = new FakeInference([pending, say("How can I help?")]);
+  let reading!: () => void;
+  const began = new Promise<void>(resolve => reading = resolve);
+  const clinic: ClinicReader = { async request(_request, signal) {
+    reading(); return new Promise((_resolve, reject) => signal!.addEventListener("abort", () => reject(signal!.reason), { once: true }));
+  } };
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
+  const abort = new AbortController(); const work = agent.turn(identityText, abort.signal);
+  await began; abort.abort(new Error("Caller correction")); await expect(work).rejects.toThrow("Caller correction");
+  agent.reopenAfterInterruption(true);
+  await agent.turn("Actually, I need something else", signal());
+  expect(() => openRouterMessages(inference.seen.at(-1)!.messages)).not.toThrow();
+  expect(agent.record).toBeUndefined();
+});

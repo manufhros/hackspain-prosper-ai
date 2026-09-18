@@ -5,6 +5,7 @@ import { completionRecord, completionSpeech, simulatedSubmission } from "./resol
 import { type Inference, type Message, type ToolCall } from "./runtime";
 import { ConversationLanguage, textLanguage } from "./language";
 import { callerSupplied, verifiedPatient } from "./identity";
+import { callPhrases } from "./phrases";
 import { Consent, needsConsent } from "./consent";
 
 export interface ClinicReader { request: PlatformClient["request"] }
@@ -40,6 +41,7 @@ export class Receptionist {
   private speech: ConversationLanguage;
   private consent = new Consent();
   private offerSpeech?: string;
+  private turnStart?: { messages: number; transcript: number };
   private draft?: { message: Message; turn: TranscriptTurn };
   private providers = new Map<string, string>();
   private locations = new Map<string, string>([["centro", "Arenal Centro"], ["norte", "Arenal Norte"], ["sur", "Arenal Sur"]]);
@@ -86,8 +88,14 @@ export class Receptionist {
     return [{ role: "system", content: `${instructions}\nACCEPTED ACTIONS (do not re-offer): ${JSON.stringify(this.consent.acceptedActions)}\n${this.consent.awaitingReoffer ? "A previous proposal needs clarification and a delivered re-offer before accepting a yes. Answer the question briefly; the application will append the grounded offer to a statement. If you need different information, ask that question without asking to book." : ""}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
       ...this.messages.filter(m => m.role !== "system")];
   }
+  greet() { return this.speak(callPhrases[this.currentLanguage].greeting); }
   markDelivered() { this.consent.delivered(); this.draft = undefined; }
-  reopenAfterInterruption() {
+  reopenAfterInterruption(discardTurn = false) {
+    if (discardTurn && this.turnStart) {
+      this.messages.splice(this.turnStart.messages);
+      this.transcript.splice(this.turnStart.transcript);
+      this.draft = undefined;
+    }
     this.record = undefined;
     this.offerSpeech = undefined;
     this.consent.interrupt();
@@ -115,6 +123,7 @@ export class Receptionist {
     let speechRepairs = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
+    this.turnStart = { messages: this.messages.length, transcript: this.transcript.length };
     for (let step = 0; step < 10; step++) {
       signal.throwIfAborted();
       const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
@@ -242,7 +251,10 @@ export class Receptionist {
     }
     if (Array.isArray(data.slots)) {
       // Retain provenance for the patient against whom eligibility was quoted.
-      for (const slot of data.slots) if (isObject(slot)) this.slots.push({ ...slot, patient_id: args.patient_id });
+      for (const slot of data.slots) if (isObject(slot)) {
+        this.slots.push({ ...slot, patient_id: args.patient_id });
+        if (typeof slot.provider_id === "string" && typeof slot.provider_name === "string") this.providers.set(slot.provider_id, slot.provider_name);
+      }
     }
     if (Array.isArray(data.appointments)) for (const appointment of data.appointments) {
       if (isObject(appointment) && typeof appointment.appointment_id === "string" && typeof appointment.start_time === "string"

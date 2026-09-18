@@ -16,9 +16,10 @@ bun run serve --help              Show this help without starting services
 
 Requires PLATFORM_API_KEY (.env or the TUI's Keychain entry).
 VOICE_HOST=127.0.0.1  VOICE_PORT=7860  VOICE_LANGUAGE=es  VOICE_MAX_CALLS=20
-LLM_PROVIDER=local (default) or openrouter; set OPENROUTER_MODEL and its Setup Keychain key.
+LLM_PROVIDER=local (default) or openrouter; set OPENROUTER_MODEL and OPENROUTER_API_KEY in .env (or use Setup Keychain).
 Optional VOICE_SERVER_TOKEN requires Authorization: Bearer <token> on /ws.
 VOICE_VAD_THRESHOLD=0.015  VOICE_SILENCE_MS=800 tune input turn detection.
+VOICE_TURN_TIMEOUT_MS=25000  VOICE_WAIT_NOTICE_MS=4000  VOICE_CALL_TIMEOUT_MS=180000
 
 Starting serve warms the same local voice stack as bun start. Wait for Ready.
 Then start your tunnel yourself: ngrok http 7860
@@ -46,6 +47,9 @@ export function serverConfig(env: Record<string, string | undefined>, args: stri
   const token = env.VOICE_SERVER_TOKEN?.trim() || undefined;
   if (token && (token.length < 16 || token.length > 256 || /\s/.test(token))) throw new Error("VOICE_SERVER_TOKEN must be 16–256 characters without whitespace");
   return { hostname: env.VOICE_HOST || "127.0.0.1", port: integer(port, 1, 65535, "Port"), live, language, token,
+    turnTimeoutMs: integer(env.VOICE_TURN_TIMEOUT_MS || "25000", 1000, 120000, "VOICE_TURN_TIMEOUT_MS"),
+    waitNoticeMs: integer(env.VOICE_WAIT_NOTICE_MS || "4000", 500, 10000, "VOICE_WAIT_NOTICE_MS"),
+    callTimeoutMs: integer(env.VOICE_CALL_TIMEOUT_MS || "180000", 30000, 600000, "VOICE_CALL_TIMEOUT_MS"),
     maxCalls: integer(env.VOICE_MAX_CALLS || "20", 1, 20, "VOICE_MAX_CALLS"),
     vad: { ...defaultVad, threshold, silenceMs: integer(env.VOICE_SILENCE_MS || "800", 200, 3000, "VOICE_SILENCE_MS") } };
 }
@@ -92,6 +96,7 @@ export function serverHandlers(config: ReturnType<typeof serverConfig>, dependen
       idleTimeout: 60,
       open(socket: ServerWebSocket<SocketData>) {
         const call = new PlatformCall({ ...dependencies, live: config.live, language: config.language, vad: config.vad, claim,
+          turnTimeoutMs: config.turnTimeoutMs, waitNoticeMs: config.waitNoticeMs, callTimeoutMs: config.callTimeoutMs,
           socket: { send: message => {
             if (socket.getBufferedAmount() > 32 * 1024) throw new Error("Socket output is too far behind real time");
             return socket.send(message);
@@ -100,7 +105,7 @@ export function serverHandlers(config: ReturnType<typeof serverConfig>, dependen
         void call.done.finally(() => { calls.delete(call); reserved--; });
       },
       message(socket: ServerWebSocket<SocketData>, message: string | Buffer) { socket.data.call?.receive(message); },
-      close(socket: ServerWebSocket<SocketData>) { if (socket.data.call) socket.data.call.end(); else reserved--; },
+      close(socket: ServerWebSocket<SocketData>, code?: number) { if (socket.data.call) socket.data.call.end("socket_closed", code); else reserved--; },
     },
   };
 }

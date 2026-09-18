@@ -10,7 +10,7 @@ test("configuration validates port, language, capacity and VAD without starting 
   expect(serverConfig({}, [])).toMatchObject({ port: 7860, hostname: "127.0.0.1", live: true, maxCalls: 20, language: "es", vad: defaultVad });
   expect(serverConfig({}, ["--dry-run", "--port", "8888"])).toMatchObject({ live: false, port: 8888 });
   for (const args of [["--port"], ["--port", "0"], ["--port", "Infinity"], ["--mystery"]]) expect(() => serverConfig({}, args)).toThrow();
-  for (const env of [{ VOICE_MAX_CALLS: "21" }, { VOICE_LANGUAGE: "unknown" }, { VOICE_VAD_THRESHOLD: "NaN" }, { VOICE_SILENCE_MS: "0" }, { VOICE_SERVER_TOKEN: "short" }]) expect(() => serverConfig(env, [])).toThrow();
+  for (const env of [{ VOICE_TURN_TIMEOUT_MS: "0" }, { VOICE_WAIT_NOTICE_MS: "NaN" }, { VOICE_CALL_TIMEOUT_MS: "999999" }, { VOICE_MAX_CALLS: "21" }, { VOICE_LANGUAGE: "unknown" }, { VOICE_VAD_THRESHOLD: "NaN" }, { VOICE_SILENCE_MS: "0" }, { VOICE_SERVER_TOKEN: "short" }]) expect(() => serverConfig(env, [])).toThrow();
 });
 test("authorization checks the configured header; query strings cannot pass credentials", async () => {
   const token = "synthetic-token-for-tests";

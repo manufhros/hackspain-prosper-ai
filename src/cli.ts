@@ -30,7 +30,7 @@ Evaluation input: [{ case_id, record: { actions: [...] },
 Trace input: [{ connection: "socket-1", message: { event: ... } }]
 
 Voice starts with bun start: local Qwen by default, plus local Whisper/Piper.
-LLM_PROVIDER=openrouter + OPENROUTER_MODEL selects OpenRouter; save its key in Setup.
+LLM_PROVIDER=openrouter + OPENROUTER_MODEL selects OpenRouter; set OPENROUTER_API_KEY in .env or save its key in Setup.
 No provider subscription or tunnel is required. --offline skips local setup.
 Local results are not official scores; saved answers use Friday's anchor.
 Put PLATFORM_API_KEY in .env; host defaults to hackspain.getprosperapp.com.

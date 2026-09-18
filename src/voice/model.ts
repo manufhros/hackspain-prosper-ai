@@ -15,10 +15,13 @@ export function modelConfig(env: Record<string, string | undefined> = process.en
   return { provider, model, maxTokens };
 }
 
-export async function openRouterKey(read: (identity: typeof openRouterKeyIdentity) => Promise<string | null> = identity => Bun.secrets.get(identity)): Promise<string> {
-  const key = (await read(openRouterKeyIdentity))?.trim();
-  if (!key) throw new Error("Save an OpenRouter API key in Setup → OpenRouter API key (bun start --offline), then restart");
-  if (key.length > 512 || /\s/.test(key)) throw new Error("The OpenRouter Keychain entry is not a valid API key; update it in Setup");
+export async function openRouterKey(
+  read: (identity: typeof openRouterKeyIdentity) => Promise<string | null> = identity => Bun.secrets.get(identity),
+  env: Record<string, string | undefined> = process.env,
+): Promise<string> {
+  const key = env.OPENROUTER_API_KEY?.trim() || (await read(openRouterKeyIdentity))?.trim();
+  if (!key) throw new Error("Set OPENROUTER_API_KEY in .env or save a key in Setup → OpenRouter API key (bun start --offline), then restart");
+  if (key.length > 512 || /\s/.test(key)) throw new Error("Invalid OpenRouter API key; update OPENROUTER_API_KEY in .env or the Keychain entry in Setup");
   return key;
 }
 

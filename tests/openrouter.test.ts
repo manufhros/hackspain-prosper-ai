@@ -20,10 +20,20 @@ test("provider configuration defaults local and OpenRouter never requires Ollama
     { LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model", OPENROUTER_MAX_TOKENS: "NaN" }]) expect(() => modelConfig(env)).toThrow();
 });
 
-test("OpenRouter credentials come from their own Keychain entry and never reach child processes", async () => {
-  expect(await openRouterKey(async identity => { expect(identity).toEqual(openRouterKeyIdentity); return secret; })).toBe(secret);
-  await expect(openRouterKey(async () => null)).rejects.toThrow("Setup");
+test("OpenRouter credentials fall back to their own Keychain entry and never reach child processes", async () => {
+  for (const env of [{}, { OPENROUTER_API_KEY: "  " }]) {
+    expect(await openRouterKey(async identity => { expect(identity).toEqual(openRouterKeyIdentity); return secret; }, env)).toBe(secret);
+  }
+  await expect(openRouterKey(async () => null, {})).rejects.toThrow("OPENROUTER_API_KEY");
   expect(childEnvironment({ PATH: "/bin", PLATFORM_API_KEY: "clinic", VOICE_SERVER_TOKEN: "server", OPENROUTER_API_KEY: secret })).toEqual({ PATH: "/bin" });
+});
+
+test("OpenRouter environment key takes precedence without accessing Keychain", async () => {
+  const noKeychain = async (): Promise<never> => { throw new Error("Keychain must not be accessed"); };
+  expect(await openRouterKey(noKeychain, { OPENROUTER_API_KEY: `  ${secret}\n` })).toBe(secret);
+  for (const key of ["invalid key", "x".repeat(513)]) {
+    await expect(openRouterKey(noKeychain, { OPENROUTER_API_KEY: key })).rejects.toThrow("Invalid OpenRouter API key");
+  }
 });
 
 test("OpenRouter requests use the selected model, fixed HTTPS host, bearer auth and no redirects", async () => {

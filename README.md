@@ -27,17 +27,18 @@ For browsing, manual results, or API exploration without model downloads/startup
 
 ## Use an OpenRouter model
 
-Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these **non-secret** settings in `.env`:
+Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these settings in your git-ignored `.env`:
 
 ```dotenv
 LLM_PROVIDER=openrouter
 OPENROUTER_MODEL=provider/model-id
 OPENROUTER_MAX_TOKENS=4096
+OPENROUTER_API_KEY=your-openrouter-api-key
 ```
 
 Replace `provider/model-id` with the exact ID of your chosen [OpenRouter model](https://openrouter.ai/models) supporting tools and structured outputs. There is no automatic model substitution or fallback to Qwen. The same settings apply to `bun start` and `bun run serve`.
 
-Store the API key using `bun start --offline` → **Setup → OpenRouter API key · Keychain**. Input is masked and stored in macOS Keychain under service `el-turno-openrouter`, account `https://openrouter.ai`. The application does not read `OPENROUTER_API_KEY` from `.env`. Quit, then start the TUI or server yourself. Restart after changing the model or key. Set `LLM_PROVIDER=local` to return to Qwen.
+Set `OPENROUTER_API_KEY` to your key; never commit your real `.env`. A nonblank environment key takes precedence over Keychain. Alternatively, store the key using `bun start --offline` → **Setup → OpenRouter API key · .env or Keychain**. Input is masked and stored in macOS Keychain under service `el-turno-openrouter`, account `https://openrouter.ai`. Restart after changing the model or key. Set `LLM_PROVIDER=local` to return to Qwen.
 
 In OpenRouter mode, setup **does not install, download or start Ollama/Qwen**. Whisper recognition and Piper synthesis still run locally and still require Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are not. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
 

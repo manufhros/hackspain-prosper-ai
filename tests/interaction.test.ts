@@ -95,7 +95,7 @@ test("OpenRouter key setup uses masked input and can be cancelled without starti
       async ask(title, _value, masked) { questions.push({ title, masked }); return null; } };
   });
   press({}, "6");
-  const index = current().items.indexOf("OpenRouter API key · Keychain");
+  const index = current().items.indexOf("OpenRouter API key · .env or Keychain");
   expect(index).toBeGreaterThanOrEqual(0);
   for (let i = 0; i < index; i++) press({ name: "down" }, "");
   expect(current().detail).toContain("LLM_PROVIDER=openrouter");

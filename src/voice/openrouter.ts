@@ -63,10 +63,11 @@ export class OpenRouterChat {
   async chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply> {
     signal.throwIfAborted();
     const started = performance.now();
-    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(this.config.timeoutMs ?? 20000)]);
     const body = {
       model: this.config.model, messages: openRouterMessages(messages), stream: false, max_tokens: this.config.maxTokens,
-      provider: { require_parameters: true },
+      provider: { require_parameters: true, sort: this.config.sort ?? "latency" },
+      ...(this.config.reasoningEffort ? { reasoning: { effort: this.config.reasoningEffort } } : {}),
       // Some tool-capable providers (including Gemini) do not support parallel_tool_calls.
       // With require_parameters it excludes those providers even when false. The agent
       // executes returned calls sequentially and stops at an offer or completion itself.
@@ -90,6 +91,19 @@ export class OpenRouterChat {
     let data: unknown;
     try { data = await response.json(); } catch { throw new Error("OpenRouter returned invalid JSON"); }
     requestSignal.throwIfAborted();
-    return { message: parseReply(data), elapsed_ms: Math.round(performance.now() - started) };
+    const metrics: Record<string, number | string> = {};
+    if (isObject(data)) {
+      // Only allow operational metadata into reports, never provider text or reasoning.
+      for (const field of ["provider", "model", "id"])
+        if (typeof data[field] === "string" && /^[a-zA-Z0-9 /_.:-]{1,160}$/.test(data[field])) metrics[field] = data[field];
+      if (isObject(data.usage)) {
+        for (const field of ["prompt_tokens", "completion_tokens", "total_tokens"])
+          if (typeof data.usage[field] === "number" && Number.isFinite(data.usage[field]) && data.usage[field] >= 0) metrics[field] = data.usage[field];
+        const details = data.usage.completion_tokens_details;
+        if (isObject(details) && typeof details.reasoning_tokens === "number" && Number.isFinite(details.reasoning_tokens) && details.reasoning_tokens >= 0)
+          metrics.reasoning_tokens = details.reasoning_tokens;
+      }
+    }
+    return { message: parseReply(data), elapsed_ms: Math.round(performance.now() - started), metrics };
   }
 }

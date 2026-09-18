@@ -8,7 +8,7 @@ import { callerSupplied, verifiedPatient } from "./identity";
 import { Consent, needsConsent } from "./consent";
 
 export interface ClinicReader { request: PlatformClient["request"] }
-export interface TraceEvent { stage: string; elapsed_ms: number; detail: string }
+export interface TraceEvent { stage: string; elapsed_ms: number; detail: string; at_ms?: number; metrics?: Record<string, string | number> }
 export const readEndpoints = operations.filter(o => o.method === "GET" && !["/api/v1/health", "/api/v1/submissions"].includes(o.path));
 export const toolName = (path: string) => path.includes("{patient_id}") ? "appointments" : path.split("/").at(-1)!.replaceAll("-", "_");
 export function expandSchema(input: Schema): Schema {
@@ -107,7 +107,7 @@ export class Receptionist {
     if (this.options.mode !== "platform") this.markDelivered();
     return answer;
   }
-  private emit(stage: string, elapsed_ms: number, detail: string) { const event = { stage, elapsed_ms, detail }; this.events.push(event); this.update(event); }
+  private emit(stage: string, elapsed_ms: number, detail: string, metrics?: TraceEvent["metrics"]) { const event = { stage, elapsed_ms, detail, ...(metrics ? { metrics } : {}) }; this.events.push(event); this.update(event); }
   async turn(text: string, signal: AbortSignal): Promise<string> {
     if (this.record) throw new Error("Call already completed");
     this.language = this.speech.update(text);
@@ -119,16 +119,19 @@ export class Receptionist {
       signal.throwIfAborted();
       const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
         ? { ...tool, function: { ...tool.function, description: "Capture ALL final, confirmed intents as {actions: [...]}. The transport submits the record to Prosper using this call's real ID and ends the call. Do not call HTTP write tools or ask for another confirmation." } } : tool) : agentTools;
+      this.emit("model_start", 0, "Waiting for model response");
       const reply = await this.inference.chat(this.inferenceMessages(), tools, signal);
-      this.emit("reasoning", reply.elapsed_ms, "Receptionist model response");
+      signal.throwIfAborted();
+      this.emit("reasoning", reply.elapsed_ms, "Receptionist model response", reply.metrics);
       this.messages.push(reply.message);
       const calls = reply.message.tool_calls ?? [];
       if (calls.length) {
         for (const call of calls) {
           const started = performance.now();
           let result: unknown;
-          try { result = await this.tool(call, signal); }
+          try { result = await this.tool(call, signal); signal.throwIfAborted(); }
           catch (error) {
+            signal.throwIfAborted();
             result = { error: error instanceof Error ? error.message : "Tool failed" };
             if (call.function?.name === "complete_call") this.completionFailures++;
           }

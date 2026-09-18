@@ -14,7 +14,7 @@ const tool = (id = "call_1", args = '{}') => ({ id, type: "function", function: 
 test("provider configuration defaults local and OpenRouter never requires Ollama", () => {
   expect(modelConfig({})).toEqual({ provider: "local", model: "qwen3.5:4b" });
   expect(runtimeExecutables(modelConfig({}))).toEqual(["uv", "ollama"]);
-  expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model" })).toEqual(config);
+  expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model" })).toEqual({ ...config, timeoutMs: 20000, sort: "latency" });
   expect(runtimeExecutables(config)).toEqual(["uv"]);
   for (const env of [{ LLM_PROVIDER: "typo" }, { LLM_PROVIDER: "openrouter" }, { LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "bad model" },
     { LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model", OPENROUTER_MAX_TOKENS: "NaN" }]) expect(() => modelConfig(env)).toThrow();
@@ -138,4 +138,32 @@ test("the receptionist executes OpenRouter tools and sends results with matching
   const agent = new Receptionist(inference, { async request() { clinicReads++; return { status: 200, elapsed_ms: 0, meaning: "OK", data: { clinic_name: "Arenal" } }; } }, "2026-09-18T09:00:00+02:00", "en");
   expect(await agent.turn("Hello", signal())).toBe("How can I help you?");
   expect(requests).toHaveLength(2); expect(clinicReads).toBe(1);
+});
+
+
+test("voice routing defaults to latency and applies low reasoning only to Gemini 3", () => {
+  expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "google/gemini-3.8-flash" })).toMatchObject({ sort: "latency", timeoutMs: 20000, reasoningEffort: "low" });
+  expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model" })).not.toHaveProperty("reasoningEffort");
+  expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "google/gemini-3.8-flash", OPENROUTER_REASONING_EFFORT: "default" })).not.toHaveProperty("reasoningEffort");
+  for (const overrides of [{ OPENROUTER_TIMEOUT_MS: "0" }, { OPENROUTER_REASONING_EFFORT: "typo" }, { OPENROUTER_PROVIDER_SORT: "typo" }])
+    expect(() => modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model", ...overrides })).toThrow();
+});
+
+test("model usage diagnostics contain counts and routing metadata without reasoning text", async () => {
+  const router = new OpenRouterChat({ ...config, reasoningEffort: "low" }, secret, async (_url, init) => {
+    const body = JSON.parse(String(init.body));
+    expect(body.reasoning).toEqual({ effort: "low" }); expect(body.provider.sort).toBe("latency");
+    return Response.json({ id: "gen-test", provider: "Google", model: "test/model", usage: { prompt_tokens: 100, completion_tokens: 20,
+      completion_tokens_details: { reasoning_tokens: 10 }, secret }, choices: [{ finish_reason: "stop", message: say("Hello") }] });
+  });
+  expect((await router.chat([], [], signal())).metrics).toEqual({ id: "gen-test", provider: "Google", model: "test/model", prompt_tokens: 100, completion_tokens: 20, reasoning_tokens: 10 });
+});
+
+test("slow OpenRouter requests time out without retries", async () => {
+  let requests = 0;
+  const router = new OpenRouterChat({ ...config, timeoutMs: 10 }, secret, async (_url, init) => {
+    requests++;
+    return new Promise((_resolve, reject) => init.signal!.addEventListener("abort", () => reject(new Error("upstream timeout")), { once: true }));
+  });
+  await expect(router.chat([], [], signal())).rejects.toThrow("timed out"); expect(requests).toBe(1);
 });

@@ -418,3 +418,13 @@ test("cancelled tool work rolls back unmatched provider calls before the next tu
   expect(() => openRouterMessages(inference.seen.at(-1)!.messages)).not.toThrow();
   expect(agent.record).toBeUndefined();
 });
+
+
+test("Spanish clarification cannot create an untracked booking confirmation", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), say("Sí, es la primera cita. ¿Le reservo esa cita?"), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "es", () => {}, { mode: "platform" });
+  await agent.turn("Me llamo Patient Example, nací el 1980-01-01.", signal()); agent.markDelivered();
+  const explanation = await agent.turn("¿Es la primera cita disponible?", signal());
+  expect(explanation).toContain("¿Le viene bien?"); expect(explanation).not.toContain("¿Le reservo");
+  agent.markDelivered(); await agent.turn("Sí, me parece bien.", signal()); expect(agent.record).toEqual(booking);
+});

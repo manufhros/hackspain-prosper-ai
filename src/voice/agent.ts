@@ -119,7 +119,10 @@ export class Receptionist {
   async turn(text: string, signal: AbortSignal): Promise<string> {
     if (this.record) throw new Error("Call already completed");
     this.language = this.speech.update(text);
-    if (text) this.consent.hear(text);
+    if (text) {
+      this.consent.hear(text);
+      this.emit("consent", 0, "Updated consent from caller reply", { accepted_actions: this.consent.acceptedActions.length, reoffer_required: this.consent.awaitingReoffer ? 1 : 0 });
+    }
     let speechRepairs = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
@@ -185,7 +188,10 @@ export class Receptionist {
       if (pending) {
         // Replace an untracked booking question with the exact grounded offer. Other
         // questions (e.g. identity or a new preference) must not make a yes count as consent.
-        const explanation = answer.replace(/(?:[—–;]\s*)?(?:shall I|should I|would you like me to|do you want me to) (?:hold|book|reserve)\b[^?]*\?\s*$/i, "").trim();
+        const explanation = answer
+          .replace(/(?:[—–;]\s*)?(?:shall I|should I|would you like me to|do you want me to) (?:hold|book|reserve)\b[^?]*\?\s*$/i, "")
+          .replace(/(?:[—–;]\s*)?(?:does that (?:work for|suit) you|is that (?:okay|ok)|would you like that slot)\?\s*$/i, "")
+          .replace(/¿?(?:(?:le|te|li|et) (?:reservo|reservem|confirmo)|quiere que le reserve|vol que li reservi|le viene bien|te viene bien|li va bé|et va bé)\b[^?]*\?\s*$/i, "").trim();
         if (!/[?¿]/.test(explanation)) {
           this.checkGrounding(pending.actions);
           this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider);

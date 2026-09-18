@@ -2,7 +2,8 @@ import { type Action } from "../data";
 import { fold } from "../validation";
 
 export const needsConsent = (action: Action) => ["BOOK", "RESCHEDULE", "CANCEL", "REGISTER"].includes(action.action);
-export const actionKey = (action: Action): string => JSON.stringify(action, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
+export const actionKey = (action: Action): string => JSON.stringify(
+  typeof action.slot === "string" && Number.isFinite(Date.parse(action.slot)) ? { ...action, slot: new Date(action.slot).toISOString() } : action, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
   ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
 
 export function isCorrection(text: string): boolean {
@@ -23,7 +24,7 @@ export function acceptsOffer(text: string): boolean {
   if (/\b(which|what|when|where|did|could|would|can you|cual|cuando|donde|puede|pots|quina|quan|on es|si us plau repeteix)\b/.test(value)) return false;
   const stripped = withoutLead(value).replace(/(?:please|por favor|sisplau|gracias|thanks|thank you|muchas gracias)$/, "").trim();
   if (!stripped) return /^(yes|yeah|yep|ok|okay|si|vale|perfect|perfecto|perfecta|perfecte)\b/.test(value);
-  return /^(?:that (?:works(?: for me)?|is fine(?: for me)?|suits me)|it works(?: for me)?|please book (?:it|that|that slot)|book (?:it|that|that slot)|i(?:'ll| will) take it|esa opcion me parece perfecta|me viene (?:muy )?bien|esa me viene bien|confirmo|confirm it|confirmo esa cita|em va be)(?:\s+(?:please|thanks|thank you|gracias|por favor))?$/.test(stripped);
+  return /^(?:that (?:works(?: for me)?|is fine(?: for me)?|suits me)|it works(?: for me)?|please book (?:it|that|that slot)|book (?:it|that|that slot)|i(?:'ll| will) take it|sounds good|that(?:'s| is) (?:fine|great)|go ahead|absolutely|de acuerdo|adelante|me parece bien|d'acord|endavant|esa opcion me parece perfecta|me viene (?:muy )?bien|esa me viene bien|confirmo|confirm it|confirmo esa cita|em va be)(?:\s+(?:please|thanks|thank you|gracias|por favor))?$/.test(stripped);
 }
 
 function acceptsOfferedTime(text: string, actions: Action[]): boolean {

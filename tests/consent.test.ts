@@ -76,3 +76,17 @@ test("clarifications preserve a proposal without accepting yes to an unrelated q
   consent.offer([action], false); consent.delivered(); consent.hear("Yes, that works for me.");
   expect(consent.acceptedActions).toEqual([action]);
 });
+
+
+test("common affirmative phrases work without accepting conditions or new intents", () => {
+  for (const text of ["Yes, sounds good.", "That's fine.", "Go ahead.", "Sí, adelante.", "De acuerdo.", "Sí, me parece bien.", "D'acord.", "Sí, endavant."])
+    expect(acceptsOffer(text)).toBe(true);
+  for (const text of ["Sounds good, but a different day.", "Go ahead if my insurance covers it.", "Sí, adelante, pero con otro médico.", "De acuerdo, y otra cita."])
+    expect(acceptsOffer(text)).toBe(false);
+});
+
+test("equivalent timestamp formatting preserves consent without accepting a different instant", () => {
+  const consent = new Consent(); consent.offer([action], true); consent.hear("Yes");
+  expect(() => consent.check([{ ...action, slot: new Date(String(action.slot)).toISOString() }])).not.toThrow();
+  expect(() => consent.check([{ ...action, slot: "2026-09-19T11:00:00Z" }])).toThrow();
+});

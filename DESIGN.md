@@ -1,7 +1,7 @@
 ---
 version: alpha
 colors:
-  accent: "#87ffaf"
+  primary: "#87ffaf"
   muted: "#8a8a8a"
   status: "#ffaf5f"
   onAccent: "#000000"
@@ -21,7 +21,7 @@ omitted:
 A compact rehearsal console for hackathon developers. The signature is a readable call transcript with explicit speaker labels and a persistent recording control. Existing green selection and amber status cues remain; content and keyboard focus take priority over decoration.
 
 ## Colors
-Runtime ownership remains in `src/terminal.ts` → `theme` → shared `render`. `accent` maps to ANSI 256 color 121 (brand and selected background), `muted` to 245, `status` to 215, and `onAccent` to black. Body colors and font are terminal-owned. NO_COLOR removes styling; markers and text retain every state.
+Runtime ownership remains in `src/terminal.ts` → `theme` → shared `render`. `primary` maps to ANSI 256 color 121 (brand and selected background), `muted` to 245, `status` to 215, and `onAccent` to black. Body colors and font are terminal-owned. NO_COLOR removes styling; markers and text retain every state.
 
 ## Typography
 Use the user's terminal font. Bold labels and underlined pane headings distinguish hierarchy. Wrap prose at words and preserve grapheme clusters in truncation/editing. English controls accompany English, Spanish, and Catalan conversation content.

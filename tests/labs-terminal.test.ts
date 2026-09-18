@@ -55,3 +55,8 @@ test("live transcript follows the newest wrapped lines and can pause for scrollb
   expect(render({ ...view, detail, fullscreen: true, follow: false, scroll: 0 }, 80, 24, false)).not.toContain("Turn 80");
   expect(fit("e\u0301👩‍💻", 3).trimEnd()).toBe("e\u0301👩‍💻");
 });
+test("narrow action rows retain complete shortcut labels and point to remaining help", () => {
+  const output = render({ ...view, footer: "Enter details · m microphone · v rehearse · f free chat · e outcome · a answers" }, 40, 12, false);
+  expect(output).toContain("Enter details · m microphone");
+  expect(output).toContain("v rehearse · f free chat · ? more");
+});

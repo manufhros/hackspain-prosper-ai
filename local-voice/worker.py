@@ -1,4 +1,4 @@
-"""Private JSON-lines worker: persistent MLX Whisper/Piper and timed microphone input.
+"""Private JSON-lines worker: persistent MLX Whisper/Piper and push-to-talk microphone input.
 
 No network listener, clinic credentials, or shell execution. Bun owns its lifetime.
 """
@@ -21,8 +21,10 @@ with contextlib.redirect_stdout(sys.stderr):
     import sounddevice as sd
     import soundfile as sf
     from piper import PiperVoice
+    from recording import Recording
 
 voices = {}
+recording = None
 
 
 def audio_path(name):
@@ -54,6 +56,7 @@ def transcribe(path, language):
 
 
 def handle(request):
+    global recording
     operation = request["operation"]
     if operation == "warmup":
         from mlx_whisper.transcribe import ModelHolder
@@ -93,28 +96,44 @@ def handle(request):
         return {"file": path.name, "duration_ms": round(len(audio) / rate * 1000)}
     if operation == "transcribe":
         return transcribe(audio_path(request["file"]), request.get("language"))
-    if operation == "record":
-        seconds = float(request.get("seconds", 8))
-        if not 1 <= seconds <= 30:
-            raise ValueError("Recording duration must be 1–30 seconds")
-        rate = int(sd.query_devices(kind="input")["default_samplerate"])
-        audio = sd.rec(int(seconds * rate), samplerate=rate, channels=1, dtype="float32")
-        sd.wait()
-        path = audio_path(request["file"])
-        sf.write(path, resample(audio[:, 0], rate, 16000), 16000, subtype="PCM_16")
-        return transcribe(path, request.get("language"))
+    if operation == "record_start":
+        if recording is not None:
+            raise ValueError("A recording is already in progress")
+        recording = Recording()
+        return {"recording": True}
+    if operation in ("record_stop", "record_cancel"):
+        capture, recording = recording, None
+        if capture is None:
+            if operation == "record_cancel":
+                return {"cancelled": True}
+            raise ValueError("No recording is in progress")
+        try:
+            if operation == "record_cancel":
+                return {"cancelled": True}
+            audio, rate = capture.finish()
+            if len(audio) < rate / 10:
+                return {"text": "", "duration_ms": 0}
+            path = audio_path(request["file"])
+            sf.write(path, resample(audio, rate, 16000), 16000, subtype="PCM_16")
+            return {"file": path.name, "duration_ms": round(len(audio) / rate * 1000)}
+        finally:
+            capture.close()
     raise ValueError("Unknown audio operation")
 
 
-for line in sys.stdin:
-    request = {}
-    started = time.monotonic()
-    try:
-        request = json.loads(line)
-        with contextlib.redirect_stdout(sys.stderr):
-            result = handle(request)
-        response = {"id": request["id"], "result": result,
-                    "elapsed_ms": round((time.monotonic() - started) * 1000)}
-    except Exception as error:
-        response = {"id": request.get("id"), "error": str(error)}
-    print(json.dumps(response, ensure_ascii=False), flush=True)
+try:
+    for line in sys.stdin:
+        request = {}
+        started = time.monotonic()
+        try:
+            request = json.loads(line)
+            with contextlib.redirect_stdout(sys.stderr):
+                result = handle(request)
+            response = {"id": request["id"], "result": result,
+                        "elapsed_ms": round((time.monotonic() - started) * 1000)}
+        except Exception as error:
+            response = {"id": request.get("id"), "error": str(error)}
+        print(json.dumps(response, ensure_ascii=False), flush=True)
+finally:
+    if recording is not None:
+        recording.close()

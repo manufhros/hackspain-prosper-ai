@@ -68,7 +68,18 @@ export function render(view: View, width: number, height: number, color = true):
     for (let row = 0; row < viewport.height; row++) lines.push(showDetail ? fit(` ${detail[offset + row] ?? ""}`, width) : itemLine(row, width));
   }
   lines.push(paint(fit(` ${view.status}`, width), theme.status));
-  const actions = wrap(view.footer, width - 2);
+  const actions: string[] = [""];
+  for (const action of view.footer.split(" · ")) {
+    const candidate = actions.at(-1) ? `${actions.at(-1)} · ${action}` : action;
+    if (Bun.stringWidth(candidate) <= width - 2) actions[actions.length - 1] = candidate;
+    else if (Bun.stringWidth(action) <= width - 2) actions.push(action);
+    else actions.push(...wrap(action, width - 2));
+  }
+  if (actions[0] === "") actions.shift();
+  if (actions.length > 2) {
+    while (Bun.stringWidth(`${actions[1]} · ? more`) > width - 2 && actions[1]!.includes(" · ")) actions[1] = actions[1]!.split(" · ").slice(0, -1).join(" · ");
+    actions[1] = `${fit(actions[1]!, width - 11).trimEnd()} · ? more`;
+  }
   lines.push(fit(` ${actions[0] ?? ""}`, width), fit(` ${actions[1] ?? ""}`, width));
   lines.push(paint(fit(width < 65 ? " ←→ focus  ↑↓ move  ? help  q quit" : " ←→ focus  ↑↓ move  PgUp/PgDn scroll  / search  ? help  q quit", width), theme.muted));
   return lines.join("\r\n");
@@ -174,7 +185,7 @@ export class Terminal implements TerminalPort {
         if (key.name === "escape") finish(null);
         else if (keys.includes(key.name ?? "")) finish(key.name!);
         else if (keys.includes(text)) finish(text);
-        else if (["pageup", "pagedown", "home", "end"].includes(key.name ?? "")) this.onKey(key, text);
+        else if (["pageup", "pagedown", "home", "end"].includes(key.name ?? "") || ["c", "q"].includes(text)) this.onKey(key, text);
       };
       this.draw();
     });

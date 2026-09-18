@@ -41,14 +41,14 @@ Use `1`–`7`, `Tab`, or `Shift-Tab` to change sections; each section remembers 
 
 ## First rehearsal
 
-**To try it without a script:** press `f` from any section, or open **Voice → Free conversation**. Choose `en`, `es` or `ca`, then talk to the receptionist about whatever you want to test. Press Enter to record eight seconds, `t` to type a reply, or Esc to end. The agent can also finish after you confirm your final intents; press `f` to start another conversation.
+**To try it without a script:** press `f` from any section, or open **Voice → Free conversation**. Choose `en`, `es` or `ca`, then talk to the receptionist about whatever you want to test. Press **Space** to start recording and **Space** again to send your reply. Press `t` to type, or Esc to end the call. While recording, Esc discards the take and returns to the caller controls. The recording timer stops automatically at 30 seconds; silence lets you try again. The agent can also finish after you confirm your final intents; press `f` to start another conversation.
 
-Free conversations use the current connection time and real Prosper clinic data, with no case selection, persona, answer key, score, scripted turn cap or three-minute deadline. Individual operations still have their usual timeouts. Transcripts, timings and any proposed actions are saved separately to `.workbench/free-*.json`; case results stay unchanged. Speech remains turn-based and actions remain local. Availability is limited to the clinic API's published calendar (7 September–16 October 2026).
+Free conversations use the current connection time and real Prosper clinic data, with no case selection, persona, answer key, score, scripted turn cap or three-minute deadline. Individual operations still have their usual timeouts. Transcripts, timings and any proposed actions are saved separately to `.workbench/free-*.json`; case results stay unchanged. Speech remains turn-based and actions remain local. The transcript follows new turns automatically; PgUp pauses following and End resumes it. Microphone controls appear after the receptionist finishes speaking. Availability is limited to the clinic API's published calendar (7 September–16 October 2026).
 
 1. Run `bun start` and wait for local setup to finish. In **Voice**, run **Speech + model smoke tests** to measure English, Spanish and Catalan TTS → 8 kHz mu-law → ASR word error rates and timings.
 2. Open **Cases**, select a case and press `v`. A separate local model plays the caller from their public persona/objectives. The receptionist receives the simulated connection time and real clinic tools; neither model receives the expected-answer oracle.
 3. Watch the transcript and stage timings. Proposed actions are validated against retrieved patient/slot/appointment IDs and saved locally. The agent has no platform submission tools. `c` cancels; if cancellation interrupts native audio, retry setup before the next call.
-4. Press `m` instead to play the caller yourself. Read the objectives, listen to the receptionist, then press Enter to record an eight-second response. macOS may request microphone permission. Choose `t` to type instead, or Esc to end the call. Use headphones to avoid speaker feedback.
+4. Press `m` instead to play the caller yourself. Read the objectives, listen to the receptionist, then press Space to start your reply and Space again to send it (up to 30 seconds). macOS may request microphone permission. Press `t` to type instead, Esc while recording to discard, or Esc at the caller controls to end the call. Use headphones to avoid speaker feedback.
 5. Inspect **Results** and `.workbench/voice-*-<case-index>.json` for transcripts, stage timings, actions and differences. **Voice → Rehearse all 73 public cases** runs sequentially, checkpointing after each case. Each call has a three-minute budget; a complete run can take hours.
 
 This is a turn-based local rehearsal. It does **not** reproduce the organiser's caller model, published background-noise beds, streaming/barge-in, concurrent-call performance or official scoring. Noise cases currently use clean audio. Clinic reads use the live API while the simulated date uses the archived case timestamp; inspect mismatches if the live world changes. Proposed bookings/cancellations are never written by the voice runner. Use dashboard practice for official evidence.
@@ -145,6 +145,7 @@ The TUI saves the current run to `.workbench/results.json` and configuration to 
 
 ```sh
 bun run check
+python3 tests/recording_test.py
 ```
 
 Checks use finite CLI commands, in-memory protocol sessions, mocked inference and mocked HTTP; no servers are started. They cover every archived acceptable outcome as **validator fixtures**, negative/multi-action outcomes, privacy signals, date boundaries, API encoding/statuses, local file permissions, terminal layout, agent tool restrictions/provenance, caller answer isolation, audio cleanup, cancellation, and persistence of failed voice runs. Passing these tests does not verify native installation/inference speed, microphone quality, Keychain integration, a live terminal session, tunnel, or authenticated organiser endpoint.

@@ -14,6 +14,7 @@ export async function spokenRoundtrip(inference: Inference, text: string, langua
   event: (event: TraceEvent) => void, play = false): Promise<string> {
   const file = `${crypto.randomUUID()}.wav`;
   try {
+    if (play) event({ stage: "playback", elapsed_ms: 0, detail: "Preparing and playing receptionist audio" });
     const speech = await inference.audio("speak", { text, language, file, telephone: true, play }, signal);
     event({ stage: "synthesis", elapsed_ms: speech.elapsed_ms, detail: `${language}: ${speech.duration_ms ?? 0} ms of 8 kHz mu-law roundtripped speech` });
     const heard = await inference.audio("transcribe", { file }, signal);
@@ -49,6 +50,7 @@ export async function runRehearsal(inference: Inference, clinic: ClinicReader, i
         const text = await microphone(answer, signal);
         if (text === null) throw new Error("Call cancelled by user");
         utterance = text;
+        emit({ stage: "caller", elapsed_ms: 0, detail: utterance });
       } else {
         caller.push({ role: "user", content: heard || "[No audible speech. Ask the receptionist to repeat.]" });
         const response = await inference.chat(caller, [], signal);

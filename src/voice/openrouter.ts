@@ -67,7 +67,10 @@ export class OpenRouterChat {
     const body = {
       model: this.config.model, messages: openRouterMessages(messages), stream: false, max_tokens: this.config.maxTokens,
       provider: { require_parameters: true },
-      ...(tools.length ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
+      // Some tool-capable providers (including Gemini) do not support parallel_tool_calls.
+      // With require_parameters it excludes those providers even when false. The agent
+      // executes returned calls sequentially and stops at an offer or completion itself.
+      ...(tools.length ? { tools, tool_choice: "auto" } : {}),
       ...(format ? { response_format: { type: "json_schema", json_schema: { name: "voice_response", strict: true,
         schema: isObject(format) && format.type === "object" ? { ...format, additionalProperties: false } : format } } } : {}),
     };
@@ -80,7 +83,7 @@ export class OpenRouterChat {
       throw new Error(requestSignal.aborted ? "OpenRouter request timed out" : "OpenRouter request failed; check the network connection");
     }
     if (!response.ok) {
-      const hint: Record<number, string> = { 401: "update the API key in Setup", 402: "check OpenRouter credits", 429: "rate limited; try again later", 400: "check model tool/structured-output support", 404: "check OPENROUTER_MODEL and provider support" };
+      const hint: Record<number, string> = { 401: "update OPENROUTER_API_KEY in .env or the key in Setup", 402: "check OpenRouter credits", 429: "rate limited; try again later", 400: "check model tool/structured-output support", 404: "no matching endpoint; check OPENROUTER_MODEL, required tool/structured-output support, and OpenRouter provider/privacy settings" };
       // Never echo provider bodies: they can contain credentials, patient data or prompts.
       throw new Error(`OpenRouter HTTP ${response.status}: ${hint[response.status] ?? "provider request failed"}`);
     }

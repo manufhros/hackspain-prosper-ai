@@ -45,11 +45,25 @@ test("OpenRouter requests use the selected model, fixed HTTPS host, bearer auth 
     expect(body.model).toBe("test/model"); expect(body.stream).toBe(false); expect(body.max_tokens).toBe(4096);
     expect(body).not.toHaveProperty("options"); expect(body).not.toHaveProperty("think");
     expect(body.provider.require_parameters).toBe(true);
-    expect(body.tools).toHaveLength(1); expect(body.parallel_tool_calls).toBe(false);
+    expect(body.tools).toHaveLength(1); expect(body).not.toHaveProperty("parallel_tool_calls");
     expect(String(init.body)).not.toContain(secret);
     return response(say("Hello"));
   });
   expect((await router.chat([{ role: "user", content: "Hello" }], [{ type: "function" }], signal())).message.content).toBe("Hello");
+});
+
+test("strict routing works with Gemini-style endpoints lacking parallel_tool_calls support", async () => {
+  const supported = new Set(["max_tokens", "tools", "tool_choice", "response_format"]);
+  const envelope = new Set(["model", "messages", "stream", "provider"]);
+  const router = new OpenRouterChat({ ...config, model: "google/gemini-3.8-flash" }, secret, async (_url, init) => {
+    const body = JSON.parse(String(init.body));
+    expect(body.provider.require_parameters).toBe(true);
+    if (Object.keys(body).some(key => !envelope.has(key) && !supported.has(key)))
+      return Response.json({ error: { message: "No endpoints support the requested parameters" } }, { status: 404 });
+    return response({ role: "assistant", content: null, tool_calls: [tool("first"), tool("second")] }, "tool_calls");
+  });
+  const reply = await router.chat([{ role: "user", content: "Hello" }], [{ type: "function" }], signal());
+  expect(reply.message.tool_calls?.map(call => call.id)).toEqual(["first", "second"]);
 });
 
 test("tool-only responses decode arguments and round-trip IDs and opaque reasoning unchanged", async () => {

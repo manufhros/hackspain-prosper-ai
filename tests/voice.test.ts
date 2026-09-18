@@ -4,6 +4,7 @@ import { evaluateBatch, parseResults } from "../src/evaluate";
 import { Receptionist, agentTools, readEndpoints, type ClinicReader } from "../src/voice/agent";
 import { callerMessages, resultFromRehearsal, runRehearsal, spokenRoundtrip, voiceSmoke, wordErrorRate } from "../src/voice/rehearsal";
 import { type Inference, type Message } from "../src/voice/runtime";
+import { runFreeConversation } from "../src/voice/free";
 
 const signal = () => new AbortController().signal;
 const say = (content: string): Message => ({ role: "assistant", content });
@@ -30,6 +31,47 @@ class FakeInference implements Inference {
   }
   async removeAudio(file: string) { this.removed.push(file); this.speech.delete(file); }
 }
+test("free conversation accepts arbitrary input, reads the clinic and ends without a case score", async () => {
+  const inference = new FakeInference([say("Hello"), call("clinic", {}), say("We open at nine.")]);
+  const requests: string[] = [];
+  const clinic: ClinicReader = { async request(request) {
+    expect(request.method).toBe("GET"); requests.push(request.path);
+    return { status: 200, elapsed_ms: 1, meaning: "OK", data: { opening_hours: "09:00" } };
+  } };
+  const answers = ["What time do you open?", null];
+  const before = Date.now();
+  const report = await runFreeConversation(inference, clinic, "es", signal(), () => {}, async () => answers.shift()!);
+  expect(report.status).toBe("ended"); expect(report.error).toBeUndefined();
+  expect(report).not.toHaveProperty("case_id"); expect(report).not.toHaveProperty("evaluation");
+  expect(report.record).toBeUndefined();
+  expect(Date.parse(report.reference_time)).toBeGreaterThanOrEqual(before);
+  expect(report.transcript).toEqual([{ role: "agent", text: "Hello" }, { role: "caller", text: "What time do you open?" }, { role: "agent", text: "We open at nine." }]);
+  expect(requests).toEqual(["/api/v1/clinic"]);
+  expect(inference.seen.every(c => c.tools.length > 0)).toBe(true); // no generated caller
+  expect(inference.audioCalls.filter(c => c.operation === "speak").every(c => c.fields.language === "es" && c.fields.play === true)).toBe(true);
+});
+test("free conversations can continue beyond the scripted rehearsal turn cap", async () => {
+  const inference = new FakeInference(Array.from({ length: 27 }, () => say("Anything else?")));
+  let turn = 0;
+  const report = await runFreeConversation(inference, noClinic, "en", signal(), () => {}, async () => turn++ < 26 ? "Another question" : null);
+  expect(report.status).toBe("ended"); expect(report.transcript.filter(t => t.role === "caller")).toHaveLength(26);
+});
+test("free conversation records final actions locally and plays the final confirmation", async () => {
+  const record = { actions: [{ action: "NO_ACTION", reason: "out_of_scope" }] };
+  const inference = new FakeInference([say("Hello"), complete(record), say("Goodbye")]);
+  const report = await runFreeConversation(inference, noClinic, "ca", signal(), () => {}, async () => "No appointment needed. Goodbye.");
+  expect(report.status).toBe("completed"); expect(report.record).toEqual(record);
+  expect(inference.audioCalls.filter(c => c.operation === "speak").at(-1)?.fields.text).toBe("Goodbye");
+});
+test("free conversation cancellation and audio failures retain partial transcripts", async () => {
+  const abort = new AbortController();
+  const cancelled = await runFreeConversation(new FakeInference([say("Hello")]), noClinic, "en", abort.signal, () => {}, async () => { abort.abort(); return null; });
+  expect(cancelled.status).toBe("cancelled"); expect(cancelled.transcript).toHaveLength(1);
+  const broken = new FakeInference([say("Hello")]); broken.failTranscription = true;
+  const failed = await runFreeConversation(broken, noClinic, "en", signal(), () => {}, async () => null);
+  expect(failed.status).toBe("error"); expect(failed.error).toBe("Transcription failed");
+  expect(failed.transcript).toHaveLength(1); expect(broken.removed).toHaveLength(1);
+});
 const noClinic: ClinicReader = { async request() { throw new Error("Unexpected clinic access"); } };
 const bookCase = cases.find(c => c.expected.acceptable[0]?.actions[0]?.action === "BOOK")!;
 const booking = bookCase.expected.acceptable[0]!;

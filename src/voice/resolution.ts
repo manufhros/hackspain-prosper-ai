@@ -25,7 +25,12 @@ export function simulatedSubmission(record: Outcome) {
 
 export type SubmissionPreview = ReturnType<typeof simulatedSubmission>["submission_preview"];
 
-export function completionSpeech(language: string, mode: "rehearsal" | "platform" = "rehearsal"): string {
+export function completionSpeech(language: string, mode: "rehearsal" | "platform" = "rehearsal", record?: Outcome, summaries: string[] = []): string {
+  if (record?.actions.some(a => a.action === "ESCALATE" && a.reason === "medical_emergency")) return ({ en: "This needs urgent medical attention. I cannot arrange a routine appointment for this.", es: "Esto requiere atención médica urgente. No puedo resolverlo con una cita ordinaria.", ca: "Això requereix atenció mèdica urgent. No ho puc resoldre amb una visita ordinària." } as Record<string, string>)[language] ?? "This needs urgent medical attention.";
+  if (summaries.length) {
+    const prefix = mode === "platform" ? { en: "Confirmed", es: "Confirmado", ca: "Confirmat" } : { en: "Recorded for this rehearsal", es: "Guardado para este ensayo", ca: "Desat per a aquest assaig" };
+    return `${prefix[language as "en" | "es" | "ca"] ?? prefix.en}: ${summaries.join(" ")} ${completionSpeech(language, mode)}`;
+  }
   if (mode === "platform") return ({ en: "Thank you for calling. Goodbye.", es: "Gracias por llamar. Hasta luego.", ca: "Gràcies per trucar. Fins aviat." } as Record<string, string>)[language] ?? "Thank you for calling. Goodbye.";
   return ({
     en: "I've recorded the outcome of this simulation. Thank you for calling. Goodbye.",

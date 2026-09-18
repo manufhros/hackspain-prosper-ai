@@ -77,14 +77,14 @@ const noClinic: ClinicReader = { async request() { throw new Error("Unexpected c
 const bookCase = cases.find(c => c.expected.acceptable[0]?.actions[0]?.action === "BOOK")!;
 const booking = bookCase.expected.acceptable[0]!;
 const action = booking.actions[0]!;
-const slot = { ...action, start_time: action.slot, payable_with: [action.policy_id] };
+const slot = { ...action, provider_name: "Dra. Carmen Ortiz Vidal", start_time: action.slot, payable_with: [action.policy_id] };
 function clinicFixture() {
   const requests: string[] = [];
   const clinic: ClinicReader = { async request(request) {
     expect(request.method).toBe("GET"); requests.push(request.path);
     const data = request.path.includes("/directory?") ? { matches: [{ patient_id: action.patient_id, given_name: "Patient", first_surname: "Example", date_of_birth: "1980-01-01" }] }
       : request.path.includes("/availability?") ? { slots: [slot] }
-      : { appointments: [{ appointment_id: "A-future", patient_id: action.patient_id, start_time: action.slot },
+      : { appointments: [{ provider_id: action.provider_id, provider_name: "Dra. Carmen Ortiz Vidal", location_id: action.location_id, appointment_id: "A-future", patient_id: action.patient_id, start_time: action.slot },
         { appointment_id: "A-past", patient_id: action.patient_id, start_time: "2026-09-01T10:00:00+02:00" }] };
     return { status: 200, elapsed_ms: 1, meaning: "OK", data };
   } };
@@ -93,6 +93,7 @@ function clinicFixture() {
 const identityText = "My name is Patient Example, born 1980-01-01. ";
 const directory = () => call("directory", { name: "Patient Example", date_of_birth: "1980-01-01" });
 const availability = (patient = action.patient_id) => call("availability", { date_from: "2026-09-19", date_to: "2026-09-25", provider_id: action.provider_id, patient_id: patient });
+const offer = (record: Outcome = booking) => call("offer_actions", record);
 const complete = (record: Outcome) => call("complete_call", { record });
 
 test("agent tool surface only exposes clinic GETs and a local completion sink", () => {
@@ -103,9 +104,11 @@ test("agent tool surface only exposes clinic GETs and a local completion sink", 
 });
 test("agent accepts a booking only from observed, patient-specific clinic availability", async () => {
   const { clinic, requests } = clinicFixture();
-  const inference = new FakeInference([directory(), availability(), complete(booking)]);
+  const inference = new FakeInference([directory(), availability(), offer(), complete(booking)]);
   const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
-  expect(await agent.turn(identityText + "Yes, please book that slot.", signal())).toBe(completionSpeech("en"));
+  const proposal = await agent.turn(identityText + "I need an appointment.", signal());
+  expect(proposal).toContain("Saturday");
+  expect(await agent.turn("Yes, please book that slot.", signal())).toContain("Recorded for this rehearsal");
   expect(agent.record).toEqual(booking);
   expect(requests).toHaveLength(2);
   expect(requests[1]).toContain(`patient_id=${action.patient_id}`);
@@ -128,10 +131,11 @@ test("invented patients, other patients' slots and unreturned policies cannot be
 test("cancellation requires an observed upcoming appointment and sessions stay isolated", async () => {
   const inference = new FakeInference([directory(), call("appointments", { patient_id: action.patient_id }),
     complete({ actions: [{ action: "CANCEL", appointment_id: "A-past" }] }), say("That visit is past."),
-    complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] })]);
+    offer({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] }), complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] })]);
   const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
   await agent.turn(identityText + "Cancel the old visit", signal()); expect(agent.record).toBeUndefined();
-  await agent.turn("Then cancel the future visit", signal()); expect(agent.record?.actions[0]?.appointment_id).toBe("A-future");
+  await agent.turn("Then cancel the future visit", signal());
+  await agent.turn("Yes", signal()); expect(agent.record?.actions[0]?.appointment_id).toBe("A-future");
   const fresh = new Receptionist(new FakeInference([complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] }), say("I must look it up.")]), noClinic, bookCase.reference_time, "en");
   await fresh.turn("Cancel it", signal()); expect(fresh.record).toBeUndefined();
 });
@@ -209,10 +213,10 @@ test("temporary audio is removed after failed ASR and smoke checks measure each 
 
 test("a confirmed offer captures a grounded mock BOOK and closes without another model turn", async () => {
   const { clinic, requests } = clinicFixture();
-  const inference = new FakeInference([directory(), availability(), say("¿Le viene bien esta cita?"), call("complete_call", booking)]);
+  const inference = new FakeInference([directory(), availability(), offer(), call("complete_call", booking)]);
   const agent = new Receptionist(inference, clinic, bookCase.reference_time, "es");
-  expect(await agent.turn("Me llamo Patient Example, nací el 1980-01-01. Busco una cita.", signal())).toBe("¿Le viene bien esta cita?");
-  expect(await agent.turn("Sí, esa opción me parece perfecta.", signal())).toBe(completionSpeech("es"));
+  expect(await agent.turn("Me llamo Patient Example, nací el 1980-01-01. Busco una cita.", signal())).toContain("¿Le viene bien?");
+  expect(await agent.turn("Sí, esa opción me parece perfecta.", signal())).toContain("Guardado para este ensayo");
   expect(agent.record).toEqual(booking);
   expect(inference.replies).toHaveLength(0); expect(inference.seen).toHaveLength(4);
   expect(requests.every(path => !path.includes("submit"))).toBe(true);
@@ -226,9 +230,10 @@ test("successful completion preserves multiple actions and ignores trailing tool
   const completion = call("complete_call", record);
   completion.tool_calls!.push({ function: { name: "clinic", arguments: {} } });
   const { clinic, requests } = clinicFixture();
-  const inference = new FakeInference([directory(), call("appointments", { patient_id: action.patient_id }), completion]);
+  const inference = new FakeInference([directory(), call("appointments", { patient_id: action.patient_id }), offer({ actions: [record.actions[0]!] }), completion]);
   const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
   await agent.turn(identityText + "Cancel that visit and leave the other request.", signal());
+  await agent.turn("Yes", signal());
   expect(agent.record).toEqual(record); expect(requests).toHaveLength(2);
 });
 test("repeated invalid completion stops locally instead of asking for endless confirmations", async () => {
@@ -240,7 +245,7 @@ test("repeated invalid completion stops locally instead of asking for endless co
 });
 
 test("a microphone booking finishes on one acceptance and exports the mock test payload", async () => {
-  const inference = new FakeInference([say("Hello"), directory(), availability(), say("¿Le viene bien esta cita?"), call("complete_call", booking)]);
+  const inference = new FakeInference([say("Hello"), directory(), availability(), offer(), call("complete_call", booking)]);
   const { clinic, requests } = clinicFixture();
   let confirmations = 0;
   const report = await runRehearsal(inference, clinic, bookCase, signal(), () => {}, async () => {
@@ -267,4 +272,66 @@ test("free chat saves the mock resolution without requesting another caller repl
   expect(report.platform_submission).toBe(false);
   expect(report.submission_preview).toEqual([{ method: "POST", path: "/api/v1/submit/no-action", body: { reason: "out_of_scope", call_id: "<start.callSid>" } }]);
   expect(report.transcript.at(-1)?.text).toBe(completionSpeech("es"));
+});
+
+test("platform report clarification and continuation cannot complete a grounded booking", async () => {
+  for (const reply of ["Did you say September 19th at 11 or at 12?", "for my Overdue yearly checkup.", "Which of those is earliest?"]) {
+    const inference = new FakeInference([directory(), availability(), offer(), complete(booking), say("Please choose the appointment first.")]);
+    const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+    await agent.turn(identityText + "I need an appointment", signal());
+    await agent.turn(reply, signal());
+    expect(agent.record).toBeUndefined();
+    expect(agent.messages.find(m => m.tool_name === "complete_call")?.content).toContain("explicitly accepted");
+  }
+});
+
+test("undelivered and interrupted platform offers cannot authorize a booking", async () => {
+  for (const interrupt of [false, true]) {
+    const inference = new FakeInference([directory(), availability(), offer(), complete(booking), say("Please choose the appointment first.")]);
+    const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+    const draft = await agent.turn(identityText + "I need an appointment", signal());
+    if (interrupt) {
+      agent.reopenAfterInterruption();
+      expect(agent.transcript.some(t => t.text === draft)).toBe(false);
+      expect(agent.messages.some(m => m.role === "assistant" && m.content === draft)).toBe(false);
+    }
+    await agent.turn("Yes", signal());
+    expect(agent.record).toBeUndefined();
+  }
+});
+
+test("a delivered platform offer closes with exact details after one acceptance", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+  await agent.turn(identityText + "I need an appointment", signal()); agent.markDelivered();
+  const closing = await agent.turn("Yes", signal());
+  expect(agent.record).toEqual(booking);
+  expect(closing).toContain("Confirmed"); expect(closing).toContain("Saturday"); expect(closing).toContain("Arenal Centro");
+  expect(closing).not.toContain(String(action.patient_id));
+});
+
+test("payload repair retains consent and never asks the caller again", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), call("complete_call", { actions: [{ action: "BOOK" }] }), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "I need an appointment", signal());
+  await agent.turn("Yes", signal());
+  expect(agent.record).toEqual(booking);
+  expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
+});
+
+test("interrupted ordinary drafts are removed even without a completion record", async () => {
+  const inference = new FakeInference([say("Draft that was never played.")]);
+  const agent = new Receptionist(inference, noClinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+  await agent.turn("Hello", signal()); agent.reopenAfterInterruption();
+  expect(agent.transcript).toEqual([{ role: "caller", text: "Hello" }]);
+  expect(agent.messages.some(m => m.content === "Draft that was never played.")).toBe(false);
+});
+
+test("an emergency completion needs neither identification nor a confirmation question", async () => {
+  const emergency = { actions: [{ action: "ESCALATE", reason: "medical_emergency" }] };
+  const inference = new FakeInference([complete(emergency)]);
+  const agent = new Receptionist(inference, noClinic, bookCase.reference_time, "en");
+  const response = await agent.turn("I cannot catch my breath", signal());
+  expect(agent.record).toEqual(emergency); expect(response).toContain("urgent medical attention");
+  expect(response).not.toContain("?"); expect(inference.seen).toHaveLength(1);
 });

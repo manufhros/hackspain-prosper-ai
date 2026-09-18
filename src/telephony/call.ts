@@ -144,7 +144,7 @@ export class PlatformCall {
     if (this.options.socket.send(JSON.stringify(message)) === 0) throw new Error("Socket dropped outbound audio");
   }
   private async speak(text: string) {
-    if (this.ended) return;
+    if (this.ended) return false;
     const playback = new AbortController(); this.playback = playback;
     const signal = AbortSignal.any([this.signal, playback.signal]);
     try {
@@ -158,7 +158,8 @@ export class PlatformCall {
         await this.sleep(20, signal);
       }
       this.send({ event: "mark", streamSid: this.inspector.streamSid, mark: { name: crypto.randomUUID() } });
-    } catch (error) { if (!playback.signal.aborted) throw error; }
+      return true;
+    } catch (error) { if (!playback.signal.aborted) throw error; return false; }
     finally { if (this.playback === playback) this.playback = undefined; }
   }
   private async pump() {
@@ -194,7 +195,9 @@ export class PlatformCall {
           }
         }
         this.emit({ stage: "agent", elapsed_ms: 0, detail: answer });
-        await this.speak(answer);
+        const delivered = await this.speak(answer);
+        if (delivered) this.agent.markDelivered();
+        else if (!this.finalizing) this.agent.reopenAfterInterruption();
         if (this.finalizing) {
           if (!this.ended) await this.sleep(200, this.signal); // tail playback after paced frames
           this.end(); break;

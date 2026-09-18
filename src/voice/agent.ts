@@ -5,6 +5,7 @@ import { completionRecord, completionSpeech, simulatedSubmission } from "./resol
 import { type Inference, type Message, type ToolCall } from "./runtime";
 import { ConversationLanguage, textLanguage } from "./language";
 import { callerSupplied, verifiedPatient } from "./identity";
+import { Consent, needsConsent } from "./consent";
 
 export interface ClinicReader { request: PlatformClient["request"] }
 export interface TraceEvent { stage: string; elapsed_ms: number; detail: string }
@@ -24,6 +25,8 @@ export const agentTools = [
       properties: Object.fromEntries((endpoint.parameters ?? []).map(p => [p.name, { ...expandSchema(p.schema), description: p.description ?? p.schema.description }])),
       required: (endpoint.parameters ?? []).filter(p => p.required).map(p => p.name) },
   } })),
+  { type: "function", function: { name: "offer_actions", description: "Propose ONE grounded BOOK, RESCHEDULE, CANCEL or REGISTER action. The application reads its exact details and one acceptance question aloud, then waits for the caller. Required before completing any write action. Do not offer appointments in free-form speech. For multiple intents, offer each separately and retain accepted actions.",
+    parameters: expandSchema(schema.components.schemas.SubmittedOutcome!) } },
   { type: "function", function: { name: "complete_call", description: "Record ALL final intents locally once the caller has accepted the specific proposed action and no stated request is unresolved. A clear yes to the offered appointment is sufficient; do not ask for confirmation again or wait for goodbye. Mock the track resolution; never create an appointment or send an HTTP POST. Pass {actions: [...]} directly, including every required field and explicit action verb. Success ends the conversation automatically.",
     parameters: expandSchema(schema.components.schemas.SubmittedOutcome!) } },
 ];
@@ -35,6 +38,11 @@ export class Receptionist {
   record?: Outcome;
   private completionFailures = 0;
   private speech: ConversationLanguage;
+  private consent = new Consent();
+  private offerSpeech?: string;
+  private draft?: { message: Message; turn: TranscriptTurn };
+  private providers = new Map<string, string>();
+  private locations = new Map<string, string>([["centro", "Arenal Centro"], ["norte", "Arenal Norte"], ["sur", "Arenal Sur"]]);
   get currentLanguage() { return this.speech.current; }
   private patients = new Set<string>();
   private slots: ObjectValue[] = [];
@@ -56,6 +64,7 @@ export class Receptionist {
       "Use directory then availability with patient_id and provider_id or specialty_id. Date ranges are inclusive and at most 14 days, inside 2026-09-07..2026-10-16. No same-day booking; weekday phrases mean the next such weekday strictly after connection. Offer only specific dates AND times from returned eligible slots, at most two options at once. Never infer availability from a provider's working hours or offer dates outside the API calendar. Use appointment_type_id and payable_with from real returned slots, and exact timestamps. Use computed spoken_date values, never guess weekdays. Tomorrow is the next calendar day, not the next working day. An availability error means UNKNOWN, not available or full. If outside the published window, explain the limit and ask for an in-window date. Earliest means the minimum eligible timestamp satisfying ALL current constraints. Reconcile or retract an earlier inconsistent offer explicitly.",
       "Ask about another plan if the first is blocked. Never invent self-pay. Use blocked metadata to explain refusals. Check actual site/provider schedules and the 2026-10-12 closure. The nearest site must be eligible; do not guess geographic coordinates.",
       "Read notes/history without mistaking them for caller preferences. Explain review as the clinic category for a general-practice appointment for an existing patient; it does not mean their new concern cannot be assessed. Use the type returned by availability. A misunderstanding of this label is not type_not_offered. Say the service the caller asked for instead of arguing about internal categories. New patients are REGISTER only. Use upcoming appointment IDs for moves/cancellations. A past visit cannot be moved or cancelled: explain this and offer a NEW booking, with consent for that new action. Never retry a past appointment ID. Respect final corrections, requested site/provider, and all intents.",
+      "WRITE WORKFLOW: Use offer_actions for one specific BOOK, RESCHEDULE, CANCEL or REGISTER action at a time, never a free-form appointment offer. The application validates and speaks the exact details. After the caller accepts, call complete_call with all accepted actions and resolved non-write intents. Questions and corrections need a response and a new offer, not completion. Do not silently switch patient, provider, location, time, policy or action.",
       "CONFIRM ONCE: Offer a specific action with the relevant doctor, site, date and time, then ask whether it suits the caller. An unambiguous 'sí', 'vale', 'perfecto', 'yes' or equivalent accepting that offer IS confirmation. Remember it. Do not ask '¿Confirma?', '¿Está seguro?' or repeat the same offer after acceptance. A yes to an identity question is not appointment consent. Questions like 'Did you say 11 or 12?', 'Which is earliest?', and sentence continuations like 'for my yearly checkup' are NOT consent: answer or listen before asking for a choice; if you offered multiple slots and their choice is unclear, ask only which slot.",
       "Once the specific action is accepted and all stated intents are resolved, call complete_call immediately in that same turn; the workbench will play the closing statement. Do not wait for another yes, a goodbye, or a separate permission to end the call. For multiple intents, retain each accepted action and resolve only the remaining ones; do not reconfirm the entire list. Ask again only if the caller changes the action or a material detail must change, and explain that change.",
       "complete_call records the final action list locally: REGISTER, BOOK, RESCHEDULE, CANCEL, NO_ACTION or ESCALATE. An explicit refusal still requires an action. The clinic is read-only even in the hackathon. Official tests report would-be writes to POST /api/v1/submit/<action>, one per action, using the real start.callSid. This rehearsal mocks those submissions locally: do not try to create or update appointments, invent a call_id, or call a submission endpoint. Pass {\"actions\":[...]} directly to complete_call, with action verbs and exact API fields; do not wrap it inside record. A successful call automatically plays a closing statement and ends the chat.",
@@ -76,16 +85,32 @@ export class Receptionist {
     return [{ role: "system", content: `${instructions}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
       ...this.messages.filter(m => m.role !== "system")];
   }
+  markDelivered() { this.consent.delivered(); this.draft = undefined; }
   reopenAfterInterruption() {
-    if (!this.record || this.options.mode !== "platform") return;
     this.record = undefined;
-    this.transcript.pop(); this.messages.pop(); // the generated closing statement was never played
-    this.messages.push({ role: "system", content: "The caller interrupted before submission. No actions have been submitted. Resolve their latest correction before calling complete_call again with ALL final intents." });
+    this.offerSpeech = undefined;
+    this.consent.interrupt();
+    if (this.draft) {
+      const message = this.messages.indexOf(this.draft.message), turn = this.transcript.indexOf(this.draft.turn);
+      if (message >= 0) this.messages.splice(message, 1);
+      if (turn >= 0) this.transcript.splice(turn, 1);
+      this.draft = undefined;
+    }
+    this.messages.push({ role: "system", content: "The last draft was interrupted or never played completely. No action was submitted. The caller has NOT heard or accepted that offer. Listen to their continuation/correction and offer the final action again if necessary." });
+  }
+  private speak(answer: string) {
+    const message: Message = { role: "assistant", content: answer };
+    const turn: TranscriptTurn = { role: "agent", text: answer };
+    this.messages.push(message); this.transcript.push(turn);
+    this.draft = { message, turn };
+    if (this.options.mode !== "platform") this.markDelivered();
+    return answer;
   }
   private emit(stage: string, elapsed_ms: number, detail: string) { const event = { stage, elapsed_ms, detail }; this.events.push(event); this.update(event); }
   async turn(text: string, signal: AbortSignal): Promise<string> {
     if (this.record) throw new Error("Call already completed");
     this.language = this.speech.update(text);
+    if (text) this.consent.hear(text);
     let speechRepairs = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
@@ -108,13 +133,17 @@ export class Receptionist {
           }
           this.emit("tool", Math.round(performance.now() - started), `${call.function?.name ?? "unknown"}: ${isObject(result) && result.error ? result.error : "completed"}`);
           this.messages.push({ role: "tool", tool_name: call.function?.name, content: JSON.stringify(result) });
-          if (this.record) {
+          const completed = this.record as Outcome | undefined;
+          if (completed) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
-            const answer = completionSpeech(this.language, this.options.mode);
-            this.messages.push({ role: "assistant", content: answer });
-            this.transcript.push({ role: "agent", text: answer });
-            return answer;
+            return this.speak(completionSpeech(this.language, this.options.mode, completed,
+              completed.actions.filter(needsConsent).map(action => this.describeAction(action))));
+          }
+          if (this.offerSpeech) {
+            reply.message.tool_calls = calls.slice(0, calls.indexOf(call) + 1);
+            const speech = this.offerSpeech; this.offerSpeech = undefined;
+            return this.speak(speech);
           }
           if (this.completionFailures >= 3) throw new Error(`Local resolution failed after three attempts: ${isObject(result) ? result.error : "invalid outcome"}`);
         }
@@ -123,29 +152,44 @@ export class Receptionist {
       const answer = reply.message.content.trim();
       if (!answer) throw new Error("Local model returned no speech or tool request");
       const detected = textLanguage(answer);
-      if (detected && detected !== this.currentLanguage && speechRepairs++ < 2) {
+      const speechProblem = detected && detected !== this.currentLanguage ? `Reply in ${this.currentLanguage}`
+        : /\b(?:PR\d+|P\d{4,}|A\d{4,})\b|\b(?:patient_id|provider_id|appointment_id|payable_with)\b/.test(answer) ? "Remove internal IDs and field names"
+        : answer.split(/\s+/).length > 65 || (answer.match(/\?/g)?.length ?? 0) > 1 || /(?:^|\n)\s*[-*] /.test(answer) ? "Use at most 65 words, one question, and no lists"
+        : /\d/.test(answer) && /\b(offer|available|availability|disponible|disponibilidad|ofrecer|reservar)\b/i.test(answer) ? "Use offer_actions for a specific appointment offer; do not invent spoken slots"
+        : undefined;
+      if (speechProblem && speechRepairs++ < 2) {
         this.messages.pop();
-        this.messages.push({ role: "system", content: `The last draft was in the wrong language and was NOT spoken. Reply briefly in ${this.currentLanguage}.` });
+        this.messages.push({ role: "system", content: `The last draft was NOT spoken. ${speechProblem}. Keep the response brief.` });
         continue;
       }
-      if (detected && detected !== this.currentLanguage) throw new Error("Model repeatedly returned speech in the wrong language");
-      this.transcript.push({ role: "agent", text: answer });
-      return answer;
+      if (speechProblem) throw new Error(`Model repeatedly returned invalid speech: ${speechProblem}`);
+      this.messages.pop(); // speak stores only the delivered draft once
+      return this.speak(answer);
     }
     throw new Error("Local agent exceeded ten tool rounds in one turn");
   }
   private async tool(call: ToolCall, signal: AbortSignal): Promise<unknown> {
     if (!isObject(call.function) || !isObject(call.function.arguments)) throw new Error("Malformed tool call");
     const { name, arguments: args } = call.function;
+    if (name === "offer_actions") {
+      const record = completionRecord(args);
+      if (record.actions.length !== 1 || !needsConsent(record.actions[0]!)) throw new Error("Offer exactly one write action at a time; NO_ACTION and ESCALATE do not require consent.");
+      this.checkGrounding(record.actions);
+      const summary = this.describeAction(record.actions[0]!);
+      this.consent.offer(record.actions, this.options.mode !== "platform");
+      this.offerSpeech = `${summary} ${{ en: "Does that work for you?", es: "¿Le viene bien?", ca: "Li va bé?" }[this.currentLanguage]}`;
+      return { proposal_ready: true, awaiting_caller_acceptance: true };
+    }
     if (name === "complete_call") {
       if (this.record) throw new Error("Final record already captured");
       const record = completionRecord(args);
       this.checkGrounding(record.actions);
+      this.consent.check(record.actions);
       this.record = structuredClone(record);
       return this.options.mode === "platform" ? { accepted_locally: true, platform_submission: "pending", record: this.record } : simulatedSubmission(this.record);
     }
     const endpoint = readEndpoints.find(e => toolName(e.path) === name);
-    if (!endpoint) throw new Error("Tool not allowed. Only read-only clinic tools and complete_call exist.");
+    if (!endpoint) throw new Error("Tool not allowed. Only read-only clinic tools, offer_actions and complete_call exist.");
     const callerTurns = this.transcript.filter(t => t.role === "caller").map(t => t.text);
     if (name === "directory") {
       for (const [field, value] of Object.entries(args)) {
@@ -160,6 +204,8 @@ export class Receptionist {
     if (response.status !== 200) throw new Error(`Clinic returned ${response.status}: ${response.meaning}`);
     if (!isObject(response.data)) throw new Error("Clinic returned an unexpected response");
     const data = response.data;
+    if (Array.isArray(data.providers)) for (const provider of data.providers) if (isObject(provider) && typeof provider.id === "string" && typeof provider.name === "string") this.providers.set(provider.id, provider.name);
+    if (Array.isArray(data.locations)) for (const location of data.locations) if (isObject(location) && typeof location.id === "string" && typeof location.name === "string") this.locations.set(location.id, location.name);
     if (Array.isArray(data.matches)) {
       const candidates = data.matches.filter(isObject);
       const patient = candidates.length === 1 ? candidates[0] : undefined;
@@ -188,6 +234,27 @@ export class Receptionist {
         total_slots: slots.length, showing: "earliest 24 eligible future slots for THIS query only; narrow by requested site/provider/date before claiming earliest" };
     }
     return data;
+  }
+  private describeAction(action: Action): string {
+    const locale = this.currentLanguage;
+    if (action.action === "REGISTER") {
+      const patient = isObject(action.new_patient) ? action.new_patient : {};
+      const name = [patient.given_name, patient.first_surname, patient.second_surname].join(" ");
+      return ({ en: `Register ${name} as a new patient; no appointment is included.`, es: `Dar de alta a ${name}; no incluye una cita.`, ca: `Donar d'alta ${name}; no inclou cap visita.` })[locale];
+    }
+    const appointment = this.appointments.get(String(action.appointment_id));
+    const slot = action.action === "CANCEL" ? appointment : this.slots.find(slot => slot.provider_id === action.provider_id && slot.location_id === action.location_id && Date.parse(String(slot.start_time)) === Date.parse(String(action.slot)));
+    if (!slot) throw new Error("No retrieved appointment/slot to describe");
+    const provider = typeof slot.provider_name === "string" ? slot.provider_name : this.providers.get(String(slot.provider_id));
+    const location = this.locations.get(String(slot.location_id));
+    if (!provider || !location) throw new Error("Read providers/locations to obtain public names before offering an action");
+    const date = this.spokenDate(String(slot.start_time));
+    const verbs = { en: { BOOK: "Book an appointment", CANCEL: "Cancel the appointment", RESCHEDULE: "Move the appointment" }, es: { BOOK: "Reservar una cita", CANCEL: "Cancelar la cita", RESCHEDULE: "Cambiar la cita" }, ca: { BOOK: "Reservar una visita", CANCEL: "Cancel·lar la visita", RESCHEDULE: "Canviar la visita" } };
+    const verb = verbs[locale][action.action as "BOOK" | "CANCEL" | "RESCHEDULE"];
+    const oldDate = action.action === "RESCHEDULE" && appointment ? this.spokenDate(String(appointment.start_time)) : undefined;
+    return locale === "en" ? `${verb}${oldDate ? ` from ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`
+      : locale === "es" ? `${verb}${oldDate ? ` del ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`
+      : `${verb}${oldDate ? ` del ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`;
   }
   private spokenDate(timestamp: string) {
     return new Intl.DateTimeFormat(this.currentLanguage, { timeZone: "Europe/Madrid", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(timestamp));

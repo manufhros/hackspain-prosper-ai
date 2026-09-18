@@ -18,7 +18,11 @@ import {
   preferenceQuestion,
   resolveRequestedProvider,
 } from "../playbook/booking";
+import { isOpenDay, nextOpenDay } from "../playbook/calendar";
+import { nearestLocationForSpecialty } from "../playbook/geography";
 import { isEmergency } from "../playbook/rules";
+import { classifyTriage } from "../playbook/triage";
+import { isOutOfScope, safeOutOfScopeResponse } from "../security/privacy";
 import { createCallState, publicState, type CallState } from "../state/call-state";
 import {
   availabilityQuery,
@@ -130,12 +134,49 @@ export class TurnEngine {
         tools,
       );
     }
+    if (isOutOfScope(userText)) {
+      this.state.turn += 1;
+      this.state.lastUserText = userText;
+      this.state.intent = "no_action";
+      const payload = { call_id: this.state.callId, reason: "out_of_scope" };
+      await this.submitAction(tools, "no-action", payload, "submitNoAction");
+      this.state.phase = "closed";
+      return this.result(safeOutOfScopeResponse(this.state.conversationLanguage), tools);
+    }
     const extraction = await this.traced(tools, "extractTurn", { text: userText }, () =>
       (this.options.extractor ?? extractTurn)(userText, this.state),
     );
     const acceptance = applyTurnExtraction(this.state, userText, extraction);
 
-    if (isEmergency(userText) || this.state.intent === "escalate") {
+    if (
+      acceptance === "accepted" &&
+      this.state.pendingDecision === "registration_confirmation"
+    ) {
+      this.state.registrationConfirmed = true;
+      this.state.pendingDecision = undefined;
+    }
+
+    if (acceptance === "accepted" && this.state.pendingDecision === "date_fallback") {
+      const requestedDate = this.state.constraints.dateTo ?? this.state.constraints.dateFrom;
+      if (requestedDate) {
+        const date = nextOpenDay(
+          requestedDate,
+          this.state.constraints.locationId,
+          this.state.constraints.timePreference,
+        );
+        this.state.constraints.dateFrom = date;
+        this.state.constraints.dateTo = date;
+        this.state.constraints.weekday = undefined;
+        this.state.constraintsVersion += 1;
+      }
+      this.state.pendingDecision = undefined;
+    }
+
+    if (
+      isEmergency(userText) ||
+      classifyTriage([...this.state.symptomHistory, userText]) === "medical_emergency" ||
+      this.state.intent === "escalate"
+    ) {
       const payload = { call_id: this.state.callId, reason: "medical_emergency" };
       await this.submitAction(tools, "escalate", payload, "submitEscalate");
       this.state.phase = "closed";
@@ -147,14 +188,33 @@ export class TurnEngine {
       );
     }
 
+    if (this.state.intent === "no_action") {
+      const payload = { call_id: this.state.callId, reason: "out_of_scope" };
+      await this.submitAction(tools, "no-action", payload, "submitNoAction");
+      this.state.phase = "closed";
+      return this.result(
+        this.state.conversationLanguage === "es"
+          ? "No puedo ayudar con esa solicitud."
+          : "I can't help with that request.",
+        tools,
+      );
+    }
+
     if (acceptance === "accepted" && this.state.allowProviderFallback) {
       this.state.constraints.providerId = undefined;
       this.state.constraints.providerName = undefined;
       this.state.allowProviderFallback = false;
+      this.state.pendingDecision = undefined;
       this.state.constraintsVersion += 1;
     }
 
-    if (acceptance === "accepted" && this.state.offer) {
+    if (
+      acceptance === "accepted" &&
+      this.state.offer &&
+      (extraction.acceptanceTarget === undefined ||
+        extraction.acceptanceTarget === "unknown" ||
+        extraction.acceptanceTarget === "appointment_offer")
+    ) {
       if (this.state.intent === "reschedule") {
         const payload = buildReschedulePayload(this.state);
         await this.submitAction(tools, "reschedule", payload, "submitReschedule");
@@ -167,7 +227,9 @@ export class TurnEngine {
     }
 
     if (acceptance === "rejected" && this.state.offer) {
+      this.state.rejectedSlots.push(this.state.offer.slot);
       this.state.offer = undefined;
+      this.state.pendingDecision = undefined;
       this.state.phase = "search";
     }
 
@@ -224,6 +286,31 @@ export class TurnEngine {
       listProviders(),
     );
     const providers = providersResponse.providers;
+
+    if (
+      this.state.originAddress &&
+      this.state.constraints.specialtyId &&
+      !this.state.constraints.locationId
+    ) {
+      const specialtiesByLocation: Record<string, string[]> = {};
+      for (const provider of providers) {
+        for (const schedule of provider.schedules) {
+          const specialties = (specialtiesByLocation[schedule.location_id] ??= []);
+          if (!specialties.includes(provider.specialty_id)) {
+            specialties.push(provider.specialty_id);
+          }
+        }
+      }
+      const nearest = nearestLocationForSpecialty(
+        this.state.originAddress,
+        this.state.constraints.specialtyId,
+        specialtiesByLocation,
+      );
+      if (nearest) {
+        this.state.constraints.locationId = nearest.location.id;
+        this.state.constraintsVersion += 1;
+      }
+    }
     if (this.state.constraints.providerName && !this.state.constraints.providerId) {
       const provider = resolveRequestedProvider(this.state, providers);
       if (!provider) {
@@ -255,6 +342,7 @@ export class TurnEngine {
         provider.leave.end >= referenceDay
       ) {
         this.state.allowProviderFallback = true;
+        this.state.pendingDecision = "provider_fallback";
         return this.result(
           this.state.conversationLanguage === "es"
             ? "Ese médico está de baja. ¿Te viene bien otro médico de la misma especialidad en esa clínica?"
@@ -269,6 +357,24 @@ export class TurnEngine {
         this.state.conversationLanguage === "es"
           ? "¿Qué especialidad necesitas?"
           : "Which specialty do you need?",
+        tools,
+      );
+    }
+
+    if (
+      this.state.constraints.dateFrom &&
+      this.state.constraints.dateFrom === this.state.constraints.dateTo &&
+      !isOpenDay(
+        this.state.constraints.dateFrom,
+        this.state.constraints.locationId,
+        this.state.constraints.timePreference,
+      )
+    ) {
+      this.state.pendingDecision = "date_fallback";
+      return this.result(
+        this.state.conversationLanguage === "es"
+          ? "La clínica está cerrada ese día. ¿Quieres que busque el siguiente día abierto manteniendo tus preferencias?"
+          : "The clinic is closed that day. Should I search the next open day with the same preferences?",
         tools,
       );
     }
@@ -290,6 +396,7 @@ export class TurnEngine {
     try {
       const offer = chooseOffer(this.state, availability.slots, providerLanguages);
       this.state.offer = offer;
+      this.state.pendingDecision = "appointment_offer";
       this.state.phase = "offer";
       return this.result(offerText(this.state, offer), tools);
     } catch {
@@ -299,6 +406,7 @@ export class TurnEngine {
         availability.blocked.some((item) => item.restriction === "provider_on_leave")
       ) {
         this.state.allowProviderFallback = true;
+        this.state.pendingDecision = "provider_fallback";
         return this.result(
           this.state.conversationLanguage === "es"
             ? "Ese médico está de baja. ¿Te viene bien otro médico de la misma especialidad en esa clínica?"
@@ -311,6 +419,19 @@ export class TurnEngine {
           this.state.conversationLanguage === "es"
             ? "Ese médico no está en esa clínica ese día. ¿Te sirve el primer día disponible allí?"
             : "That doctor isn't at that clinic that day. Would their earliest day there work?",
+          tools,
+        );
+      }
+      if (
+        availability.slots.length === 0 &&
+        this.state.constraints.dateFrom &&
+        this.state.constraints.dateFrom === this.state.constraints.dateTo
+      ) {
+        this.state.pendingDecision = "date_fallback";
+        return this.result(
+          this.state.conversationLanguage === "es"
+            ? "No hay huecos ese día. ¿Busco el siguiente día disponible?"
+            : "There are no slots that day. Should I search the next available day?",
           tools,
         );
       }
@@ -327,10 +448,18 @@ export class TurnEngine {
       return identificationQuestion(this.state);
     }
     const query = identity.nationalId
-      ? { name: identity.name, national_id: identity.nationalId }
+      ? {
+          name: identity.name,
+          national_id: identity.nationalId,
+          date_of_birth: identity.dateOfBirth,
+        }
       : identity.phone
-        ? { name: identity.name, phone: identity.phone }
-        : { name: identity.name, phone: this.state.fromNumber ?? undefined };
+        ? { name: identity.name, phone: identity.phone, date_of_birth: identity.dateOfBirth }
+        : {
+            name: identity.name,
+            phone: this.state.fromNumber ?? undefined,
+            date_of_birth: identity.dateOfBirth,
+          };
     const directory = await this.traced(tools, "searchDirectory", query, () =>
       searchDirectory(query),
     );
@@ -347,7 +476,10 @@ export class TurnEngine {
     }
     const patient = directory.matches[0]!;
     this.state.resolvedPatientId = patient.patient_id;
-    this.state.constraints.insurer ??= patient.insurer;
+    this.state.resolvedIdentityVersion = this.state.identityVersion;
+    this.state.primaryPolicy = patient.insurer;
+    this.state.activePolicy ??= patient.insurer;
+    this.state.constraints.insurer ??= this.state.activePolicy;
     return null;
   }
 
@@ -402,6 +534,7 @@ export class TurnEngine {
     const original = appointments.find(
       (item) => item.appointment_id === this.state.targetAppointmentId,
     )!;
+    this.state.replacementNotBefore ??= original.start_time;
     const providers = (await this.traced(tools, "listProviders", {}, () => listProviders()))
       .providers;
     const originalProvider = providers.find((provider) => provider.id === original.provider_id);
@@ -430,6 +563,7 @@ export class TurnEngine {
     };
     const offer = chooseOffer(this.state, availability.slots);
     this.state.offer = offer;
+    this.state.pendingDecision = "appointment_offer";
     this.state.phase = "offer";
     return this.result(offerText(this.state, offer), tools);
   }
@@ -437,6 +571,15 @@ export class TurnEngine {
   private async processRegistration(tools: ToolTrace[]) {
     try {
       const payload = buildRegisterPayload(this.state);
+      if (!this.state.registrationConfirmed) {
+        this.state.pendingDecision = "registration_confirmation";
+        return this.result(
+          this.state.conversationLanguage === "es"
+            ? `Voy a registrar a ${payload.given_name} ${payload.first_surname} ${payload.second_surname}, con documento terminado en ${payload.national_id.slice(-3)} y correo ${payload.email}. ¿Es correcto?`
+            : `I will register ${payload.given_name} ${payload.first_surname} ${payload.second_surname}, with ID ending ${payload.national_id.slice(-3)} and email ${payload.email}. Is that correct?`,
+          tools,
+        );
+      }
       await this.submitAction(tools, "register", payload, "submitRegister");
       this.state.phase = "closed";
       return this.result("Your registration is complete.", tools);

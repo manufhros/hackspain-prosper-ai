@@ -11,6 +11,10 @@ import {
   isExplicitAcceptance,
   isExplicitRejection,
 } from "../playbook/rules";
+import { resolveWhenExactly } from "../playbook/calendar";
+import { resolveAddressCoordinates } from "../playbook/geography";
+import { classifyTriage } from "../playbook/triage";
+import { isOutOfScope } from "../security/privacy";
 import type { CallState, CallerConstraints } from "../state/call-state";
 
 const nullableText = z.string().nullable();
@@ -68,6 +72,54 @@ const extractionSchema = z.object({
   ),
   appointmentDate: nullableText,
   allAppointments: z.boolean(),
+  acceptanceTarget: z
+    .enum(["appointment_offer", "fallback", "registration", "cancellation", "policy", "unknown"])
+    .optional(),
+  bookingSubject: z.enum(["caller", "third_party", "unknown"]).optional(),
+  relation: nullableText.optional(),
+  callerIdentity: z
+    .object({
+      name: nullableText,
+      nationalId: nullableText,
+      phone: nullableText,
+      dateOfBirth: nullableText,
+    })
+    .optional(),
+  patientIdentity: z
+    .object({
+      name: nullableText,
+      nationalId: nullableText,
+      phone: nullableText,
+      dateOfBirth: nullableText,
+    })
+    .optional(),
+  symptomText: nullableText.optional(),
+  originAddress: nullableText.optional(),
+  clinicQuestion: nullableText.optional(),
+  temporalExpression: nullableText.optional(),
+  alternativePolicy: z
+    .enum([
+      "sanitas",
+      "adeslas",
+      "dkv",
+      "asisa",
+      "mapfre",
+      "caser",
+      "cigna",
+      "axa",
+      "nueva_mutua",
+      "privado",
+    ])
+    .nullable()
+    .optional(),
+  appointmentSelector: z
+    .object({
+      date: nullableText,
+      time: nullableText,
+      providerName: nullableText,
+      locationId: z.enum(["centro", "norte", "sur"]).nullable(),
+    })
+    .optional(),
   identity: z.object({
     name: nullableText,
     nationalId: nullableText,
@@ -128,6 +180,15 @@ function fallbackExtraction(text: string): TurnExtraction {
     clearConstraints: [],
     appointmentDate: null,
     allAppointments: /\b(both|all|las dos|ambas|todas)\b/i.test(text),
+    acceptanceTarget: "unknown",
+    bookingSubject: /\b(?:for|por)\s+(?:my|mi|the|la|el)\s+(?:son|daughter|father|mother|child|hijo|hija|padre|madre)\b/i.test(text)
+      ? "third_party"
+      : "unknown",
+    symptomText: null,
+    originAddress: null,
+    clinicQuestion: null,
+    temporalExpression: null,
+    alternativePolicy: null,
     identity: { name: null, nationalId, phone, dateOfBirth },
     registration: {
       given_name: null,
@@ -143,6 +204,40 @@ function fallbackExtraction(text: string): TurnExtraction {
 }
 
 export async function extractTurn(text: string, state: CallState): Promise<TurnExtraction> {
+  const deterministic = fallbackExtraction(text);
+  if (isOutOfScope(text)) {
+    return { ...deterministic, intent: "no_action" };
+  }
+  const triage = classifyTriage([...state.symptomHistory, text]);
+  if (triage === "medical_emergency") {
+    return { ...deterministic, intent: "escalate", symptomText: text };
+  }
+
+  const enrich = (extraction: TurnExtraction): TurnExtraction => {
+    const when = resolveWhenExactly(text, state.referenceTime);
+    const inferredTriage = classifyTriage([...state.symptomHistory, text]);
+    return {
+      ...extraction,
+      intent:
+        inferredTriage === "medical_emergency"
+          ? "escalate"
+          : extraction.intent,
+      specialtyId:
+        inferredTriage && inferredTriage !== "medical_emergency"
+          ? inferredTriage
+          : extraction.specialtyId,
+      dateFrom: when?.dateFrom ?? extraction.dateFrom,
+      dateTo: when?.dateTo ?? extraction.dateTo,
+      timePreference: when?.timePreference ?? extraction.timePreference,
+      temporalExpression: when ? text : extraction.temporalExpression,
+      symptomText: inferredTriage ? text : extraction.symptomText,
+      originAddress:
+        resolveAddressCoordinates(text) !== undefined
+          ? text
+          : extraction.originAddress,
+    };
+  };
+
   try {
     const result = await generateText({
       model: EXTRACTOR_MODEL,
@@ -157,16 +252,29 @@ Mark correction=true when a new value replaces a previous preference.
 When the caller explicitly says an earlier preference no longer matters, include its
 field in clearConstraints. appointmentDate is the date of an existing appointment
 they want to cancel or move, not a requested new date.
+Do not calculate relative dates. Put the caller's exact relative date phrase in
+temporalExpression and leave dateFrom/dateTo null unless an absolute date was stated.
+Separate callerIdentity from patientIdentity whenever somebody calls for another person.
+bookingSubject is third_party in that situation. relation is only the explicitly stated
+relationship. symptomText contains the caller's symptom wording without diagnosing it.
+clinicQuestion contains factual questions about sites, providers, specialties or hours.
+originAddress is the caller's street/address, never a clinic name. alternativePolicy is
+only an explicitly declared second insurance plan. acceptanceTarget identifies what the
+caller is accepting; use unknown if the utterance does not make that unambiguous.
 Current state: ${JSON.stringify({
         intent: state.intent,
         constraints: state.constraints,
-        offer: state.offer,
+        phase: state.phase,
+        hasOffer: Boolean(state.offer),
+        pendingDecision: state.pendingDecision,
+        bookingSubject: state.bookingSubject,
+        referenceTime: state.referenceTime,
       })}
 Latest caller utterance: ${JSON.stringify(text)}`,
     });
-    return result.output;
+    return enrich(result.output);
   } catch {
-    return fallbackExtraction(text);
+    return enrich(deterministic);
   }
 }
 
@@ -216,13 +324,86 @@ export function applyTurnExtraction(
     if (state.phase === "offer" || state.phase === "confirm") state.phase = "search";
   }
 
+  if (extraction.bookingSubject && extraction.bookingSubject !== "unknown") {
+    state.bookingSubject = extraction.bookingSubject;
+  }
+  if (extraction.relation) state.relation = extraction.relation;
+  if (extraction.symptomText) state.symptomHistory.push(extraction.symptomText);
+  if (extraction.originAddress) state.originAddress = extraction.originAddress;
+  if (extraction.clinicQuestion) state.clinicQuestion = extraction.clinicQuestion;
+  if (extraction.alternativePolicy) {
+    if (!state.declaredAlternativePolicies.includes(extraction.alternativePolicy)) {
+      state.declaredAlternativePolicies.push(extraction.alternativePolicy);
+    }
+    state.activePolicy = extraction.alternativePolicy;
+    state.constraints.insurer = extraction.alternativePolicy;
+    state.policyRecoveryStatus = "retrying";
+  }
+  if (extraction.appointmentSelector) {
+    const selector = Object.fromEntries(
+      Object.entries(extraction.appointmentSelector).filter(([, value]) => value != null),
+    );
+    if (Object.keys(selector).length) state.appointmentSelectors.push(selector);
+  }
+
   for (const [key, value] of Object.entries(extraction.registration)) {
     if (value) state.registration[key as keyof typeof state.registration] = value;
   }
-  if (extraction.identity.name) state.identity.name = extraction.identity.name;
-  if (extraction.identity.nationalId) state.identity.nationalId = extraction.identity.nationalId;
-  if (extraction.identity.phone) state.identity.phone = extraction.identity.phone;
-  if (extraction.identity.dateOfBirth) state.identity.dateOfBirth = extraction.identity.dateOfBirth;
+  const callerIdentity = extraction.callerIdentity;
+  const patientIdentity = extraction.patientIdentity;
+  for (const [key, value] of Object.entries(callerIdentity ?? {})) {
+    if (value) state.callerIdentity[key as keyof typeof state.callerIdentity] = value;
+  }
+  let patientIdentityChanged = false;
+  for (const [key, value] of Object.entries(patientIdentity ?? extraction.identity)) {
+    if (!value) continue;
+    const identityKey = key as keyof typeof state.patientIdentity;
+    patientIdentityChanged =
+      state.patientIdentity[identityKey] !== undefined &&
+      state.patientIdentity[identityKey] !== value
+        ? true
+        : patientIdentityChanged;
+    state.patientIdentity[identityKey] = value;
+    state.identity[identityKey] = value;
+  }
+  if (state.bookingSubject !== "third_party") {
+    for (const [key, value] of Object.entries(extraction.identity)) {
+      if (!value) continue;
+      const identityKey = key as keyof typeof state.callerIdentity;
+      state.callerIdentity[identityKey] = value;
+    }
+  }
+  if (patientIdentityChanged) {
+    state.identityVersion += 1;
+    state.resolvedPatientId = undefined;
+    state.resolvedIdentityVersion = undefined;
+    state.knownPatients = [];
+    state.listedAppointments = [];
+    state.targetAppointmentId = undefined;
+    state.targetAppointmentIds = [];
+    state.lastAvailability = undefined;
+    state.offer = undefined;
+    state.primaryPolicy = undefined;
+    state.activePolicy = undefined;
+  }
+
+  if (extraction.acceptance === "accepted" && extraction.acceptanceTarget === "registration") {
+    state.registrationConfirmed = true;
+  }
+
+  if (extraction.intent && state.workItems.length === 0) {
+    const id = `work-${state.turn}`;
+    state.workItems.push({
+      id,
+      subjectKey: state.bookingSubject === "third_party" ? "patient" : "caller",
+      intent: extraction.intent,
+      status: "active",
+      constraints: { ...state.constraints },
+      targetAppointmentIds: [],
+      createdAtTurn: state.turn,
+    });
+    state.activeWorkItemId = id;
+  }
 
   return extraction.acceptance;
 }

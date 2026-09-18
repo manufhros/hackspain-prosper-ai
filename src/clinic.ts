@@ -92,5 +92,8 @@ export async function submit(action: string, payload: Record<string, unknown>) {
     body: JSON.stringify(payload),
   });
   const body = await res.json().catch(() => ({ raw: res.statusText }));
+  if (!res.ok) {
+    throw new Error(`clinic POST /submit/${action} ${res.status}: ${JSON.stringify(body)}`);
+  }
   return { status_code: res.status, body };
 }

@@ -18,12 +18,22 @@ export type Intent =
   | "unknown";
 
 export type TimePreference = "morning" | "afternoon" | "any";
+export type ConversationLanguage = "en" | "es" | "ca";
+export type BookingSubject = "caller" | "third_party" | "unknown";
+export type LocationId = "centro" | "norte" | "sur";
+
+export type IdentityDraft = {
+  name?: string;
+  nationalId?: string;
+  phone?: string;
+  dateOfBirth?: string;
+};
 
 export type CallerConstraints = {
   specialtyId?: string;
   providerId?: string;
   providerName?: string;
-  locationId?: string;
+  locationId?: LocationId;
   weekday?: number;
   dateFrom?: string;
   dateTo?: string;
@@ -52,7 +62,7 @@ export type AvailabilitySlot = {
   provider_id: string;
   provider_name: string;
   specialty_id: string;
-  location_id: string;
+  location_id: LocationId;
   appointment_type_id: string;
   start_time: string;
   duration_minutes: number;
@@ -63,10 +73,36 @@ export type Appointment = {
   appointment_id: string;
   patient_id: string;
   provider_id: string;
-  location_id: string;
+  location_id: LocationId;
   appointment_type_id: string;
   start_time: string;
   duration_minutes: number;
+};
+
+export type AppointmentSelector = {
+  date?: string;
+  time?: string;
+  providerName?: string;
+  locationId?: string;
+};
+
+export type PendingDecision =
+  | "appointment_offer"
+  | "provider_fallback"
+  | "date_fallback"
+  | "specialty_redirect"
+  | "policy_fallback"
+  | "registration_confirmation"
+  | "cancellation_confirmation";
+
+export type WorkItem = {
+  id: string;
+  subjectKey: "caller" | "patient";
+  intent: Exclude<Intent, "unknown">;
+  status: "pending" | "active" | "offered" | "submitted" | "declined";
+  constraints: CallerConstraints;
+  targetAppointmentIds: string[];
+  createdAtTurn: number;
 };
 
 export type OfferState = {
@@ -106,15 +142,18 @@ export type CallState = {
   turn: number;
   phase: Phase;
   intent: Intent;
-  conversationLanguage: "en" | "es" | "ca";
+  conversationLanguage: ConversationLanguage;
   constraints: CallerConstraints;
   constraintsVersion: number;
-  identity: {
-    name?: string;
-    nationalId?: string;
-    phone?: string;
-    dateOfBirth?: string;
-  };
+  identity: IdentityDraft;
+  callerIdentity: IdentityDraft;
+  patientIdentity: IdentityDraft;
+  bookingSubject: BookingSubject;
+  relation?: string;
+  identityVersion: number;
+  resolvedIdentityVersion?: number;
+  workItems: WorkItem[];
+  activeWorkItemId?: string;
   preferencesAsked: boolean;
   allowProviderFallback: boolean;
   providerLookupAttempts: number;
@@ -128,9 +167,22 @@ export type CallState = {
     constraintsVersion: number;
   };
   offer?: OfferState;
+  pendingDecision?: PendingDecision;
+  rejectedSlots: string[];
   listedAppointments: Appointment[];
   targetAppointmentId?: string;
+  targetAppointmentIds: string[];
+  appointmentSelectors: AppointmentSelector[];
+  replacementNotBefore?: string;
   registration: RegistrationDraft;
+  registrationConfirmed: boolean;
+  primaryPolicy?: string;
+  declaredAlternativePolicies: string[];
+  activePolicy?: string;
+  policyRecoveryStatus: "idle" | "offered" | "awaiting_name" | "retrying";
+  symptomHistory: string[];
+  originAddress?: string;
+  clinicQuestion?: string;
   submissions: SubmissionRecord[];
   lastUserText?: string;
   violations: string[];
@@ -152,12 +204,24 @@ export function createCallState(
     constraints: {},
     constraintsVersion: 0,
     identity: {},
+    callerIdentity: {},
+    patientIdentity: {},
+    bookingSubject: "unknown",
+    identityVersion: 0,
+    workItems: [],
     preferencesAsked: false,
     allowProviderFallback: false,
     providerLookupAttempts: 0,
     knownPatients: [],
+    rejectedSlots: [],
     listedAppointments: [],
+    targetAppointmentIds: [],
+    appointmentSelectors: [],
     registration: {},
+    registrationConfirmed: false,
+    declaredAlternativePolicies: [],
+    policyRecoveryStatus: "idle",
+    symptomHistory: [],
     submissions: [],
     violations: [],
   };
@@ -173,9 +237,15 @@ export function publicState(state: CallState) {
     conversationLanguage: state.conversationLanguage,
     constraints: state.constraints,
     constraintsVersion: state.constraintsVersion,
+    bookingSubject: state.bookingSubject,
+    activeWorkItemId: state.activeWorkItemId,
+    workItems: state.workItems,
     resolvedPatientId: state.resolvedPatientId,
     knownPatientIds: state.knownPatients.map((patient) => patient.patient_id),
     offer: state.offer,
+    pendingDecision: state.pendingDecision,
+    activePolicy: state.activePolicy,
+    policyRecoveryStatus: state.policyRecoveryStatus,
     submissions: state.submissions,
     violations: state.violations,
   };

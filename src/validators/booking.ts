@@ -42,13 +42,18 @@ export function chooseOffer(
 ): OfferState {
   const patientId = state.resolvedPatientId;
   if (!patientId) throw new Error("Cannot offer without a resolved patient");
-  const slot = selectEarliestSlot(slots, state.constraints, providerLanguages);
+  const eligibleSlots = slots.filter(
+    (slot) =>
+      !state.rejectedSlots.includes(slot.start_time) &&
+      (!state.replacementNotBefore ||
+        new Date(slot.start_time).getTime() > new Date(state.replacementNotBefore).getTime()),
+  );
+  const slot = selectEarliestSlot(eligibleSlots, state.constraints, providerLanguages);
   if (!slot) throw new Error("No slot matches all caller constraints");
-  const policyId =
-    state.constraints.insurer && slot.payable_with.includes(state.constraints.insurer)
-      ? state.constraints.insurer
-      : slot.payable_with[0];
-  if (!policyId) throw new Error("Selected slot has no payable policy");
+  const policyId = state.activePolicy ?? state.constraints.insurer ?? state.primaryPolicy;
+  if (!policyId || !slot.payable_with.includes(policyId)) {
+    throw new Error("Selected slot is not payable with the caller's active policy");
+  }
   return {
     patientId,
     providerId: slot.provider_id,
@@ -67,6 +72,9 @@ export function buildBookPayload(state: CallState) {
   if (!offer) throw new Error("No appointment has been selected and offered");
   if (offer.constraintsVersion !== state.constraintsVersion) {
     throw new Error("The offer is stale because caller constraints changed");
+  }
+  if (state.lastAvailability?.constraintsVersion !== state.constraintsVersion) {
+    throw new Error("Availability is stale because caller constraints changed");
   }
   if (state.turn <= offer.offeredAtTurn) {
     throw new Error("Booking requires acceptance in a later caller turn");

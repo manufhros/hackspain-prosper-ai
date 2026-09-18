@@ -375,3 +375,28 @@ test("an offer pairs skipped tool IDs without rewriting provider reasoning or as
   expect(agent.record).toEqual(booking);
   expect(() => openRouterMessages(agent.messages)).not.toThrow();
 });
+
+
+test("clarification re-offers the grounded slot and natural acceptance completes without looping", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(),
+    say("Yes, that is the earliest. Shall I book that slot?"), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+  await agent.turn(identityText + "I need an appointment", signal()); agent.markDelivered();
+  const explanation = await agent.turn("Is that the earliest?", signal());
+  expect(explanation).toContain("Yes, that is the earliest.");
+  expect(explanation).toContain("Does that work for you?");
+  expect(explanation).not.toContain("Shall I book");
+  agent.markDelivered();
+  await agent.turn("Yes, that works for me.", signal());
+  expect(agent.record).toEqual(booking);
+  expect(inference.seen.at(-1)!.messages[0]!.content).toContain(JSON.stringify(booking.actions));
+});
+
+test("already accepted actions cannot be offered aloud again", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), offer(), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "I need an appointment", signal());
+  const closing = await agent.turn("Yes, that works for me.", signal());
+  expect(agent.record).toEqual(booking); expect(closing).not.toContain("Does that work");
+  expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
+});

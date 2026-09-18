@@ -83,7 +83,7 @@ export class Receptionist {
   private inferenceMessages(): Message[] {
     // Keep one system message: model templates differ in their handling of later system turns.
     const instructions = this.messages.filter(m => m.role === "system").map(m => m.content).join("\n");
-    return [{ role: "system", content: `${instructions}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
+    return [{ role: "system", content: `${instructions}\nACCEPTED ACTIONS (do not re-offer): ${JSON.stringify(this.consent.acceptedActions)}\n${this.consent.awaitingReoffer ? "A previous proposal needs clarification and a delivered re-offer before accepting a yes. Answer the question briefly; the application will append the grounded offer to a statement. If you need different information, ask that question without asking to book." : ""}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
       ...this.messages.filter(m => m.role !== "system")];
   }
   markDelivered() { this.consent.delivered(); this.draft = undefined; }
@@ -155,7 +155,7 @@ export class Receptionist {
         }
         continue;
       }
-      const answer = reply.message.content.trim();
+      let answer = reply.message.content.trim();
       if (!answer) throw new Error("Local model returned no speech or tool request");
       const detected = textLanguage(answer);
       const speechProblem = detected && detected !== this.currentLanguage ? `Reply in ${this.currentLanguage}`
@@ -169,6 +169,17 @@ export class Receptionist {
         continue;
       }
       if (speechProblem) throw new Error(`Model repeatedly returned invalid speech: ${speechProblem}`);
+      const pending = this.consent.awaitingReoffer;
+      if (pending) {
+        // Replace an untracked booking question with the exact grounded offer. Other
+        // questions (e.g. identity or a new preference) must not make a yes count as consent.
+        const explanation = answer.replace(/(?:[—–;]\s*)?(?:shall I|should I|would you like me to|do you want me to) (?:hold|book|reserve)\b[^?]*\?\s*$/i, "").trim();
+        if (!/[?¿]/.test(explanation)) {
+          this.checkGrounding(pending.actions);
+          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider);
+          answer = `${explanation} ${this.proposalSpeech(pending.actions[0]!)}`.trim();
+        }
+      }
       this.messages.pop(); // speak stores only the delivered draft once
       return this.speak(answer);
     }
@@ -181,9 +192,10 @@ export class Receptionist {
       const record = completionRecord(args);
       if (record.actions.length !== 1 || !needsConsent(record.actions[0]!)) throw new Error("Offer exactly one write action at a time; NO_ACTION and ESCALATE do not require consent.");
       this.checkGrounding(record.actions);
-      const summary = this.describeAction(record.actions[0]!);
-      this.consent.offer(record.actions, this.options.mode !== "platform");
-      this.offerSpeech = `${summary} ${{ en: "Does that work for you?", es: "¿Le viene bien?", ca: "Li va bé?" }[this.currentLanguage]}`;
+      if (this.consent.hasAccepted(record.actions)) return { already_accepted: true, instruction: "Do not ask again. Call complete_call with all accepted actions when all intents are resolved." };
+      const action = record.actions[0]!;
+      this.consent.offer(record.actions, this.options.mode !== "platform", this.providers.get(String(action.provider_id)));
+      this.offerSpeech = this.proposalSpeech(action);
       return { proposal_ready: true, awaiting_caller_acceptance: true };
     }
     if (name === "complete_call") {
@@ -263,6 +275,13 @@ export class Receptionist {
     return locale === "en" ? `${verb}${oldDate ? ` from ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`
       : locale === "es" ? `${verb}${oldDate ? ` del ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`
       : `${verb}${oldDate ? ` del ${oldDate}` : ""}: ${provider}, ${location}, ${date}.`;
+  }
+  private proposalSpeech(action: Action) {
+    const summary = this.describeAction(action)
+      .replace(/^Book an appointment:/, "I can book an appointment with")
+      .replace(/^Reservar una cita:/, "Le puedo reservar una cita con")
+      .replace(/^Reservar una visita:/, "Li puc reservar una visita amb");
+    return `${summary} ${{ en: "Does that work for you?", es: "¿Le viene bien?", ca: "Li va bé?" }[this.currentLanguage]}`;
   }
   private spokenDate(timestamp: string) {
     return new Intl.DateTimeFormat(this.currentLanguage, { timeZone: "Europe/Madrid", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(timestamp));

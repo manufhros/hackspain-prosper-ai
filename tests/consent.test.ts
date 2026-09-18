@@ -47,3 +47,32 @@ test("a spoken day/time acceptance must match the offered Madrid slot exactly", 
     expect(() => consent.check([action])).toThrow();
   }
 });
+
+
+test("reported natural confirmations accept only the matching appointment", () => {
+  expect(acceptsOffer("Yes, that works for me.")).toBe(true);
+  expect(acceptsOffer("Ah, okay, yes, that works for me.")).toBe(true);
+  const monday = { ...action, slot: "2026-09-21T09:00:00+02:00" };
+  for (const [text, accepted] of [
+    ["Ah, okay, yes, please book me for Monday at 9 with Dr. Martin.", true],
+    ["Please book me for Monday at 9:00 with Dr. Martin.", true],
+    ["Please book me for Tuesday at 9 with Dr. Martin.", false],
+    ["Please book me for Monday at 10 with Dr. Martin.", false],
+    ["Please book me for Monday at 9 with Dr. Carmen.", false],
+    ["Please book me for Monday at 9 with Dr. Martin and cancel my other appointment.", false],
+    ["Yes, that works for me, but only if it is free.", false],
+  ] as const) {
+    const consent = new Consent(); consent.offer([monday], true, "Dr. Martín Sáez"); consent.hear(text);
+    expect(consent.hasAccepted([monday])).toBe(accepted);
+  }
+});
+
+test("clarifications preserve a proposal without accepting yes to an unrelated question", () => {
+  const consent = new Consent(); consent.offer([action], true);
+  consent.hear("Is that the earliest?");
+  expect(consent.awaitingReoffer?.actions).toEqual([action]);
+  consent.delivered(); // an ordinary question about identity or preferences
+  consent.hear("Yes"); expect(consent.hasAccepted([action])).toBe(false);
+  consent.offer([action], false); consent.delivered(); consent.hear("Yes, that works for me.");
+  expect(consent.acceptedActions).toEqual([action]);
+});

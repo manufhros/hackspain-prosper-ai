@@ -120,7 +120,7 @@ export class Receptionist {
       const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
         ? { ...tool, function: { ...tool.function, description: "Capture ALL final, confirmed intents as {actions: [...]}. The transport submits the record to Prosper using this call's real ID and ends the call. Do not call HTTP write tools or ask for another confirmation." } } : tool) : agentTools;
       const reply = await this.inference.chat(this.inferenceMessages(), tools, signal);
-      this.emit("reasoning", reply.elapsed_ms, "Local receptionist response");
+      this.emit("reasoning", reply.elapsed_ms, "Receptionist model response");
       this.messages.push(reply.message);
       const calls = reply.message.tool_calls ?? [];
       if (calls.length) {
@@ -133,8 +133,14 @@ export class Receptionist {
             if (call.function?.name === "complete_call") this.completionFailures++;
           }
           this.emit("tool", Math.round(performance.now() - started), `${call.function?.name ?? "unknown"}: ${isObject(result) && result.error ? result.error : "completed"}`);
-          this.messages.push({ role: "tool", tool_name: call.function?.name, content: JSON.stringify(result) });
+          this.messages.push({ role: "tool", tool_name: call.function?.name, ...(call.id ? { tool_call_id: call.id } : {}), content: JSON.stringify(result) });
           const completed = this.record as Outcome | undefined;
+          if (completed || this.offerSpeech) {
+            // Preserve the provider's original assistant message (including reasoning metadata).
+            // Every requested call still needs a paired result, even when an offer ends the turn.
+            for (const skipped of calls.slice(calls.indexOf(call) + 1)) this.messages.push({ role: "tool", tool_name: skipped.function.name,
+              ...(skipped.id ? { tool_call_id: skipped.id } : {}), content: JSON.stringify({ skipped: true, reason: "Not executed: the preceding action ended this turn. Wait for the caller." }) });
+          }
           if (completed) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
@@ -142,7 +148,6 @@ export class Receptionist {
               completed.actions.filter(needsConsent).map(action => this.describeAction(action))));
           }
           if (this.offerSpeech) {
-            reply.message.tool_calls = calls.slice(0, calls.indexOf(call) + 1);
             const speech = this.offerSpeech; this.offerSpeech = undefined;
             return this.speak(speech);
           }

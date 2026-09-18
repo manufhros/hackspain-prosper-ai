@@ -6,6 +6,7 @@ import { callerMessages, resultFromRehearsal, runRehearsal, spokenRoundtrip, voi
 import { type Inference, type Message } from "../src/voice/runtime";
 import { completionSpeech } from "../src/voice/resolution";
 import { runFreeConversation } from "../src/voice/free";
+import { openRouterMessages } from "../src/voice/openrouter";
 
 const signal = () => new AbortController().signal;
 const say = (content: string): Message => ({ role: "assistant", content });
@@ -351,4 +352,26 @@ test("microphone language hints reach free conversation instructions and speech 
   expect(report.status).toBe("ended");
   expect(inference.audioCalls.filter(c => c.operation === "speak").map(c => c.fields.language)).toEqual(["es", "ca"]);
   expect(inference.seen.at(-1)!.messages[0]!.content).toContain("ACTIVE RESPONSE LANGUAGE: ca");
+});
+
+test("an offer pairs skipped tool IDs without rewriting provider reasoning or assistant calls", async () => {
+  const proposed = offer();
+  proposed.tool_calls!.push({ function: { name: "complete_call", arguments: booking } });
+  proposed.reasoning_details = [{ type: "reasoning.encrypted", data: "opaque-test-data" }];
+  const replies = [directory(), availability(), proposed, complete(booking)];
+  let id = 0;
+  for (const reply of replies) for (const tool of reply.tool_calls ?? []) tool.id = `call_${id++}`;
+  const inference = new FakeInference(replies);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "I need an appointment", signal());
+  expect(agent.record).toBeUndefined();
+  const wire = openRouterMessages(agent.messages);
+  const assistant = wire.find(m => "reasoning_details" in m);
+  expect(assistant).toMatchObject({ reasoning_details: proposed.reasoning_details, tool_calls: [
+    { id: "call_2", type: "function" }, { id: "call_3", type: "function" },
+  ] });
+  expect(wire.find(m => "tool_call_id" in m && m.tool_call_id === "call_3")?.content).toContain('"skipped":true');
+  await agent.turn("Yes", signal());
+  expect(agent.record).toEqual(booking);
+  expect(() => openRouterMessages(agent.messages)).not.toThrow();
 });

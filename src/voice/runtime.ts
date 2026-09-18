@@ -5,9 +5,11 @@ import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
 import { isObject } from "../validation";
 import { assets, MODEL, type Asset } from "./assets";
+import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
+import { OpenRouterChat } from "./openrouter";
 
-export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string }
-export interface ToolCall { function: { name: string; arguments: ObjectValue } }
+export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; tool_call_id?: string; reasoning_details?: unknown[] }
+export interface ToolCall { id?: string; arguments_text?: string; function: { name: string; arguments: ObjectValue } }
 export interface ChatReply { message: Message; elapsed_ms: number }
 export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number }
 export interface Inference {
@@ -60,12 +62,16 @@ export class LocalRuntime implements Inference {
   private worker?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
+  private remote?: OpenRouterChat;
+  get modelLabel() {
+    try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model}` : `OpenRouter ${config.model}`; }
+    catch { return "Model configuration incomplete; check LLM_PROVIDER / OPENROUTER_MODEL"; }
+  }
   private starting?: Promise<void>;
   private pending = new Map<string, { resolve: (reply: AudioReply) => void; reject: (error: Error) => void }>();
   constructor(private readonly update: (message: string) => void = () => {}) {}
   private environment(extra: Record<string, string> = {}) {
-    const { PLATFORM_API_KEY: _, VOICE_SERVER_TOKEN: _serverToken, ...environment } = process.env;
-    return { ...environment, PYTHONUNBUFFERED: "1", HF_HUB_DISABLE_TELEMETRY: "1", HOMEBREW_NO_AUTO_UPDATE: "1", ...extra };
+    return { ...childEnvironment(process.env), PYTHONUNBUFFERED: "1", HF_HUB_DISABLE_TELEMETRY: "1", HOMEBREW_NO_AUTO_UPDATE: "1", ...extra };
   }
   private launch(argv: string[], env: Record<string, string> = {}) {
     this.stopSignal.signal.throwIfAborted();
@@ -119,11 +125,14 @@ export class LocalRuntime implements Inference {
   private async prepare() {
     if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Local voice requires Apple Silicon macOS. Use bun start --offline on other systems.");
     this.state = "installing"; this.error = "";
+    const config = modelConfig();
+    this.remote = config.provider === "openrouter" ? new OpenRouterChat(config, await openRouterKey()) : undefined;
+    this.update(`Model: ${this.modelLabel}`);
     await mkdir(join(voiceDir, "audio"), { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700); await chmod(voiceDir, 0o700);
     const brew = Bun.which("brew") ?? (await Bun.file("/opt/homebrew/bin/brew").exists() ? "/opt/homebrew/bin/brew" : null);
     let uv = Bun.which("uv"), ollama = Bun.which("ollama");
-    const missing = [!uv && "uv", !ollama && "ollama"].filter(Boolean) as string[];
+    const missing = runtimeExecutables(config).filter(name => name === "uv" ? !uv : !ollama);
     if (missing.length) {
       if (!brew) throw new Error("Install Homebrew first (brew.sh), then rerun bun start. No sudo installer is run by the workbench.");
       this.update(`Installing ${missing.join(", ")} through Homebrew…`);
@@ -142,10 +151,38 @@ export class LocalRuntime implements Inference {
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
     for (const asset of assets) await this.download(asset);
+    if (config.provider === "local") await this.startOllama(ollama!);
+    this.worker = this.launch([python, join(root, "local-voice/worker.py"), voiceDir]);
+    const worker = this.worker;
+    let workerTail = "";
+    void streamLines(this.worker.stderr, line => { workerTail = (workerTail + "\n" + line).slice(-2000); }).catch(() => {});
+    void streamLines(this.worker.stdout, line => {
+      try {
+        const reply = JSON.parse(line);
+        const pending = this.pending.get(reply.id);
+        if (!pending) return;
+        this.pending.delete(reply.id);
+        if (reply.error) pending.reject(new Error(String(reply.error)));
+        else pending.resolve({ ...reply.result, elapsed_ms: reply.elapsed_ms });
+      } catch { /* Native libraries occasionally write diagnostic lines to stdout. */ }
+    }).catch(() => { if (this.worker === worker) for (const pending of [...this.pending.values()]) pending.reject(new Error("Audio worker protocol failed; retry setup.")); });
+    void worker.exited.then(() => {
+      if (this.worker !== worker) return;
+      for (const pending of [...this.pending.values()]) pending.reject(new Error(`Audio worker exited. ${workerTail}`));
+      this.pending.clear();
+      if (this.worker === worker && this.state === "ready") { this.state = "error"; this.error = "Audio worker exited; retry setup."; this.update(this.error); }
+    });
+    this.update("Warming Whisper, English/Spanish/Catalan voices and the language model…");
+    await this.audio("warmup", {}, this.stopSignal.signal);
+    await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
+    if (worker.exitCode !== null || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
+    this.state = "ready"; this.update(`Voice ready: ${this.modelLabel} + local Whisper small (MLX) + Piper.`);
+  }
+  private async startOllama(ollama: string) {
     const port = await freePort();
     this.origin = `http://127.0.0.1:${port}`;
     this.update("Starting private Ollama process…");
-    const llm = this.launch([ollama!, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: "1", OLLAMA_CONTEXT_LENGTH: "8192", OLLAMA_NO_CLOUD: "1" });
+    const llm = this.launch([ollama, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: "1", OLLAMA_CONTEXT_LENGTH: "8192", OLLAMA_NO_CLOUD: "1" });
     this.llm = llm;
     void llm.exited.then(() => {
       if (this.llm === llm && this.state === "ready") {
@@ -180,34 +217,12 @@ export class LocalRuntime implements Inference {
       });
       if (pullError || !complete) throw new Error(pullError || "Incomplete model pull; rerun setup to resume.");
     } else this.update(`Using cached ${MODEL}.`);
-    this.worker = this.launch([python, join(root, "local-voice/worker.py"), voiceDir]);
-    const worker = this.worker;
-    let workerTail = "";
-    void streamLines(this.worker.stderr, line => { workerTail = (workerTail + "\n" + line).slice(-2000); }).catch(() => {});
-    void streamLines(this.worker.stdout, line => {
-      try {
-        const reply = JSON.parse(line);
-        const pending = this.pending.get(reply.id);
-        if (!pending) return;
-        this.pending.delete(reply.id);
-        if (reply.error) pending.reject(new Error(String(reply.error)));
-        else pending.resolve({ ...reply.result, elapsed_ms: reply.elapsed_ms });
-      } catch { /* Native libraries occasionally write diagnostic lines to stdout. */ }
-    }).catch(() => { if (this.worker === worker) for (const pending of [...this.pending.values()]) pending.reject(new Error("Audio worker protocol failed; retry setup.")); });
-    void worker.exited.then(() => {
-      if (this.worker !== worker) return;
-      for (const pending of [...this.pending.values()]) pending.reject(new Error(`Audio worker exited. ${workerTail}`));
-      this.pending.clear();
-      if (this.worker === worker && this.state === "ready") { this.state = "error"; this.error = "Audio worker exited; retry setup."; this.update(this.error); }
-    });
-    this.update("Warming Whisper, English/Spanish/Catalan voices and the language model…");
-    await this.audio("warmup", {}, this.stopSignal.signal);
-    await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
-    if (worker.exitCode !== null || llm.exitCode !== null) throw new Error("Local process exited during warmup; retry setup.");
-    this.state = "ready"; this.update("Local voice ready: Qwen3.5 4B + Whisper small (MLX) + Piper.");
   }
   async chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply> {
-    if (!this.origin) throw new Error("Start the local runtime first");
+    const lifetime = AbortSignal.any([signal, this.stopSignal.signal]);
+    lifetime.throwIfAborted();
+    if (this.remote) return this.remote.chat(messages, tools, lifetime, format);
+    if (!this.origin) throw new Error("Start the voice runtime first");
     const started = performance.now();
     const response = await fetch(`${this.origin}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: MODEL, messages, tools: tools.length ? tools : undefined, format, stream: false, think: false,
@@ -240,7 +255,7 @@ export class LocalRuntime implements Inference {
       const timer = setTimeout(() => { if (child.exitCode === null) { try { process.kill(-child.pid, "SIGKILL"); } catch {} } }, 1500);
       timer.unref();
     }
-    this.children.clear(); this.worker = undefined; this.llm = undefined;
+    this.children.clear(); this.worker = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
     for (const pending of [...this.pending.values()]) pending.reject(new Error("Local runtime stopped"));
     this.pending.clear();
   }

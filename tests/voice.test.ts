@@ -4,6 +4,7 @@ import { evaluateBatch, parseResults } from "../src/evaluate";
 import { Receptionist, agentTools, readEndpoints, type ClinicReader } from "../src/voice/agent";
 import { callerMessages, resultFromRehearsal, runRehearsal, spokenRoundtrip, voiceSmoke, wordErrorRate } from "../src/voice/rehearsal";
 import { type Inference, type Message } from "../src/voice/runtime";
+import { completionSpeech } from "../src/voice/resolution";
 import { runFreeConversation } from "../src/voice/free";
 
 const signal = () => new AbortController().signal;
@@ -58,10 +59,10 @@ test("free conversations can continue beyond the scripted rehearsal turn cap", a
 });
 test("free conversation records final actions locally and plays the final confirmation", async () => {
   const record = { actions: [{ action: "NO_ACTION", reason: "out_of_scope" }] };
-  const inference = new FakeInference([say("Hello"), complete(record), say("Goodbye")]);
+  const inference = new FakeInference([say("Hello"), complete(record)]);
   const report = await runFreeConversation(inference, noClinic, "ca", signal(), () => {}, async () => "No appointment needed. Goodbye.");
   expect(report.status).toBe("completed"); expect(report.record).toEqual(record);
-  expect(inference.audioCalls.filter(c => c.operation === "speak").at(-1)?.fields.text).toBe("Goodbye");
+  expect(inference.audioCalls.filter(c => c.operation === "speak").at(-1)?.fields.text).toBe(completionSpeech("ca"));
 });
 test("free conversation cancellation and audio failures retain partial transcripts", async () => {
   const abort = new AbortController();
@@ -101,9 +102,9 @@ test("agent tool surface only exposes clinic GETs and a local completion sink", 
 });
 test("agent accepts a booking only from observed, patient-specific clinic availability", async () => {
   const { clinic, requests } = clinicFixture();
-  const inference = new FakeInference([directory(), availability(), complete(booking), say("Confirmed.")]);
+  const inference = new FakeInference([directory(), availability(), complete(booking)]);
   const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
-  expect(await agent.turn("Yes, please book that slot.", signal())).toBe("Confirmed.");
+  expect(await agent.turn("Yes, please book that slot.", signal())).toBe(completionSpeech("en"));
   expect(agent.record).toEqual(booking);
   expect(requests).toHaveLength(2);
   expect(requests[1]).toContain(`patient_id=${action.patient_id}`);
@@ -126,7 +127,7 @@ test("invented patients, other patients' slots and unreturned policies cannot be
 test("cancellation requires an observed upcoming appointment and sessions stay isolated", async () => {
   const inference = new FakeInference([call("appointments", { patient_id: action.patient_id }),
     complete({ actions: [{ action: "CANCEL", appointment_id: "A-past" }] }), say("That visit is past."),
-    complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] }), say("Cancelled locally.")]);
+    complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] })]);
   const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
   await agent.turn("Cancel the old visit", signal()); expect(agent.record).toBeUndefined();
   await agent.turn("Then cancel the future visit", signal()); expect(agent.record?.actions[0]?.appointment_id).toBe("A-future");
@@ -154,7 +155,7 @@ test("caller and receptionist contexts never receive expected or protected answe
 });
 test("automated rehearsal routes both voices through audio and exports a local result", async () => {
   const item = cases.find(c => c.expected.acceptable[0]?.actions[0]?.action === "NO_ACTION")!;
-  const inference = new FakeInference([say("How can I help?"), say("Only Dr Fuentes, please."), complete(item.expected.acceptable[0]!), say("That provider is unavailable.")]);
+  const inference = new FakeInference([say("How can I help?"), say("Only Dr Fuentes, please."), complete(item.expected.acceptable[0]!)]);
   const report = await runRehearsal(inference, noClinic, item, signal(), () => {});
   expect(report.error).toBeUndefined(); expect(report.evaluation.status).toBe("pass");
   expect(inference.audioCalls.filter(c => c.operation === "speak")).toHaveLength(3);
@@ -166,7 +167,7 @@ test("automated rehearsal routes both voices through audio and exports a local r
 });
 test("audio failure after a matching record cannot pass, including on export/reimport", async () => {
   const item = cases.find(c => c.expected.acceptable[0]?.actions[0]?.action === "NO_ACTION")!;
-  const inference = new FakeInference([complete(item.expected.acceptable[0]!), say("Done")]);
+  const inference = new FakeInference([complete(item.expected.acceptable[0]!)]);
   inference.failTranscription = true;
   const report = await runRehearsal(inference, noClinic, item, signal(), () => {});
   expect(report.record).toEqual(item.expected.acceptable[0]!);
@@ -178,11 +179,11 @@ test("the last allowed caller turn still synthesizes the final confirmation", as
   const item = cases.find(c => c.expected.acceptable[0]?.actions[0]?.action === "NO_ACTION")!;
   const replies = [say("Hello")];
   for (let turn = 0; turn < 23; turn++) replies.push(say("Please repeat"), say("Let me clarify"));
-  replies.push(say("Yes"), complete(item.expected.acceptable[0]!), say("Final confirmation"));
+  replies.push(say("Yes"), complete(item.expected.acceptable[0]!));
   const inference = new FakeInference(replies);
   const report = await runRehearsal(inference, noClinic, item, signal(), () => {});
   expect(report.error).toBeUndefined();
-  expect(inference.audioCalls.filter(c => c.operation === "speak").at(-1)?.fields.text).toBe("Final confirmation");
+  expect(inference.audioCalls.filter(c => c.operation === "speak").at(-1)?.fields.text).toBe(completionSpeech(item.language));
   expect(inference.replies).toHaveLength(0);
 });
 test("cancellation and microphone mode avoid the automatic caller", async () => {
@@ -203,4 +204,36 @@ test("temporary audio is removed after failed ASR and smoke checks measure each 
   expect(smoke.model_ready).toBe(true); expect(smoke.speech.map(s => s.language)).toEqual(["en", "es", "ca"]);
   expect(smoke.speech.every(s => s.word_error_rate === 0)).toBe(true);
   expect(wordErrorRate("hola buenos días", "hola días")).toBeCloseTo(1 / 3);
+});
+
+test("a confirmed offer captures a grounded mock BOOK and closes without another model turn", async () => {
+  const { clinic, requests } = clinicFixture();
+  const inference = new FakeInference([directory(), availability(), say("¿Le viene bien esta cita?"), call("complete_call", booking)]);
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "es");
+  expect(await agent.turn("Busco una cita.", signal())).toBe("¿Le viene bien esta cita?");
+  expect(await agent.turn("Sí, esa opción me parece perfecta.", signal())).toBe(completionSpeech("es"));
+  expect(agent.record).toEqual(booking);
+  expect(inference.replies).toHaveLength(0); expect(inference.seen).toHaveLength(4);
+  expect(requests.every(path => !path.includes("submit"))).toBe(true);
+  const receipt = JSON.parse(agent.messages.find(m => m.tool_name === "complete_call")!.content);
+  expect(receipt.record).toEqual(booking);
+  expect(receipt.submission_preview[0].path).toBe("/api/v1/submit/book");
+  await expect(agent.turn("Sí", signal())).rejects.toThrow("already completed");
+});
+test("successful completion preserves multiple actions and ignores trailing tools", async () => {
+  const record = { actions: [{ action: "CANCEL", appointment_id: "A-future" }, { action: "NO_ACTION", reason: "out_of_scope" }] };
+  const completion = call("complete_call", record);
+  completion.tool_calls!.push({ function: { name: "clinic", arguments: {} } });
+  const { clinic, requests } = clinicFixture();
+  const inference = new FakeInference([call("appointments", { patient_id: action.patient_id }), completion]);
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
+  await agent.turn("Cancel that visit and leave the other request.", signal());
+  expect(agent.record).toEqual(record); expect(requests).toHaveLength(1);
+});
+test("repeated invalid completion stops locally instead of asking for endless confirmations", async () => {
+  const inference = new FakeInference(Array.from({ length: 10 }, () => call("complete_call", { record: {} })));
+  const agent = new Receptionist(inference, noClinic, bookCase.reference_time, "es");
+  await expect(agent.turn("Sí", signal())).rejects.toThrow("Local resolution failed after three attempts");
+  expect(inference.seen).toHaveLength(3); expect(agent.record).toBeUndefined();
+  expect(agent.events.filter(e => e.stage === "tool")).toHaveLength(3);
 });

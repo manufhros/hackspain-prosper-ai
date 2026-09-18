@@ -30,7 +30,7 @@ export async function runFreeConversation(
   const events: TraceEvent[] = [];
   const emit = (event: TraceEvent) => { events.push(event); update(event); };
   const agent = new Receptionist(inference, clinic, referenceTime, language, emit);
-  agent.messages[0]!.content += "\nThis is a free conversation with a real tester. There is no predefined caller identity, objective, or script. Respond to what they actually ask. For general clinic questions, use clinic information without requiring patient identification. Only complete_call when they confirm their final intents and are ready to finish.";
+  agent.messages[0]!.content += "\nThis is a free conversation with a real tester. There is no predefined caller identity, objective, or script. Respond to what they actually ask. For general clinic questions, use clinic information without requiring patient identification. Follow the same confirm-once rule: after acceptance of the specific action, complete_call as soon as all stated intents are resolved. Do not add a separate 'ready to finish' question or wait for goodbye.";
   let status: FreeConversationReport["status"] = "ended";
   let error: string | undefined;
   try {

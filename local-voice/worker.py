@@ -2,6 +2,7 @@
 
 No network listener, clinic credentials, or shell execution. Bun owns its lifetime.
 """
+import base64
 import contextlib
 import io
 import json
@@ -47,6 +48,10 @@ def resample(audio, old_rate, new_rate):
 def transcribe(path, language):
     audio, rate = sf.read(path, dtype="float32", always_2d=True)
     audio = resample(audio.mean(axis=1), rate, 16000)
+    return transcribe_audio(audio, language)
+
+
+def transcribe_audio(audio, language):
     if len(audio) < 1600 or float(np.sqrt(np.mean(audio ** 2))) < 0.002:
         return {"text": "", "language": language or "unknown"}
     result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(ROOT / "whisper"),
@@ -65,6 +70,16 @@ def handle(request):
         for language, name in VOICES.items():
             voices[language] = PiperVoice.load(str(ROOT / "voices" / (name + ".onnx")))
         return {"ready": True}
+    if operation == "transcribe_mulaw":
+        import audioop
+        payload = request.get("payload", "")
+        if not isinstance(payload, str) or not 1 <= len(payload) <= 320000:
+            raise ValueError("Expected at most 30 seconds of mu-law audio")
+        raw = base64.b64decode(payload, validate=True)
+        if not 1 <= len(raw) <= 240000:
+            raise ValueError("Expected at most 30 seconds of mu-law audio")
+        pcm = np.frombuffer(audioop.ulaw2lin(raw, 2), dtype="<i2").astype(np.float32) / 32768
+        return transcribe_audio(resample(pcm, 8000, 16000), request.get("language"))
     if operation == "speak":
         language = request.get("language", "en")
         if language not in VOICES:
@@ -81,6 +96,14 @@ def handle(request):
             voice.synthesize_wav(text, output)
         buffer.seek(0)
         audio, rate = sf.read(buffer, dtype="float32")
+        if request.get("wire", False):
+            import audioop
+            narrow = resample(audio, rate, 8000)
+            if len(narrow) > 8000 * 60:
+                raise ValueError("Spoken turn exceeds 60 seconds")
+            pcm = (np.clip(narrow, -1, 1) * 32767).astype("<i2").tobytes()
+            return {"payload": base64.b64encode(audioop.lin2ulaw(pcm, 2)).decode("ascii"),
+                    "duration_ms": round(len(narrow) / 8)}
         if request.get("telephone", True):
             import audioop  # Python 3.12 is pinned by the launcher.
             narrow = resample(audio, rate, 8000)

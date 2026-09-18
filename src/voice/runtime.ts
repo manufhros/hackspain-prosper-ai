@@ -9,7 +9,7 @@ import { assets, MODEL, type Asset } from "./assets";
 export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string }
 export interface ToolCall { function: { name: string; arguments: ObjectValue } }
 export interface ChatReply { message: Message; elapsed_ms: number }
-export interface AudioReply { text?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number }
+export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number }
 export interface Inference {
   chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply>;
   audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply>;
@@ -64,7 +64,7 @@ export class LocalRuntime implements Inference {
   private pending = new Map<string, { resolve: (reply: AudioReply) => void; reject: (error: Error) => void }>();
   constructor(private readonly update: (message: string) => void = () => {}) {}
   private environment(extra: Record<string, string> = {}) {
-    const { PLATFORM_API_KEY: _, ...environment } = process.env;
+    const { PLATFORM_API_KEY: _, VOICE_SERVER_TOKEN: _serverToken, ...environment } = process.env;
     return { ...environment, PYTHONUNBUFFERED: "1", HF_HUB_DISABLE_TELEMETRY: "1", HOMEBREW_NO_AUTO_UPDATE: "1", ...extra };
   }
   private launch(argv: string[], env: Record<string, string> = {}) {

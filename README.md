@@ -1,13 +1,29 @@
 # El Turno — hackathon workbench
 
-A provider-neutral Bun TUI for rehearsing the Prosper track. Browse the complete task archive, enter or import your agent's records, inspect mismatches, explore the clinic API, and test the call contract before choosing a voice provider.
+A Bun TUI for rehearsing the Prosper track with a local voice agent on Apple Silicon. It includes the complete task archive, real Prosper clinic reads, automated caller/receptionist conversations, microphone practice, and result comparison.
+
+Add your desk-issued token to a Git-ignored `.env` (see `.env.example`):
+
+```dotenv
+PLATFORM_API_KEY=your-team-token
+PLATFORM_API_BASE_URL=https://hackspain.getprosperapp.com
+```
 
 ```sh
 bun install
 bun start
 ```
 
-Requires Bun 1.4.2 or newer and an interactive terminal. No runtime packages, backend, database, voice provider, or API key are needed for offline use. The tool does not start an environment, agent, server, or tunnel.
+Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `ollama` is missing. **`bun start` sets up and starts the local stack automatically:**
+
+- Installs missing `uv`/`ollama` using Homebrew and creates a private Python 3.12 environment with locked audio dependencies.
+- Downloads Qwen3.5 4B (~3.4 GB), Whisper small for MLX (~481 MB), and Piper English/Spanish/Catalan voices (~190 MB total), plus runtime dependencies. Allow several GB of disk space and time for the first launch.
+- Starts its own loopback-only Ollama process and a persistent Python audio worker, warms the models, then shows **Local voice ready**. Cached models/dependencies are reused on later starts.
+- Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Local runtime**.
+
+The stack is sized for your M4 Pro / 48 GB Mac, but no native latency or quality benchmark has been run yet. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
+
+For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
 
 ## The workbench
 
@@ -18,13 +34,24 @@ Requires Bun 1.4.2 or newer and an interactive terminal. No runtime packages, ba
 | **Labs** | Exercise submission deadlines/duplicates, inspect interleaved Twilio traces, probe an existing endpoint with 1/5/10/20 sockets, resolve relative dates, validate DNI/NIE, and rank eligible sites by distance. |
 | **Results** | Import an evaluation run; compare every field against all acceptable outcomes; inspect privacy signals; export a diagnostic report. Unattempted cases earn zero. |
 | **Docs** | Read every archived Markdown document, including the complete API reference, raw schema and public cases. |
-| **Setup** | Configure the API origin, store the team key in macOS Keychain, set an existing endpoint, and read the track/jury readiness checklist. |
+| **Setup** | Configure the API origin, optionally store a key in macOS Keychain instead of `.env`, and set an external endpoint. |
+| **Voice** | Inspect/retry setup, run multilingual speech/model smoke tests, or rehearse all 73 public cases sequentially. |
 
-Use `1`–`6` or `Tab` to change sections, arrows or `j`/`k` to select, `PgUp`/`PgDn` to scroll details, `/` to search, `Enter` to open/run, and `Esc` to clear the current view/filter. In Cases, `e` enters an outcome and `a` reveals answers. `i` imports results; `x` exports a report. `q` or `Ctrl-C` quits. Forms use `Enter` to accept, `Esc` to cancel, and `Ctrl-U` to clear. Set `NO_COLOR=1` for plain rendering. Minimum terminal size is 40×12; 100×30 or larger gives a side-by-side view.
+Use `1`–`7` or `Tab` to change sections, arrows or `j`/`k` to select, `PgUp`/`PgDn` to scroll details, `/` to search, `Enter` to open/run, and `Esc` to clear the current view/filter. In Cases, `v` runs a voice rehearsal, `m` opens microphone mode, `e` enters an outcome and `a` reveals answers. `i` imports results; `x` exports a report. `c` cancels a running voice test; `q` or `Ctrl-C` quits. Forms use `Enter` to accept, `Esc` to cancel, and `Ctrl-U` to clear. Set `NO_COLOR=1` for plain rendering. Minimum terminal size is 40×12; 100×30 or larger gives a side-by-side view.
 
 ## First rehearsal
 
-1. Start offline, select a case, and read the caller's objectives. Keep answers hidden while solving it.
+1. Run `bun start` and wait for local setup to finish. In **Voice**, run **Speech + model smoke tests** to measure English, Spanish and Catalan TTS → 8 kHz mu-law → ASR word error rates and timings.
+2. Open **Cases**, select a case and press `v`. A separate local model plays the caller from their public persona/objectives. The receptionist receives the simulated connection time and real clinic tools; neither model receives the expected-answer oracle.
+3. Watch the transcript and stage timings. Proposed actions are validated against retrieved patient/slot/appointment IDs and saved locally. The agent has no platform submission tools. `c` cancels; if cancellation interrupts native audio, retry setup before the next call.
+4. Press `m` instead to play the caller yourself. Read the objectives, listen to the receptionist, then press Enter to record an eight-second response. macOS may request microphone permission. Choose `t` to type instead, or Esc to end the call. Use headphones to avoid speaker feedback.
+5. Inspect **Results** and `.workbench/voice-*-<case-index>.json` for transcripts, stage timings, actions and differences. **Voice → Rehearse all 73 public cases** runs sequentially, checkpointing after each case. Each call has a three-minute budget; a complete run can take hours.
+
+This is a turn-based local rehearsal. It does **not** reproduce the organiser's caller model, published background-noise beds, streaming/barge-in, concurrent-call performance or official scoring. Noise cases currently use clean audio. Clinic reads use the live API while the simulated date uses the archived case timestamp; inspect mismatches if the live world changes. Proposed bookings/cancellations are never written by the voice runner. Use dashboard practice for official evidence.
+
+For manual evaluation:
+
+1. Start with `bun start --offline`, select a case, and read the caller's objectives. Keep answers hidden while solving it.
 2. Press `e`, choose an action, and enter observed values. Add each additional intent separately. `REGISTER` demographics are nested in a result record, but flattened automatically in the corresponding API form.
 3. Supply a transcript JSON file if available. Protected-data cases without agent transcript evidence remain **needs_review**.
 4. Supply the actual connection timestamp for live results. Blank means you are rehearsing the archived fixture at its saved anchor.
@@ -61,7 +88,9 @@ The CLI prints JSON and does not save input. Exit code `0` means all supplied re
 
 ## Live clinic and action testing
 
-In **Setup**, enter the exact API origin supplied by the desk, then store your team key with masked input. Keys are scoped to that origin and stored using [Bun's native secrets API](https://bun.sh/docs/runtime/secrets), which uses macOS Keychain. No secrets go into config files, `.env`, reports or logs. Keychain may ask for OS access when the user first saves/reads a key.
+The default API origin is `https://hackspain.getprosperapp.com`. `PLATFORM_API_KEY` in `.env` is sent as `X-Api-Key`. `PLATFORM_API_BASE_URL` can override the origin. Environment credentials stay scoped to that origin and are excluded from local model/audio child processes. `.env` is Git-ignored; do not put its contents into reports or commits.
+
+Alternatively, **Setup** accepts a masked key stored using [Bun's native secrets API](https://bun.sh/docs/runtime/secrets) in macOS Keychain. Keys are scoped to the configured origin; `.env` takes precedence for its own origin. Keychain may ask for OS access when first saving/reading a key. The workbench does not print or save tokens in its configuration or reports.
 
 In **API**, select an endpoint and complete its form. Read-only requests require `y` at the preview; an action POST requires typing `submit`. Forms do not prefill from the answer key. Each submission is one real action for the exact `start.callSid`; use the API again for another intent. No automatic retries are made. `409` means an identical action was already accepted; `410` means the window has closed; `200` acknowledges receipt, not success on a case. Previously accepted actions cannot be undone by sending a corrected one, so submit the caller's final request.
 
@@ -91,7 +120,7 @@ bun run doctor
 
 When **you have started** your agent and tunnel, configure its `ws://` or `wss://` URL in Setup and use **Labs → Probe an existing endpoint**. It opens 1/5/10/20 sockets, sends synthetic call IDs and one second of silence in paced frames, observes output for five seconds, and reports malformed output/cross-stream messages. Configure your agent to treat `workbench-…` IDs as local diagnostics; they are not registered platform calls and cannot be submitted there. The probe currently supports endpoints without custom authentication headers. Connecting can incur charges if your agent starts a provider session.
 
-This is a **transport probe**, not a successful call benchmark. It does not speak, recognize speech, test scheduling, mix the published noise recordings, assess language, or verify barge-in. Non-silence bytes do not prove intelligible audio. The 20-session offline self-check tests the workbench's own simulator only. Rehearse real conversations via the dashboard after building the voice pipeline.
+This is a **transport probe**, not a successful call benchmark. It does not speak, recognize speech, test scheduling, mix the published noise recordings, assess language, or verify barge-in. Non-silence bytes do not prove intelligible audio. The 20-session offline self-check tests the workbench's own simulator only. The embedded local voice runner is separate and exposes no public Twilio WebSocket endpoint. Official calls still need that integration and a tunnel.
 
 ## What the local comparator does—and its limits
 
@@ -104,14 +133,14 @@ This is a **transport probe**, not a successful call benchmark. It does not spea
 
 The archive is anchored to **18 September 2026 at 09:00 Europe/Madrid**. Live public answers change daily; release flags in the docs are a snapshot. The source also disagrees on starter-kit availability and treatment of harness failures. See [task provenance](task/README.md). Do not infer current contest state from these saved documents.
 
-The remaining product work is the actual voice agent: provider selection; isolated per-call reasoning and audio pipelines; identity and caller/patient separation; real clinic tools; policy checks; correction/intent state; timely final submissions; multilingual speech and interruption handling; observability; and live practice under load. **Labs → Track & jury readiness** maps these to every problem and the jury criteria.
+The local receptionist is a starting implementation with isolated call state, real clinic tools, slot provenance checks and transcript/timing reports. Remaining product work includes robust identity/consent checks, intent handling under real speech, Twilio streaming and interruption handling, final platform submissions, noise evaluation, concurrent calls, and live practice under load. **Labs → Track & jury readiness** maps the evidence needed across every problem and the jury criteria.
 
 ## Local data and verification
 
-The TUI saves the current run to `.workbench/results.json` and configuration to `.workbench/config.json`. Exports are timestamped `.workbench/report-*.json` files. The directory is Git-ignored and uses `0700`, with `0600` files. Reports may contain patient details from the imported records. API responses stay in memory unless you independently capture them. The task archive remains unchanged.
+The TUI saves the current run to `.workbench/results.json` and configuration to `.workbench/config.json`. Exports are timestamped `.workbench/report-*.json` files; voice runs also save per-case reports and batch checkpoints. The directory is Git-ignored and uses `0700`, with `0600` reports. Reports can contain patient details and conversation transcripts. Raw clinic responses stay in memory. Audio scratch files are removed after each turn; interrupted processes may leave remnants in `.workbench/voice/audio`. Models, voice cards and the Python environment live under `.workbench/voice`. The task archive remains unchanged.
 
 ```sh
 bun run check
 ```
 
-Checks use finite CLI commands, in-memory protocol sessions and mocked HTTP; no servers are started. They cover every archived acceptable outcome as **validator fixtures**, negative/multi-action outcomes, privacy signals, date boundaries, API encoding/statuses, local file permissions, and terminal layout at multiple sizes. Passing these tests does not verify a live provider, Keychain integration, terminal session, tunnel, or organiser endpoint.
+Checks use finite CLI commands, in-memory protocol sessions, mocked inference and mocked HTTP; no servers are started. They cover every archived acceptable outcome as **validator fixtures**, negative/multi-action outcomes, privacy signals, date boundaries, API encoding/statuses, local file permissions, terminal layout, agent tool restrictions/provenance, caller answer isolation, audio cleanup, cancellation, and persistence of failed voice runs. Passing these tests does not verify native installation/inference speed, microphone quality, Keychain integration, a live terminal session, tunnel, or authenticated organiser endpoint.

@@ -2,5 +2,7 @@ node_modules/
 .workbench/
 .env
 .env.*
+!.env.example
+__pycache__/
 coverage/
 .DS_Store

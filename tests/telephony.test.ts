@@ -261,7 +261,7 @@ test("slow model work gets one wait notice and a spoken timeout without submitti
   expect(aborted).toBe(true); expect(report.status).toBe("error"); expect(report.end_reason).toBe("error");
   expect(report.events.filter(e => e.stage === "slow_turn")).toHaveLength(1);
   expect(report.events.some(e => e.stage === "timeout")).toBe(true);
-  expect(f.output.some(line => line.includes("STATUS: Sigo comprobándolo"))).toBe(true);
+  expect(f.output.some(line => line.includes("STATUS: De acuerdo, déjeme revisarlo un momento."))).toBe(true);
   expect(f.output.some(line => line.includes("STATUS: Lo siento"))).toBe(true);
   expect(f.requests).toHaveLength(0);
 });

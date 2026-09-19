@@ -280,6 +280,8 @@ export class PlatformCall {
       const first = await Promise.race([turn, notice]);
       if (first !== undefined) return first;
       if (!this.ended && version === this.version && !this.segmenter.speaking && !this.inputs.length) {
+        // This can be the first reply to this request, before any identity check
+        // or lookup. Acknowledge it without implying a previous hold or a result.
         this.emit({ stage: "slow_turn", elapsed_ms: this.now() - started, detail: "Model/tool work is still pending; playing one wait notice" });
         await this.speak(callPhrases[this.agent!.currentLanguage].waiting, "service", signal);
       }

@@ -2,8 +2,8 @@
 
 This repo deploys two Workers with the project-local Wrangler CLI:
 
-- `prosper-voice`: `/ws`, `/health`, and `/twiml/handoff`. Each connection gets a separate Durable Object. The existing Twilio/ElevenLabs call engine runs with Workers-native WebSockets.
-- `prosper-desk`: the Next.js app built with OpenNext. `/ws` forwards to the voice Worker through a service binding, so the browser simulator works on the desk's own HTTPS domain. Health checks also use that binding.
+- `prosper-voice`: `/ws`, `/health`, and `/twiml/handoff`. Each original call gets a separate Durable Object; a Twilio handoff joins that same object. The existing Twilio/ElevenLabs call engine runs with Workers-native WebSockets.
+- `prosper-desk`: the Next.js app built with OpenNext. `/ws` and call-specific Twilio callbacks forward to the voice Worker through a service binding, so the browser simulator works on the desk's own HTTPS domain. Health checks also use that binding.
 
 Both bind `prosper_desk` to **the same D1 database**, `prosper-desk`. Published agent settings, organization settings, leads, provider webhook events, call summaries, and the agent audit trail persist there. New calls load the latest published settings. Local Node development continues using the existing JSON/log files.
 
@@ -73,6 +73,17 @@ npm run desk:cf:deploy
 
 Use `wss://<prosper-voice workers.dev hostname>/ws` as the Twilio/Prosper endpoint. The desk simulator automatically uses `wss://<desk hostname>/ws`; no public endpoint variable is required. To override it, set `VOICE_AGENT_WS_URL` on the desk Worker. Configure ElevenLabs' post-call webhook as `https://<desk hostname>/api/integrations/elevenlabs/post-call` with its matching signing secret.
 
+Live handoffs originate a phone call through Twilio, then attach its audio to the existing agent session. Workers generate these URLs from the original request's public origin:
+
+- `/twiml/live/<Durable Object ID>?join=<call ID>&org=<org>` returns the live stream TwiML.
+- `/ws/<Durable Object ID>` connects the phone to the original call; `join` is passed as a TwiML custom parameter.
+- `/twiml/stream-status/<Durable Object ID>?join=<call ID>` persists stream callbacks in the same D1 audit trail.
+
+Keep these callback and WebSocket paths outside any dashboard PIN challenge. Both the desk and voice domains can serve them. No ngrok or additional public URL setting is needed on Workers. Node development still supports `VOICE_AGENT_PUBLIC_URL` or local ngrok discovery. A disconnected browser's unanswered handoff expires after three minutes; connected phones keep the session alive within the 30-minute call limit.
+
+The published FAQ and behavior settings are global, matching the admin controls. Hospital pre-call and post-call endpoints remain scoped to their organization and are read from D1.
+
+
 Custom domains are optional: add your chosen `routes` to each Wrangler config after choosing the domain. No account ID or domain is hardcoded.
 
 ## Agent traceability
@@ -85,7 +96,7 @@ Recorded events cover:
 - user/agent conversation turns, routing and frustration decisions, CRM lookup, external context retrieval;
 - tools received, blocked, started, completed, or failed, with parameters and results;
 - Prosper API attempts and responses, including automatic pending-booking submission;
-- Twilio handoff requests, results, failures, and skipped transfers;
+- Twilio handoff requests, results, failures, skipped transfers, phone joins/leaves, and stream status callbacks;
 - outbound post-call webhook attempts, results, and failures.
 
 High-volume audio frames, transport pings, and credentials are not stored. Existing `zeroRetention` settings are honored: personal fields and conversation text are redacted by default, while action metadata remains. If retention is enabled, the action payloads retain their personal fields; credentials and signed URLs remain excluded. This is application redaction, not a claim that arbitrary provider payloads are anonymized.

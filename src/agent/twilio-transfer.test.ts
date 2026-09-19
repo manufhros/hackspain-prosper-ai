@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dialHumanUrl, handoffVoiceUrl, joinStreamUrl, liveStreamTwiml, patientReplyFor, splitHandoffTranscript } from "./twilio-transfer.ts";
+import { dialHumanUrl, handoffVoiceUrl, joinStreamUrl, liveStreamTwiml, patientReplyFor, publicHttpOrigin, splitHandoffTranscript } from "./twilio-transfer.ts";
 
 test("trial fallback message does not say out of scope", () => {
   const previous = process.env.TWILIO_HANDOFF_URL;
@@ -64,6 +64,28 @@ test("live handoff escapes XML attribute values", () => {
   const twiml = liveStreamTwiml('wss://example.test/ws/one', 'call"<&', 'org"', undefined, true);
   assert.ok(twiml.includes('value="call&quot;&lt;&amp;"'));
   assert.ok(twiml.includes('value="org&quot;"'));
+});
+
+test("publicHttpOrigin skips localhost env and uses the ngrok https tunnel", async (t) => {
+  const keys = ["VOICE_AGENT_PUBLIC_URL", "TWILIO_HANDOFF_URL", "VOICE_STORAGE"] as const;
+  const previous = keys.map((key) => process.env[key]);
+  process.env.VOICE_AGENT_PUBLIC_URL = "ws://127.0.0.1:7860/ws";
+  delete process.env.TWILIO_HANDOFF_URL;
+  delete process.env.VOICE_STORAGE;
+  t.after(() => keys.forEach((key, index) => {
+    if (previous[index] === undefined) delete process.env[key];
+    else process.env[key] = previous[index];
+  }));
+  t.mock.method(globalThis, "fetch", async (url: unknown) => {
+    assert.equal(String(url), "http://127.0.0.1:4040/api/tunnels");
+    return Response.json({
+      tunnels: [
+        { public_url: "https://wrong.ngrok-free.app", config: { addr: "http://localhost:7861" } },
+        { public_url: "https://voice.ngrok-free.app", config: { addr: "http://localhost:7860" } },
+      ],
+    });
+  });
+  assert.equal(await publicHttpOrigin(), "https://voice.ngrok-free.app");
 });
 
 test("Worker handoff uses its Durable Object callback and retains provider auditing", async (t) => {

@@ -28,7 +28,8 @@ const ALL: Array<{ label: string; items: SectionItem[] }> = [
     label: "Agente",
     items: [
       { section: "/agente", href: "/panel/agente", label: "Configuración", icon: "settings" },
-      { section: "/pruebas", href: "/panel/pruebas", label: "Pruebas de voz", icon: "flask" },
+      { section: "/pruebas", href: "/panel/pruebas", label: "Pruebas de voz · Lucía", icon: "flask", exact: true },
+      { section: "/pruebas", href: "/panel/pruebas/casos", label: "Casos públicos · Guille", icon: "flask" },
     ],
   },
   {

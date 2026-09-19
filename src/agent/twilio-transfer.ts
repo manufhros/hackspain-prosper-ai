@@ -150,25 +150,49 @@ export function dialHumanUrl(humanNumber: string) {
   return `https://twimlets.com/forward?PhoneNumber=${encodeURIComponent(humanNumber)}`;
 }
 
-export async function publicHttpOrigin(): Promise<string | null> {
-  const configured = process.env.VOICE_AGENT_PUBLIC_URL?.trim() || process.env.TWILIO_HANDOFF_URL?.trim();
-  if (configured) {
-    return configured
-      .replace(/^wss:/, "https:")
-      .replace(/^ws:/, "http:")
-      .replace(/\/ws\/?$/, "")
-      .replace(/\/twiml\/.*$/, "");
+function toHttpOrigin(value: string) {
+  return value
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:")
+    .replace(/\/ws\/?$/, "")
+    .replace(/\/twiml\/.*$/, "")
+    .replace(/\/$/, "");
+}
+
+function isLoopbackOrigin(origin: string) {
+  try {
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".local");
+  } catch {
+    return true;
   }
-  if (process.env.VOICE_STORAGE === "d1") return null;
+}
+
+async function ngrokHttpsOrigin(): Promise<string | null> {
   try {
     const response = await fetch("http://127.0.0.1:4040/api/tunnels", {
       signal: AbortSignal.timeout(1500),
     });
-    const data = (await response.json()) as { tunnels?: Array<{ public_url?: string }> };
-    return data.tunnels?.find((tunnel) => tunnel.public_url?.startsWith("https://"))?.public_url ?? null;
+    const data = (await response.json()) as {
+      tunnels?: Array<{ public_url?: string; config?: { addr?: string } }>;
+    };
+    const httpsTunnels = (data.tunnels ?? []).filter((tunnel) => tunnel.public_url?.startsWith("https://"));
+    const preferred = httpsTunnels.find((tunnel) => (tunnel.config?.addr ?? "").includes(":7860"))
+      ?? httpsTunnels[0];
+    return preferred?.public_url ?? null;
   } catch {
     return null;
   }
+}
+
+export async function publicHttpOrigin(): Promise<string | null> {
+  const configured = process.env.VOICE_AGENT_PUBLIC_URL?.trim() || process.env.TWILIO_HANDOFF_URL?.trim();
+  if (configured) {
+    const origin = toHttpOrigin(configured);
+    if (!isLoopbackOrigin(origin)) return origin;
+  }
+  if (process.env.VOICE_STORAGE === "d1") return null;
+  return ngrokHttpsOrigin();
 }
 
 function wsUrlFromOrigin(origin: string) {

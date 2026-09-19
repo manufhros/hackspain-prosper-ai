@@ -94,10 +94,39 @@
   box-shadow: var(--focus);
 }
 
-.controls {
+.avatarRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin: 0 auto 4px;
+}
+
+.shuffle {
+  flex: none;
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
-  gap: 12px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.shuffle:hover {
+  border-color: var(--brand-2);
+  color: var(--brand-2);
+  background: var(--surface-2);
+}
+
+.shuffle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .testGrid {
@@ -124,22 +153,18 @@
 
 /* Caller card ------------------------------------------------------------ */
 .caller {
-  padding: 24px 18px 18px;
+  padding: 18px 18px 18px;
   text-align: center;
 }
 
 .avatar {
-  display: grid;
-  width: 84px;
-  height: 84px;
-  margin: 0 auto 16px;
-  place-items: center;
+  display: block;
+  width: 88px;
+  height: 88px;
+  margin: 0;
   border-radius: 50%;
+  object-fit: cover;
   background: var(--mint-soft);
-  color: var(--mint);
-  font-size: 24px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
 }
 
 .caller h2 {
@@ -155,6 +180,13 @@
   color: var(--muted);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+}
+
+.callError {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .caller > span {
@@ -205,7 +237,7 @@
   margin-top: 14px;
 }
 
-.caller button {
+.caller > div:last-child button {
   display: inline-flex;
   min-width: 126px;
   height: 40px;
@@ -219,11 +251,11 @@
   transition: background 140ms ease, transform 140ms ease;
 }
 
-.caller button:active {
+.caller > div:last-child button:active {
   transform: translateY(1px);
 }
 
-.caller button svg,
+.caller > div:last-child button svg,
 .audit svg {
   width: 17px;
   height: 17px;
@@ -614,7 +646,6 @@
     width: 100%;
   }
 
-  .controls,
   .testGrid,
   .fleet {
     grid-template-columns: 1fr;
@@ -629,12 +660,61 @@
   }
 }
 
-/* Incoming-call indicators use the shared redesign tokens. */
-.avatarWrap { position: relative; display: grid; place-items: center; width: 96px; height: 96px; margin: 0 auto; }
-.avatarWrap .avatar { position: relative; z-index: 1; object-fit: cover; }
-.incomingRing { position: absolute; inset: 0; border: 1px solid var(--mint); border-radius: 50%; animation: ring-pulse 2s ease-out infinite; }
-.incomingRing[data-delay] { animation-delay: 1s; }
-.lineCard > img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
-.messageAvatar { object-fit: cover; }
-@keyframes ring-pulse { from { transform: scale(1); opacity: 0.55; } to { transform: scale(1.35); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .incomingRing { animation: none; } }
+/* Incoming-call indicators stay concentric with the photo and inside the card. */
+.avatarWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  margin: 0 auto 4px;
+}
+
+.avatarWrap .avatar {
+  position: relative;
+  z-index: 1;
+  width: 88px;
+  height: 88px;
+  margin: 0;
+}
+
+.incomingRing {
+  position: absolute;
+  inset: 12px;
+  border: 1.5px solid var(--mint);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: ring-pulse 2s ease-out infinite;
+}
+
+.incomingRing[data-delay] {
+  animation-delay: 1s;
+}
+
+.lineCard > img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.messageAvatar {
+  object-fit: cover;
+}
+
+@keyframes ring-pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .incomingRing {
+    animation: none;
+  }
+}

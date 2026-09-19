@@ -2,9 +2,9 @@
   display: grid;
   grid-template-columns: 228px 1fr;
   min-height: 100svh;
-  color: #1c1c1a;
-  background: #f3f2ee;
-  font-family: var(--font-brand), sans-serif;
+  color: oklch(0.2012 0.0307 210.2063);
+  background: oklch(0.9916 0.0050 228.8162);
+  font-family: var(--font-inter), Inter, sans-serif;
 }
 
 .sidebar {
@@ -14,8 +14,8 @@
   height: 100svh;
   flex-direction: column;
   padding: 24px 14px 18px;
-  border-right: 1px solid #e6e4de;
-  background: #fafaf8;
+  border-right: 1px solid oklch(0.9202 0.0202 200.6310);
+  background: oklch(0.9794 0.0045 214.3282);
 }
 
 .brand {
@@ -35,7 +35,7 @@
   place-items: center;
   border-radius: 9px;
   color: white;
-  background: #1c1c1a;
+  background: oklch(0.7040 0.1400 182.5030);
   font-size: 15px;
 }
 

@@ -156,6 +156,80 @@
   accent-color: #168c82;
 }
 
+.threshold {
+  min-width: 52px;
+  color: #1c1c1a;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.selectRow input[type="range"] {
+  width: 130px;
+  accent-color: #168c82;
+}
+
+.faq {
+  padding: 18px;
+  border-top: 1px solid #eceae4;
+}
+
+.faq > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.faq h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.faq p {
+  margin: 4px 0 0;
+  color: #73726c;
+  font-size: 12px;
+}
+
+.faq > div button,
+.faq article button {
+  height: 34px;
+  border: 1px solid #e0ded8;
+  border-radius: 9px;
+  padding: 0 10px;
+  color: #44433e;
+  background: white;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.faq article {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid #eceae4;
+  border-radius: 10px;
+}
+
+.faq input,
+.faq textarea {
+  width: 100%;
+  border: 1px solid #e0ded8;
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.faq textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

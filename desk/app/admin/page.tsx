@@ -44,7 +44,7 @@ export default async function Admin() {
         </div>
         <nav>
           <a className={styles.active} href="#resumen">Operación</a>
-          <a href="#agentes">Agentes en vivo</a>
+          <a href="#agentes">Agente en vivo</a>
           <a href="/admin/llamadas">Llamadas y escalados</a>
           <a href="/admin/simulador">Probar agente</a>
           <a href="#agente">Configuración</a>
@@ -60,7 +60,7 @@ export default async function Admin() {
         <header className={styles.header} id="resumen">
           <div>
             <h1>Operación</h1>
-            <span>Agentes, llamadas, escalados y rendimiento de toda la red.</span>
+            <span>Un agente para toda la red. Llamadas, escalados y rendimiento.</span>
           </div>
         </header>
 
@@ -71,11 +71,7 @@ export default async function Admin() {
           <article><span>Conversión a cita</span><strong>{totalCalls ? Math.round((totalCitas / totalCalls) * 100) : 0} %</strong><small>Agregado real + demo</small></article>
         </section>
 
-        <AgentFleet profiles={ORGS.map((org) => ({
-          slug: org.slug,
-          name: org.name,
-          centers: org.hospitals.length,
-        }))} />
+        <AgentFleet />
 
         <section className={styles.groups}>
           <header><div><h2>Organizaciones</h2><p>Actividad agregada y origen de cada cuenta.</p></div></header>
@@ -131,7 +127,7 @@ export default async function Admin() {
 
         <section className={styles.agent} id="agente">
           <header>
-            <div><h2>Configuración del agente</h2><p>Voz, comportamiento, seguridad y publicación.</p></div>
+            <div><h2>Configuración del agente</h2><p>Un perfil global para todos los hospitales. Voz, comportamiento, FAQ y publicación.</p></div>
           </header>
           <div className={styles.configPanel}>
             <AgentControl initialState={agentConfig} />

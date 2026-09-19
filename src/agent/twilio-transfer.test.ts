@@ -18,9 +18,16 @@ test("trial fallback message does not say out of scope", () => {
 });
 
 test("live handoff TwiML streams into the existing call", () => {
-  const twiml = liveStreamTwiml("wss://example.ngrok-free.app/ws", "call-123", "quironsalud");
-  assert.equal(twiml.includes("<Say language=\"es-ES\">Le pongo con recepción.</Say>"), true);
-  assert.equal(twiml.includes("<Stream url=\"wss://example.ngrok-free.app/ws\">"), true);
+  const twiml = liveStreamTwiml(
+    "wss://example.ngrok-free.app/ws",
+    "call-123",
+    "quironsalud",
+    "https://example.ngrok-free.app/twiml/stream-status",
+  );
+  assert.equal(twiml.includes("<Say"), false);
+  assert.equal(twiml.includes('Le pongo con recepción'), false);
+  assert.equal(twiml.includes("<Stream url=\"wss://example.ngrok-free.app/ws\""), true);
+  assert.equal(twiml.includes('statusCallback="https://example.ngrok-free.app/twiml/stream-status"'), true);
   assert.equal(twiml.includes('name="join" value="call-123"'), true);
   assert.equal(twiml.includes("out of scope"), false);
 });

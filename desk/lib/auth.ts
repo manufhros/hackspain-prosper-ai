@@ -168,6 +168,6 @@ export function mailboxExamples() {
     { local: "gerencia", role: "direccion" as DeskRole, note: "Gerencia" },
     { local: "privacidad", role: "privacidad" as DeskRole, note: "DPO" },
     { local: "ti", role: "ti" as DeskRole, note: "Sistemas" },
-    { local: "dev", role: "dev" as DeskRole, note: "Integraciones y agente" },
+    { local: "dev", role: "dev" as DeskRole, note: "Integraciones del hospital" },
   ];
 }

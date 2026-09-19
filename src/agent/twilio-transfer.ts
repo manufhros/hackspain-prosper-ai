@@ -42,8 +42,16 @@ export function handoffTwiml(_summary?: string) {
   return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff())}</Say><Pause length="3"/></Response>`;
 }
 
-export function liveStreamTwiml(wsUrl: string, joinCallId: string, orgSlug = "arenal") {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">Le pongo con recepción.</Say><Connect><Stream url="${xml(wsUrl)}"><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+export function liveStreamTwiml(
+  wsUrl: string,
+  joinCallId: string,
+  orgSlug = "arenal",
+  statusCallback?: string,
+) {
+  const status = statusCallback
+    ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
 }
 
 /** Trial accounts reject inline `Twiml`. Use a short HTTPS message URL Twilio can fetch. */

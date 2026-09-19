@@ -1,13 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f3f2ee;
-  --ink: #1c1c1a;
-  --muted: #73726c;
-  --line: #e6e4de;
-  --card: #fff;
-  --hover: #eceae4;
-  --accent: #1f6f54;
+  --bg: oklch(0.9916 0.0050 228.8162);
+  --ink: oklch(0.2012 0.0307 210.2063);
+  --muted: oklch(0.4999 0.0296 211.7976);
+  --line: oklch(0.9093 0.0098 204.9097);
+  --card: oklch(1 0 0);
+  --hover: oklch(0.9604 0.0096 196.9971);
+  --accent: oklch(0.7040 0.1400 182.5030);
 }
 
 * {
@@ -21,11 +21,10 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family:
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Helvetica,
-    Arial,
+    var(--font-inter),
+    Inter,
+    ui-sans-serif,
+    system-ui,
     sans-serif;
   font-size: 14px;
   line-height: 1.45;
@@ -65,7 +64,7 @@ h2 {
 }
 
 .rail {
-  background: #fafaf8;
+  background: oklch(0.9794 0.0045 214.3282);
   border-right: 1px solid var(--line);
   padding: 18px 12px 16px;
   display: flex;

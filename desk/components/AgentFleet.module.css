@@ -6,7 +6,7 @@
 .fleet header > span[data-online="true"] { border-color: #cfe5de; color: #16745f; background: #f4fbf8; }
 .fleet header i, .profiles > article > i { width: 8px; height: 8px; border-radius: 50%; background: #b28172; }
 .fleet header span[data-online="true"] i, .profiles > article > i[data-online="true"] { background: #20a787; box-shadow: 0 0 0 4px rgba(32,167,135,.1); }
-.runtime { display: grid; grid-template-columns: 1.4fr .8fr .8fr; border: 1px solid #e6e4de; border-radius: 12px 12px 0 0; background: white; }
+.runtime { display: grid; grid-template-columns: 1.4fr .8fr .8fr; border: 1px solid #e6e4de; border-radius: 12px; background: white; }
 .runtime article { padding: 20px; }
 .runtime article + article { border-left: 1px solid #e6e4de; }
 .runtime span, .runtime small { display: block; color: #73726c; font-size: 11px; }

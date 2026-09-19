@@ -13,14 +13,20 @@ export type LiveSession = {
 };
 
 const sessions = new Map<string, LiveSession>();
-const rang = new Set<string>();
+const rangAt = new Map<string, number>();
+const KEEP_PHONE_MS = 180_000;
 
 export function markHumanRung(callId: string) {
-  rang.add(callId);
+  rangAt.set(callId, Date.now());
 }
 
 export function alreadyRungHuman(callId: string) {
-  return rang.has(callId);
+  return rangAt.has(callId);
+}
+
+export function sessionKeptForPhone(callId: string) {
+  const rang = rangAt.get(callId);
+  return rang != null && Date.now() - rang < KEEP_PHONE_MS;
 }
 
 export function registerLiveSession(session: LiveSession) {
@@ -33,4 +39,8 @@ export function unregisterLiveSession(callId: string) {
 
 export function getLiveSession(callId: string) {
   return sessions.get(callId);
+}
+
+export function liveSessionIds() {
+  return [...sessions.keys()];
 }

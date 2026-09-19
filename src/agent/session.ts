@@ -7,7 +7,14 @@ import { AGENT_PROMPT } from "./prompt.ts";
 import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { loadRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent } from "./call-event.ts";
-import { getLiveSession, registerLiveSession, unregisterLiveSession, type PhoneSink } from "./live-bridge.ts";
+import {
+  getLiveSession,
+  liveSessionIds,
+  registerLiveSession,
+  sessionKeptForPhone,
+  unregisterLiveSession,
+  type PhoneSink,
+} from "./live-bridge.ts";
 
 type TwilioStart = {
   event: "start";
@@ -133,6 +140,8 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   let lastDetectedLanguage: "es" | "en" | undefined;
   const phones: PhoneSink[] = [];
   let joinedHost: { sendElevenAudio: (ulaw: string) => void; removePhone: (ws: WebSocket) => void } | undefined;
+  let connectEleven: (() => Promise<void>) | undefined;
+  let elevenReconnects = 0;
 
   const finalise = async (callCtx: CallContext) => {
     if (finalised) return;
@@ -226,10 +235,20 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     playHold();
   };
 
+  const hostStillNeeded = () =>
+    phones.length > 0 || (ctx != null && sessionKeptForPhone(ctx.callId));
+
   const closeElevenSoon = () => {
+    if (hostStillNeeded()) {
+      callLog(ctx?.callId.slice(0, 8) ?? "session", "keep eleven for phone");
+      return;
+    }
     stopHold();
     const wait = pendingTools > 0 ? 8000 : 5000;
-    setTimeout(() => eleven?.close(), wait);
+    setTimeout(() => {
+      if (hostStillNeeded()) return;
+      eleven?.close();
+    }, wait);
   };
 
   const isPauseTranscript = (text: string) =>
@@ -288,7 +307,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         if (muteAgent) return;
         const event = typed.audio_event as { audio_base_64?: string; audio_base64?: string } | undefined;
         const payload = event?.audio_base_64 ?? event?.audio_base64 ?? typed.audio?.chunk;
-        if (payload && streamSid) {
+        if (payload && (streamSid || phones.length > 0)) {
           sendAgentAudio(payload);
         }
         return;
@@ -430,7 +449,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                 socket.send(
                   JSON.stringify({
                     type: "contextual_update",
-                    text: "A colleague joined this call by phone. Keep speaking Spanish with the caller so they can hear you. Do not say out of scope, transferred, or goodbye.",
+                    text: "You remain on this same call as reception. A colleague is joining by phone and must hear you. Keep speaking Spanish with the caller. Do not say you are transferring, putting them through, le pongo, le transfiere, le conecto, un momento, out of scope, or goodbye.",
                   }),
                 );
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
@@ -524,6 +543,12 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         elevenReady = false;
         keepTwilioAlive();
       }
+      if (hostStillNeeded() && elevenReconnects < 3) {
+        elevenReconnects += 1;
+        callLog(tag, "reconnect eleven for live handoff", elevenReconnects);
+        void connectEleven?.();
+        return;
+      }
       void finalise(callCtx);
     });
     socket.on("error", (error) => {
@@ -540,10 +565,17 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       return;
     }
 
+    if (message.event === "connected") {
+      callLog("stream connected");
+      return;
+    }
+
     if (message.event === "start") {
       const start = message as TwilioStart;
       streamSid = start.start.streamSid;
-      const joinId = start.start.customParameters?.join;
+      const params = start.start.customParameters ?? {};
+      callLog("stream start", start.start.callSid, JSON.stringify(params));
+      const joinId = params.join ?? params["Join"];
       if (joinId) {
         const host = getLiveSession(joinId);
         if (host) {
@@ -552,6 +584,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           callLog("phone joined live agent", joinId);
           return;
         }
+        callLogWarn("phone join missed", joinId.slice(0, 8), "sessions", liveSessionIds().map((id) => id.slice(0, 8)).join(",") || "none");
       }
       const callId = start.start.customParameters?.call_id || start.start.callSid;
       const fromNumber = start.start.customParameters?.from_number;
@@ -576,10 +609,13 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         },
         addPhone: (ws, sid) => {
           phones.push({ ws, streamSid: sid });
-          sendEleven({
-            type: "contextual_update",
-            text: "A human receptionist just joined this live call on the phone. Greet them in Spanish in one short sentence and keep talking so they can hear you. Do not say out of scope or one moment.",
-          });
+          const joined =
+            "A human receptionist just joined this live call on the phone. Greet them in Spanish in one short sentence and keep talking so they can hear you. Do not say you are transferring, le pongo, out of scope or one moment.";
+          if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
+            sendEleven({ type: "contextual_update", text: joined });
+          } else {
+            pendingHint = joined;
+          }
         },
         removePhone: (ws) => {
           const index = phones.findIndex((phone) => phone.ws === ws);
@@ -668,54 +704,57 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           latencyMs: Date.now() - preCallStarted,
         });
         if (preCall.hint) callLog("directory hint", callId, preCall.hint.slice(0, 200));
-        while (twilio.readyState === WebSocket.OPEN && !elevenReady) {
-          try {
-            const url = await getSignedConversationUrl();
-            await new Promise<void>((resolve, reject) => {
-              const socket = new WebSocket(url);
-              const timer = setTimeout(() => {
-                socket.close();
-                reject(new Error("elevenlabs ws timeout"));
-              }, 12_000);
-              socket.once("open", () => {
-                clearTimeout(timer);
-                stopHold();
-                attachEleven(socket, callCtx);
-                socket.send(
-                  JSON.stringify({
-                    type: "conversation_initiation_client_data",
-                    dynamic_variables: {
-                      call_id: callId,
-                      from_number: fromNumber ?? "",
-                      madrid_today: madridToday(),
-                      directory_hint: runtime.dynamicContext ? preCall.hint : "",
-                      patient_name: runtime.dynamicContext ? preCall.patientName : "",
-                      insurer: runtime.dynamicContext ? preCall.insurer : "",
-                      patient_id: runtime.dynamicContext ? preCall.patientId : "",
-                      config_version: runtime.version,
-                      routing_mode: runtime.routingMode,
-                      hospital_context: externalContext,
-                      approved_faq: JSON.stringify(runtime.faq).slice(0, 8_000),
-                      clinic_name: clinicName,
-                      desk_rules: AGENT_PROMPT,
-                    },
-                  }),
-                );
-                elevenReady = true;
-                flushAudio();
-                resolve();
+        connectEleven = async () => {
+          while ((twilio.readyState === WebSocket.OPEN || hostStillNeeded()) && !elevenReady) {
+            try {
+              const url = await getSignedConversationUrl();
+              await new Promise<void>((resolve, reject) => {
+                const socket = new WebSocket(url);
+                const timer = setTimeout(() => {
+                  socket.close();
+                  reject(new Error("elevenlabs ws timeout"));
+                }, 12_000);
+                socket.once("open", () => {
+                  clearTimeout(timer);
+                  stopHold();
+                  attachEleven(socket, callCtx);
+                  socket.send(
+                    JSON.stringify({
+                      type: "conversation_initiation_client_data",
+                      dynamic_variables: {
+                        call_id: callId,
+                        from_number: fromNumber ?? "",
+                        madrid_today: madridToday(),
+                        directory_hint: runtime.dynamicContext ? preCall.hint : "",
+                        patient_name: runtime.dynamicContext ? preCall.patientName : "",
+                        insurer: runtime.dynamicContext ? preCall.insurer : "",
+                        patient_id: runtime.dynamicContext ? preCall.patientId : "",
+                        config_version: runtime.version,
+                        routing_mode: runtime.routingMode,
+                        hospital_context: externalContext,
+                        approved_faq: JSON.stringify(runtime.faq).slice(0, 8_000),
+                        clinic_name: clinicName,
+                        desk_rules: AGENT_PROMPT,
+                      },
+                    }),
+                  );
+                  elevenReady = true;
+                  flushAudio();
+                  resolve();
+                });
+                socket.once("error", (error) => {
+                  clearTimeout(timer);
+                  reject(error);
+                });
               });
-              socket.once("error", (error) => {
-                clearTimeout(timer);
-                reject(error);
-              });
-            });
-            return;
-          } catch (error: unknown) {
-            callLogError("elevenlabs retry", callId, error);
-            await new Promise((resolve) => setTimeout(resolve, 800));
+              return;
+            } catch (error: unknown) {
+              callLogError("elevenlabs retry", callId, error);
+              await new Promise((resolve) => setTimeout(resolve, 800));
+            }
           }
-        }
+        };
+        await connectEleven();
       })();
       return;
     }
@@ -761,6 +800,10 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         joinedHost = undefined;
         return;
       }
+      if (hostStillNeeded()) {
+        callLog(ctx?.callId.slice(0, 8) ?? "session", "simulator stop, keeping live session");
+        return;
+      }
       stopHold();
       if (ctx) {
         const callCtx = ctx;
@@ -778,6 +821,10 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     if (joinedHost) {
       joinedHost.removePhone(twilio);
       joinedHost = undefined;
+      return;
+    }
+    if (hostStillNeeded()) {
+      callLog(ctx?.callId.slice(0, 8) ?? "session", "simulator closed, keeping live session");
       return;
     }
     stopHold();

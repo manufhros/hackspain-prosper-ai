@@ -16,11 +16,13 @@ test("benchmark validates limits and scores transcription without punctuation/ca
 test("synthetic capacity benchmark retains per-language scores and does not claim live capacity", async () => {
   const inference: Inference = {
     async audio(op, fields) {
-      return op === "speak" ? { payload: String(fields.text), elapsed_ms: 1 } : { text: String(fields.payload), elapsed_ms: 1 };
+      return op === "speak" ? { payload: String(fields.text), elapsed_ms: 1 } : {
+        text: String(fields.payload), language: benchmarkPhrases.find(phrase => phrase.text === fields.payload)?.language, elapsed_ms: 1 };
     },
     async chat(messages) {
       const phrase = benchmarkPhrases.find(phrase => phrase.text === messages.at(-1)?.content)!;
-      return { message: { role: "assistant", content: JSON.stringify({ action: phrase.action, speech: "Gracias." }) }, elapsed_ms: 1, metrics: { queue_ms: 0 } };
+      return { message: { role: "assistant", content: JSON.stringify({ action: phrase.action, speech: "Gracias." }) }, elapsed_ms: 1,
+        metrics: { queue_ms: 0, inference_ms: 1, load_ms: 0, prompt_tokens: 10, completion_tokens: 5 } };
     }, async removeAudio() {},
   };
   const signal = new AbortController().signal;
@@ -30,6 +32,34 @@ test("synthetic capacity benchmark retains per-language scores and does not clai
   expect(report.summaries.every(group => group.successful === group.attempted)).toBe(true);
   expect(report.summaries.every(group => group.by_language.every(language => language.attempted > 0))).toBe(true);
   expect(report.live_call_capacity_verified).toBe(false);
+  expect(report.samples.every(sample => sample.language_correct && sample.recognized_text === sample.expected_text)).toBe(true);
+  expect(report.samples[0]?.model_metrics).toMatchObject({ inference_ms: 1, load_ms: 0, prompt_tokens: 10, completion_tokens: 5 });
+  expect(report.transcription_diagnostics).toHaveLength(3);
+  expect(report.transcription_diagnostics.every(row => row.automatic.wer === 0 && row.explicit_language.wer === 0)).toBe(true);
+});
+
+test("benchmark exposes language detection errors even when intent passes", async () => {
+  const inference: Inference = {
+    async audio(op, fields) {
+      if (op === "speak") return { payload: String(fields.text), elapsed_ms: 1 };
+      const phrase = benchmarkPhrases.find(phrase => phrase.text === fields.payload)!;
+      return { text: phrase.language === "ca" && !fields.language ? "Quiero saber cuándo abre la clínica" : phrase.text,
+        language: String(fields.language ?? (phrase.language === "ca" ? "es" : phrase.language)), elapsed_ms: 1 };
+    },
+    async chat(messages) {
+      const text = messages.at(-1)!.content;
+      const action = benchmarkPhrases.find(phrase => phrase.text === text)?.action ?? "INFO";
+      return { message: { role: "assistant", content: JSON.stringify({ action, speech: "Hola." }) }, elapsed_ms: 1 };
+    }, async removeAudio() {},
+  };
+  const signal = new AbortController().signal;
+  const report = await measureInference(inference, new SharedAudio(inference, signal), { concurrency: [3], rounds: 1 }, signal);
+  const catalan = report.samples.find(row => row.language === "ca")!;
+  expect(catalan.okay).toBe(true); expect(catalan.language_correct).toBe(false); expect(catalan.wer).toBeGreaterThan(0);
+  expect(report.summaries[0]).toMatchObject({ successful: 3, exact_transcriptions: 2 });
+  const diagnostic = report.transcription_diagnostics.find(row => row.language === "ca")!;
+  expect(diagnostic.automatic.wer).toBeGreaterThan(0); expect(diagnostic.explicit_language.wer).toBe(0);
+  expect(report.success_definition).toContain("intent only");
 });
 
 test("benchmark failures stay in denominators rather than disappearing from latency results", async () => {

@@ -57,6 +57,8 @@ const schema = { type: "object", properties: { action: { type: "string", enum: [
   speech: { type: "string" } }, required: ["action", "speech"], additionalProperties: false };
 export interface BenchmarkSample {
   concurrency: number; round: number; language: string; okay: boolean; error?: string;
+  expected_text: string; recognized_text?: string; detected_language?: string; language_correct?: boolean;
+  model_metrics?: Record<string, number | string>;
   wer?: number; intent_correct?: boolean; first_chunk_ready_ms?: number; total_ms?: number;
   asr_ms?: number; asr_queue_ms?: number; model_ms?: number; model_queue_ms?: number;
   prefill_ms?: number; decode_ms?: number; tts_ms?: number; tts_queue_ms?: number;
@@ -64,12 +66,19 @@ export interface BenchmarkSample {
 export async function measureInference(inference: Inference, audio: SharedAudio, options: ReturnType<typeof benchmarkOptions>,
   signal: AbortSignal, progress: (message: string) => void = () => {}) {
   const samples: BenchmarkSample[] = [], recordings: string[] = [];
+  const transcriptionDiagnostics = [];
   progress("Preparing synthetic English, Spanish and Catalan telephone audio; warmup excluded.");
   for (const phrase of benchmarkPhrases) {
     const speech = await audio.run("speak", { text: phrase.text, language: phrase.language, wire: true }, signal);
     if (!speech.payload) throw new Error("Benchmark source synthesis returned no audio");
     recordings.push(speech.payload);
-    await audio.run("transcribe_mulaw", { payload: speech.payload }, signal);
+    // Compare detection and recognition separately, outside measured batches. These
+    // known-language hints are diagnostic only; real calls still allow language switches.
+    const automatic = await audio.run("transcribe_mulaw", { payload: speech.payload }, signal);
+    const hinted = await audio.run("transcribe_mulaw", { payload: speech.payload, language: phrase.language }, signal);
+    const score = (heard: typeof automatic) => ({ recognized_text: heard.text ?? "", detected_language: heard.language ?? null,
+      wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms });
+    transcriptionDiagnostics.push({ language: phrase.language, expected_text: phrase.text, automatic: score(automatic), explicit_language: score(hinted) });
   }
   for (const concurrency of options.concurrency) {
     for (let round = 0; round < options.rounds; round++) {
@@ -77,18 +86,21 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
       progress(`${concurrency} simultaneous turns · round ${round + 1}/${options.rounds}`);
       await Promise.all(Array.from({ length: concurrency }, async (_, index) => {
         const phraseIndex = (round + index) % benchmarkPhrases.length, phrase = benchmarkPhrases[phraseIndex]!;
-        const sample: BenchmarkSample = { concurrency, round: round + 1, language: phrase.language, okay: false };
+        const sample: BenchmarkSample = { concurrency, round: round + 1, language: phrase.language, expected_text: phrase.text, okay: false };
         const started = performance.now();
         const turnSignal = AbortSignal.any([signal, AbortSignal.timeout(120000)]);
         try {
           const heard = await audio.run("transcribe_mulaw", { payload: recordings[phraseIndex]! }, turnSignal);
           sample.asr_ms = heard.elapsed_ms; sample.asr_queue_ms = heard.queue_ms ?? 0;
+          sample.recognized_text = heard.text ?? ""; sample.detected_language = heard.language;
+          sample.language_correct = heard.language === phrase.language;
           sample.wer = wordErrorRate(phrase.text, heard.text ?? "");
           const reply = await inference.chat([
             { role: "system", content: `Classify the caller intent as BOOK, CANCEL, or INFO. Return JSON with action and speech. Speech must be one short question in ${phrase.language}, asking for the next needed detail. Do not claim any action has been performed.` },
             { role: "user", content: heard.text ?? "" },
           ], [], turnSignal, schema);
           sample.model_ms = reply.elapsed_ms;
+          sample.model_metrics = reply.metrics;
           for (const [key, target] of [["queue_ms", "model_queue_ms"], ["prefill_ms", "prefill_ms"], ["decode_ms", "decode_ms"]] as const) {
             const value = reply.metrics?.[key]; if (typeof value === "number") sample[target] = value;
           }
@@ -112,6 +124,7 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
   const summaries = options.concurrency.map(concurrency => {
     const group = samples.filter(sample => sample.concurrency === concurrency);
     return { concurrency, attempted: group.length, successful: group.filter(sample => sample.okay).length,
+      exact_transcriptions: group.filter(sample => sample.wer === 0).length,
       failures: group.filter(sample => sample.error).length,
       first_chunk_ready_ms: percentiles(group.flatMap(sample => sample.first_chunk_ready_ms === undefined ? [] : [sample.first_chunk_ready_ms])),
       stage_ms: Object.fromEntries((["asr_ms", "asr_queue_ms", "model_ms", "model_queue_ms", "prefill_ms", "decode_ms", "tts_ms", "tts_queue_ms"] as const)
@@ -119,12 +132,15 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
       by_language: benchmarkPhrases.map(({ language }) => {
         const rows = group.filter(sample => sample.language === language), scored = rows.filter(sample => sample.wer !== undefined);
         return { language, attempted: rows.length, intent_correct: rows.filter(sample => sample.intent_correct).length,
+          language_correct: rows.filter(sample => sample.language_correct).length,
+          exact_transcriptions: rows.filter(sample => sample.wer === 0).length,
           mean_wer: scored.length ? scored.reduce((sum, sample) => sum + sample.wer!, 0) / scored.length : null };
       }) };
   });
   return { input_source: "synthetic_piper_8khz_mulaw", live_call_capacity_verified: false,
+    success_definition: "okay/successful count completed jobs with correct intent only; transcription and language accuracy are scored separately",
     latency_definition: "Complete input audio queued to first synthesized response chunk; excludes VAD, transport and playback",
-    summaries, samples };
+    transcription_diagnostics: transcriptionDiagnostics, summaries, samples };
 }
 export async function runBenchmark(args: string[]) {
   if (args.length === 1 && ["--help", "-h"].includes(args[0]!)) { console.log(benchmarkHelp); return; }
@@ -137,8 +153,10 @@ export async function runBenchmark(args: string[]) {
     console.log("Starting an owned local stack for the benchmark. Keep other voice servers/TUIs stopped.");
     await runtime.start();
     const report = await measureInference(runtime, new SharedAudio(runtime, lifetime.signal, runtime.settings.ttsWorkers), options, lifetime.signal, console.log);
-    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, settings: runtime.settings, model: runtime.modelLabel });
+    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, settings: runtime.settings, model: runtime.modelLabel, model_runtime: runtime.modelRuntime });
     console.log(JSON.stringify(report.summaries, null, 2)); console.log(`Saved: ${file}`);
+    if (report.samples.some(sample => sample.wer !== undefined && sample.wer > 0))
+      console.log("Transcription errors detected; inspect recognized_text and transcription_diagnostics even when intent is correct.");
     if (report.samples.some(sample => !sample.okay)) process.exitCode = 1;
   } finally { stop(); process.off("SIGINT", stop); process.off("SIGTERM", stop); process.off("SIGHUP", stop); }
 }

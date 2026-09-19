@@ -1,5 +1,5 @@
-import { LabConsole } from "./lab-console";
+import { Overview } from "@/components/prosper/overview";
 
-export default function Home() {
-  return <LabConsole />;
+export default function Page() {
+  return <Overview />;
 }

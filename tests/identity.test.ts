@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { callerSupplied, verifiedPatient } from "../src/voice/identity";
 import { Receptionist, type ClinicReader } from "../src/voice/agent";
@@ -8,7 +9,7 @@ const patient = { patient_id: "P1", given_name: "Josefa", first_surname: "Domín
 const tool = (name: string, args: ObjectValue): Message => ({ role: "assistant", content: "", tool_calls: [{ function: { name, arguments: args } }] });
 function fixture(replies: Message[], data: ObjectValue, callerPhone?: string) {
   const requests: string[] = [];
-  const inference: Inference = { async chat() { return { elapsed_ms: 0, message: replies.shift()! }; }, async audio() { throw new Error("Unexpected audio"); }, async removeAudio() {} };
+  const inference: Inference = { decideAction: allowAction, async chat() { return { elapsed_ms: 0, message: replies.shift()! }; }, async audio() { throw new Error("Unexpected audio"); }, async removeAudio() {} };
   const clinic: ClinicReader = { async request(request) { requests.push(request.path); return { status: 200, elapsed_ms: 0, meaning: "OK", data }; } };
   const agent = new Receptionist(inference, clinic, "2026-09-18T09:00:00+02:00", "en", () => {}, { callerPhone });
   return { agent, requests };

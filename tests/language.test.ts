@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { ConversationLanguage } from "../src/voice/language";
 import { Receptionist } from "../src/voice/agent";
@@ -19,7 +20,7 @@ test("clear caller language overrides greeting and ASR mistakes; explicit prefer
 test("a wrong-language draft is never spoken and active language uses a single system message", async () => {
   const replies = ["Buenos días, ¿qué cita necesita?", "How can I help you?"];
   const seen: Message[][] = [];
-  const inference: Inference = { async audio() { throw new Error("Unexpected audio"); }, async removeAudio() {}, async chat(messages: Message[]) {
+  const inference: Inference = { decideAction: allowAction, async audio() { throw new Error("Unexpected audio"); }, async removeAudio() {}, async chat(messages: Message[]) {
     seen.push(structuredClone(messages));
     return { message: { role: "assistant", content: replies.shift()! }, elapsed_ms: 1 };
   } };

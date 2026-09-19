@@ -7,6 +7,7 @@ import { ConversationLanguage, textLanguage } from "./language";
 import { callerSupplied, exactIdentifiersMatch, verifiedPatient } from "./identity";
 import { callPhrases } from "./phrases";
 import { Consent, needsConsent } from "./consent";
+import { selectedAction, type ActionCandidate, type ActionChoice } from "./action-decision";
 
 export interface ClinicReader { request: PlatformClient["request"] }
 class IdentityInputError extends Error {
@@ -121,12 +122,41 @@ export class Receptionist {
     return answer;
   }
   private emit(stage: string, elapsed_ms: number, detail: string, metrics?: TraceEvent["metrics"]) { const event = { stage, elapsed_ms, detail, ...(metrics ? { metrics } : {}) }; this.events.push(event); this.update(event); }
+  private async decideAction(candidate: ActionCandidate | undefined, signal: AbortSignal): Promise<ActionChoice> {
+    if (!this.inference.decideAction) throw new Error("Jev action decisions are not configured");
+    const definition = candidate?.kind === "tool" ? agentTools.find(tool => tool.function.name === candidate.name)?.function : undefined;
+    const decision = await this.inference.decideAction({ candidate,
+      ...(definition ? { tool_contract: { description: definition.description, parameters: definition.parameters } } : {}),
+      conversation: structuredClone(this.transcript),
+      accepted: this.consent.acceptedActions, pending: this.consent.pendingAction, reference_time: this.referenceTime,
+      evidence: this.messages.filter(m => m.role === "tool").slice(-20).map(m => ({ tool: m.tool_name ?? "unknown", result: m.content })),
+    }, signal);
+    signal.throwIfAborted();
+    const selected = selectedAction(decision, candidate);
+    this.emit("action_decision", decision.elapsed_ms, "Jev selected the next action", { choice: decision.choice,
+      probability: decision.probability, confidence: decision.confidence, model: decision.model,
+      selected, candidate: candidate?.kind === "tool" ? candidate.name : candidate?.kind ?? "finish_or_continue" });
+    return selected;
+  }
+  private captureAccepted() {
+    const actions = this.consent.acceptedActions;
+    if (!actions.length || this.consent.pendingAction) throw new Error("Cannot finish without accepted actions or while another offer is pending");
+    const record = completionRecord({ actions });
+    this.checkGrounding(record.actions); this.consent.check(record.actions);
+    this.record = structuredClone(record);
+    this.emit("resolution", 0, "Completed exact accepted actions directly from Jev decision", { actions: record.actions.length });
+  }
+  private closingSpeech() {
+    return this.speak(completionSpeech(this.language, this.options.mode, this.record!,
+      this.record!.actions.filter(needsConsent).map(action => this.describeAction(action))));
+  }
   async turn(text: string, signal: AbortSignal): Promise<string> {
     if (this.record) throw new Error("Call already completed");
     this.consentIssue = false;
     this.language = this.speech.update(text);
     let speechRepairs = 0;
     let identityFailures = 0;
+    let decisionRepairs = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
     this.turnStart = { messages: this.messages.length, transcript: this.transcript.length };
@@ -146,6 +176,13 @@ export class Receptionist {
         this.consentIssue = true;
       }
     }
+    // Jev can close the exact accepted payload without another generative model turn.
+    // It must first check the full conversation for remaining intents, not just a yes.
+    if (this.consent.acceptedActions.length && !this.consent.pendingAction) {
+      const next = await this.decideAction(undefined, signal);
+      if (next === "finish") { this.captureAccepted(); return this.closingSpeech(); }
+      if (next === "clarify") return this.speak(callPhrases[this.currentLanguage].clarifyAction);
+    }
     for (let step = 0; step < 10; step++) {
       signal.throwIfAborted();
       const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
@@ -161,7 +198,16 @@ export class Receptionist {
           const started = performance.now();
           let result: unknown;
           let identityClarification: string | undefined;
-          try { result = await this.tool(call, signal); signal.throwIfAborted(); }
+          const next = await this.decideAction({ kind: "tool", name: call.function.name, arguments: call.function.arguments }, signal);
+          const rejected = next === "revise" || next === "clarify";
+          try {
+            if (next === "finish") { this.captureAccepted(); result = { completed: true, record: this.record }; }
+            else if (rejected) {
+              result = { error: "Jev rejected this candidate. Use the caller's request and retrieved facts to propose a different next step. Do not repeat this candidate or reconfirm accepted actions." };
+              if (next === "clarify" || ++decisionRepairs >= 2) identityClarification = callPhrases[this.currentLanguage].clarifyAction;
+            } else result = await this.tool(call, signal);
+            signal.throwIfAborted();
+          }
           catch (error) {
             signal.throwIfAborted();
             result = { error: error instanceof Error ? error.message : "Tool failed" };
@@ -174,7 +220,7 @@ export class Receptionist {
           this.emit("tool", Math.round(performance.now() - started), `${call.function?.name ?? "unknown"}: ${isObject(result) && result.error ? result.error : "completed"}`);
           this.messages.push({ role: "tool", tool_name: call.function?.name, ...(call.id ? { tool_call_id: call.id } : {}), content: JSON.stringify(result) });
           const completed = this.record as Outcome | undefined;
-          if (completed || this.offerSpeech || identityClarification) {
+          if (completed || this.offerSpeech || identityClarification || rejected) {
             // Preserve the provider's original assistant message (including reasoning metadata).
             // Every requested call still needs a paired result, even when an offer ends the turn.
             for (const skipped of calls.slice(calls.indexOf(call) + 1)) this.messages.push({ role: "tool", tool_name: skipped.function.name,
@@ -184,13 +230,13 @@ export class Receptionist {
           if (completed) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
-            return this.speak(completionSpeech(this.language, this.options.mode, completed,
-              completed.actions.filter(needsConsent).map(action => this.describeAction(action))));
+            return this.closingSpeech();
           }
           if (this.offerSpeech) {
             const speech = this.offerSpeech; this.offerSpeech = undefined;
             return this.speak(speech);
           }
+          if (rejected) break;
           if (this.completionFailures >= 3) throw new Error(`Local resolution failed after three attempts: ${isObject(result) ? result.error : "invalid outcome"}`);
         }
         continue;
@@ -210,6 +256,7 @@ export class Receptionist {
       }
       if (speechProblem) throw new Error(`Model repeatedly returned invalid speech: ${speechProblem}`);
       const pending = this.consent.awaitingReoffer;
+      let reoffer = false;
       if (pending) {
         // Replace an untracked booking question with the exact grounded offer. Other
         // questions (e.g. identity or a new preference) must not make a yes count as consent.
@@ -219,10 +266,21 @@ export class Receptionist {
           .replace(/¿?(?:(?:le|te|li|et) (?:reservo|reservem|confirmo)|quiere que le reserve|vol que li reservi|le viene bien|te viene bien|li va bé|et va bé)\b[^?]*\?\s*$/i, "").trim();
         if (!/[?¿]/.test(explanation)) {
           this.checkGrounding(pending.actions);
-          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider, pending.location, this.proposalSpeech(pending.actions[0]!));
+          reoffer = true;
           answer = `${explanation} ${this.proposalSpeech(pending.actions[0]!)}`.trim();
         }
       }
+      const next = await this.decideAction({ kind: "speech", text: answer, ...(reoffer ? { offered_actions: pending!.actions } : {}) }, signal);
+      if (next === "finish") {
+        this.messages.pop(); this.captureAccepted(); return this.closingSpeech();
+      }
+      if (next === "clarify" || next === "revise") {
+        this.messages.pop();
+        if (next === "clarify" || ++decisionRepairs >= 2) return this.speak(callPhrases[this.currentLanguage].clarifyAction);
+        this.messages.push({ role: "system", content: "Jev rejected the unspoken draft. Do not repeat it. Propose a grounded next step; never reconfirm already accepted actions or claim success before completion." });
+        continue;
+      }
+      if (reoffer) this.consent.offer(pending!.actions, this.options.mode !== "platform", pending!.provider, pending!.location, this.proposalSpeech(pending!.actions[0]!));
       this.messages.pop(); // speak stores only the delivered draft once
       return this.speak(answer);
     }

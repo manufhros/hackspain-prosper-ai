@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import type { ServerWebSocket } from "bun";
 import { edgeAllowed, edgeAsset, edgeEvent } from "../src/edge/http";
@@ -10,7 +11,7 @@ const request = (path = "/edge/ws", origin = "http://localhost", host = "localho
 function fixture(edge = true) {
   let saved = 0, logged = 0, requests = 0;
   const lifetime = new AbortController();
-  const inference: Inference = {
+  const inference: Inference = { decideAction: allowAction,
     async chat() { return { elapsed_ms: 1, message: { role: "assistant", content: "", tool_calls: [
       { function: { name: "complete_call", arguments: { actions: [{ action: "NO_ACTION", reason: "out_of_scope" }] } } },
     ] } }; },

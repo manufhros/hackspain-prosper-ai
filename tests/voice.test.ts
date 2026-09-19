@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { cases, type ObjectValue, type Outcome } from "../src/data";
 import { evaluateBatch, parseResults } from "../src/evaluate";
@@ -13,6 +14,7 @@ const signal = () => new AbortController().signal;
 const say = (content: string): Message => ({ role: "assistant", content });
 const call = (name: string, args: ObjectValue): Message => ({ role: "assistant", content: "", tool_calls: [{ function: { name, arguments: args } }] });
 class FakeInference implements Inference {
+  decideAction = allowAction;
   seen: { messages: Message[]; tools: unknown[]; format: unknown }[] = [];
   audioCalls: { operation: string; fields: ObjectValue }[] = [];
   removed: string[] = [];
@@ -505,4 +507,70 @@ test("decision failure cannot complete a booking and its instructions expire on 
   await agent.turn("Yes", signal());
   expect(agent.record).toEqual(booking);
   expect(inference.seen.at(-1)!.messages[0]!.content).not.toContain("consent decision service failed");
+});
+
+test("Jev finishes accepted bookings directly even when chat would keep asking", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), say("Does that work for you?"), offer()]);
+  inference.decideAction = async input => ({ choice: input.candidate ? "execute" : "finish", probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-jev" });
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+  await agent.turn(identityText, signal()); agent.markDelivered();
+  const before = inference.seen.length;
+  const speech = await agent.turn("Yes, absolutely. Is it booked now?", signal());
+  expect(agent.record).toEqual(booking);
+  expect(inference.seen).toHaveLength(before);
+  expect(speech).toContain("Confirmed");
+  expect(agent.events.some(e => e.stage === "resolution")).toBe(true);
+});
+test("Jev can continue a second request while retaining the first accepted action", async () => {
+  const cancel = { action: "CANCEL", appointment_id: "A-future" };
+  const inference = new FakeInference([directory(), availability(), offer(), call("appointments", { patient_id: action.patient_id }), offer({ actions: [cancel] })]);
+  inference.decideAction = async input => ({ choice: !input.candidate && input.accepted.length === 2 ? "finish" : "execute", probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-jev" });
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "Book a new visit and cancel my existing visit.", signal());
+  await agent.turn("Yes, book that one.", signal());
+  expect(agent.record).toBeUndefined();
+  await agent.turn("Yes, cancel that visit.", signal());
+  expect(agent.record).toEqual({ actions: [...booking.actions, cancel] });
+});
+test("Jev rejection blocks clinic requests and repeated unsafe candidates stop after two repairs", async () => {
+  const { clinic, requests } = clinicFixture();
+  const inference = new FakeInference([directory(), directory(), directory()]);
+  inference.decideAction = async () => ({ choice: "revise", probability: 1, confidence: 1, elapsed_ms: 1, model: "fake-jev" });
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
+  expect(await agent.turn(identityText, signal())).toContain("What would you like");
+  expect(requests).toHaveLength(0); expect(inference.seen).toHaveLength(2);
+  expect(agent.record).toBeUndefined();
+});
+test("Jev reviews final spoken wording and cannot bypass delivery or exact grounding", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), complete(booking), say("Please choose first.")]);
+  const reviewed: string[] = [];
+  inference.decideAction = async input => {
+    if (input.candidate?.kind === "speech") reviewed.push(input.candidate.text);
+    return { choice: "execute", probability: 1, confidence: 1, elapsed_ms: 1, model: "fake-jev" };
+  };
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
+  await agent.turn(identityText, signal()); // Never mark this offer delivered.
+  const answer = await agent.turn("Yes", signal());
+  expect(agent.record).toBeUndefined();
+  expect(reviewed.at(-1)).toBe(answer);
+});
+test("a cancelled action decision cannot execute a late clinic request", async () => {
+  const inference = new FakeInference([directory()]);
+  let ready!: () => void, resolve!: (value: Awaited<ReturnType<typeof allowAction>>) => void;
+  const began = new Promise<void>(done => ready = done);
+  inference.decideAction = async () => { ready(); return new Promise(done => resolve = done); };
+  const { clinic, requests } = clinicFixture();
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
+  const abort = new AbortController(), work = agent.turn(identityText, abort.signal);
+  await began; abort.abort(new Error("Caller correction"));
+  resolve({ choice: "execute", probability: 1, confidence: 1, elapsed_ms: 1, model: "fake-jev" });
+  await expect(work).rejects.toThrow("Caller correction"); expect(requests).toHaveLength(0);
+});
+test("missing or unavailable action decisions never fall back to the chat model's proposal", async () => {
+  const inference = new FakeInference([directory()]);
+  inference.decideAction = async () => { throw new Error("Decisions unavailable"); };
+  const { clinic, requests } = clinicFixture();
+  const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
+  await expect(agent.turn(identityText, signal())).rejects.toThrow("Decisions unavailable");
+  expect(requests).toHaveLength(0); expect(agent.record).toBeUndefined();
 });

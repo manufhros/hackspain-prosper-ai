@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { OpenRouterChat, openRouterMessages } from "../src/voice/openrouter";
 import { childEnvironment, modelConfig, openRouterKey, openRouterKeyIdentity, runtimeExecutables } from "../src/voice/model";
@@ -149,7 +150,7 @@ test("the receptionist executes OpenRouter tools and sends results with matching
     return response(say("How can I help you?"));
   });
   let clinicReads = 0;
-  const inference: Inference = { chat: (...args) => router.chat(...args), async audio() { throw new Error("No audio"); }, async removeAudio() {} };
+  const inference: Inference = { decideAction: allowAction, chat: (...args) => router.chat(...args), async audio() { throw new Error("No audio"); }, async removeAudio() {} };
   const agent = new Receptionist(inference, { async request() { clinicReads++; return { status: 200, elapsed_ms: 0, meaning: "OK", data: { clinic_name: "Arenal" } }; } }, "2026-09-18T09:00:00+02:00", "en");
   expect(await agent.turn("Hello", signal())).toBe("How can I help you?");
   expect(requests).toHaveLength(2); expect(clinicReads).toBe(1);

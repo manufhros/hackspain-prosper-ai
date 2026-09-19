@@ -1,3 +1,4 @@
+import { allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { wireMessages } from "../src/protocol";
 import { defaultVad, delay, SharedAudio } from "../src/telephony/audio";
@@ -25,7 +26,7 @@ function fixture(replies: Message[] = [say("Hola"), complete()], live = true, st
   const audioCalls: string[] = [];
   const output: string[] = [];
   const transcript = new LiveTranscript(text => output.push(text));
-  const inference: Inference = {
+  const inference: Inference = { decideAction: allowAction,
     async chat(messages, _tools, signal) { signal.throwIfAborted(); seen.push(structuredClone(messages)); const message = replies.shift(); if (!message) throw new Error("No fake response"); return { message, elapsed_ms: 1 }; },
     async audio(op, _fields, signal) { signal.throwIfAborted(); audioCalls.push(op); return op === "speak" ? { payload: speech.toString("base64"), elapsed_ms: 1 } : { text: "No necesito cita", language: "es", elapsed_ms: 1 }; },
     async removeAudio() {},
@@ -303,6 +304,7 @@ test("reported clarification and natural confirmation produce exactly one platfo
     tool("availability", { patient_id: "P1", provider_id: "PR01", date_from: "2026-09-21", date_to: "2026-09-25" }), tool("offer_actions", booking),
     say("Yes, that Monday 09:00 is the earliest. Shall I hold that Monday slot?"), tool("complete_call", booking)], true, 200,
     { now: () => Date.parse("2026-09-18T09:00:00+02:00") });
+  f.inference.decideAction = async input => ({ choice: !input.candidate && input.accepted.length ? "finish" : "execute", probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-jev" });
   const decisions = ["clarify", "accept"] as const;
   let decisionIndex = 0;
   f.inference.decideConsent = async () => ({ choice: decisions[decisionIndex++]!, probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-decision" });
@@ -330,7 +332,8 @@ test("reported clarification and natural confirmation produce exactly one platfo
   expect(f.reports[0]!.status).toBe("completed");
   expect(f.requests.filter(r => r.method === "POST")).toHaveLength(1);
   expect(f.requests.at(-1)!.body).toMatchObject({ call_id: "natural-confirmation", slot: booking.actions[0]!.slot });
-  expect(f.reports[0]!.events.filter(e => e.stage === "tool" && e.detail.startsWith("complete_call"))).toHaveLength(1);
+  expect(f.reports[0]!.events.filter(e => e.stage === "resolution")).toHaveLength(1);
+  expect(f.reports[0]!.events.some(e => e.stage === "tool" && e.detail.startsWith("complete_call"))).toBe(false);
 });
 
 test("peer stop drains pending asynchronous speech detection before final transcription", async () => {

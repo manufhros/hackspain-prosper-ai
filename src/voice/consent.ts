@@ -18,6 +18,7 @@ export class Consent {
   }
   delivered() { if (this.pending && !this.pending.needsReoffer) { this.pending.delivered = true; this.revision++; } }
   interrupt() { this.pending = undefined; this.revision++; }
+  get pendingAction() { return this.pending ? structuredClone(this.pending) : undefined; }
   get awaitingReoffer() { return this.pending?.needsReoffer ? structuredClone(this.pending) : undefined; }
   get acceptedActions() { return structuredClone([...this.accepted.values()]); }
   hasAccepted(actions: Action[]) { return actions.every(action => this.accepted.has(actionKey(action))); }

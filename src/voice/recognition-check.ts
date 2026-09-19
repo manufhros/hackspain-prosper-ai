@@ -5,6 +5,7 @@ import { isObject } from "../validation";
 import { percentiles, wordErrorCounts } from "./benchmark";
 import { LocalRuntime, voiceDir, type Inference } from "./runtime";
 import { localSettings } from "./settings";
+import { transcriptionConfig, type TranscriptionConfig } from "./transcription";
 
 const languages = ["en", "es", "ca"];
 const channels = ["clean", "telephone"] as const;
@@ -16,6 +17,7 @@ interface Clip {
 interface Sample {
   id: string; language: string; channel: string; reference: string; recognized: string;
   detected_language?: string; decoder?: string; skip_reason?: string; input_rms?: number;
+  metrics?: Record<string, string | number>;
   elapsed_ms?: number; error?: string; errors: number; words: number; wer: number;
 }
 export function recognitionOptions(args: string[]) {
@@ -63,7 +65,7 @@ export async function measureRecognition(inference: Pick<Inference, "audio">, cl
         AbortSignal.any([signal, AbortSignal.timeout(60000)]));
       sample.recognized = reply.text ?? ""; sample.detected_language = reply.language;
       sample.decoder = reply.decoder; sample.elapsed_ms = reply.elapsed_ms;
-      sample.skip_reason = reply.skip_reason; sample.input_rms = reply.input_rms;
+      sample.metrics = reply.metrics; sample.skip_reason = reply.skip_reason; sample.input_rms = reply.input_rms;
     } catch (error) {
       signal.throwIfAborted();
       sample.error = error instanceof Error ? error.message : String(error);
@@ -86,12 +88,21 @@ export async function measureRecognition(inference: Pick<Inference, "audio">, cl
   return { summaries, samples };
 }
 
+export function recognitionProfiles(env: Record<string, string | undefined> = process.env) {
+  const transcription: TranscriptionConfig = transcriptionConfig(env), base = localSettings(env);
+  if (transcription.provider === "openrouter") return [{ settings: base, transcription }];
+  return (["small", "large-v3-turbo"] as const).flatMap(asrModel => (["transcribe", "segment"] as const)
+    .map(asrDecoder => ({ settings: { ...base, asrModel, asrDecoder }, transcription })));
+}
+
 export async function runRecognitionCheck(args: string[]) {
   if (args.length === 1 && ["--help", "-h"].includes(args[0]!)) {
     console.log(`Human-recorded ASR comparison; starts recognition workers only when invoked.
 bun run benchmark:asr [--manifest path]
-Compares small/turbo × transcribe/segment on original 16 kHz and 8 kHz mu-law audio.
-No Qwen, Piper, cloud inference, clinic requests or submissions. Stop other voice stacks first.
+ASR_PROVIDER=local: compares small/turbo × transcribe/segment (240 requests).
+ASR_PROVIDER=openrouter: checks hosted Whisper Turbo once (60 billable requests).
+Both use original 16 kHz and 8 kHz mu-law audio; OpenRouter sends recordings externally.
+No Qwen, Piper, clinic requests or submissions. Stop other voice stacks first.
 Prepare the fixed FLEURS subset (downloads/codec conversion only, no models):
 .workbench/voice/venv/bin/python scripts/prepare-human-speech.py
 This is a small read-speech sample, not clinical accuracy or concurrent-call capacity proof.
@@ -118,15 +129,16 @@ Reports corpus WER, language accuracy and isolated worker timing; references nev
       staged.push(path); await Bun.write(path, Bun.file(join(dirname(manifest), clip.clean_file))); await chmod(path, 0o600);
       clips.push({ ...clip, clean_file: name });
     }
-    for (const asrModel of ["small", "large-v3-turbo"] as const) for (const asrDecoder of ["transcribe", "segment"] as const) {
+    for (const profile of recognitionProfiles()) {
+      const { asrModel, asrDecoder } = profile.settings;
       lifetime.signal.throwIfAborted();
-      const settings = { ...localSettings(), asrModel, asrDecoder };
-      runtime = new LocalRuntime(console.log, { recognitionOnly: true, settings });
+      runtime = new LocalRuntime(console.log, { recognitionOnly: true, settings: profile.settings, transcription: profile.transcription });
       try {
-        console.log(`Checking ${asrModel}/${asrDecoder} on ${clips.length} human recordings, two audio formats…`);
+        console.log(`Checking ${runtime.recognitionLabel} on ${clips.length} human recordings, two audio formats…`);
         await runtime.start();
         const measured = await measureRecognition(runtime, clips, lifetime.signal, console.log);
-        profiles.push({ asrModel, asrDecoder, ...measured });
+        profiles.push({ ...(profile.transcription.provider === "local" ? { asrModel, asrDecoder }
+          : { asrModel: profile.transcription.model, asrDecoder: "openrouter" }), transcription: profile.transcription, ...measured });
         console.log(JSON.stringify(measured.summaries, null, 2));
       } finally { runtime.stop(); }
     }
@@ -134,7 +146,7 @@ Reports corpus WER, language accuracy and isolated worker timing; references nev
     const file = await saveLocal(`recognition-${Date.now()}.json`, { ...attribution,
       input_sha256: hash(JSON.stringify(inputs)), inputs: inputs.map(({ wire_payload, ...clip }) => clip), profiles,
       live_call_capacity_verified: false, clinical_accuracy_verified: false,
-      measurement: "Serial, warmed ASR only; original mono 16 kHz PCM16 vs resampled 8 kHz mu-law; no language hint or transcript prompt. WER normalizes case/punctuation with NFKC. Failures and skips count as empty transcripts in corpus WER. worker_ms includes skips; decoded_worker_ms excludes requests that bypassed decoding. Only short input or exact digital silence bypass decoding; no RMS cutoff." });
+      measurement: "Serial ASR only; local profiles warmed, hosted timings include network and provider processing; original mono 16 kHz PCM16 vs resampled 8 kHz mu-law; no language hint or transcript prompt. WER normalizes case/punctuation with NFKC. Failures and skips count as empty transcripts in corpus WER. worker_ms includes skips; decoded_worker_ms excludes requests that bypassed decoding. Local profiles bypass only short input or exact digital silence; hosted profiles use provider speech handling." });
     console.log(`Saved: ${file}`);
     if (profiles.some(profile => profile.samples.some(sample => sample.error))) process.exitCode = 1;
   } finally {

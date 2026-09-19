@@ -20,11 +20,11 @@ VOICES = {"en": "en_US-lessac-medium", "es": "es_ES-davefx-medium", "ca": "ca_ES
 
 with contextlib.redirect_stdout(sys.stderr):
     import numpy as np
-    if ROLE != "tts":
+    if ROLE in ("asr", "all"):
         import mlx_whisper
     import sounddevice as sd
     import soundfile as sf
-    if ROLE != "asr":
+    if ROLE in ("tts", "all"):
         from piper import PiperVoice
     from recording import Recording
 
@@ -91,13 +91,13 @@ def handle(request):
     global recording
     operation = request["operation"]
     if operation == "warmup":
-        if ROLE != "tts":
+        if ROLE in ("asr", "all"):
             from mlx_whisper.transcribe import ModelHolder
             import mlx.core as mx
             ModelHolder.get_model(str(ASR_ROOT), mx.float16)
             # Loading weights alone does not compile the MLX transcription graph.
             transcribe_audio(np.random.default_rng(0).normal(0, 0.01, 16000).astype(np.float32), "en")
-        if ROLE != "asr":
+        if ROLE in ("tts", "all"):
             for language in VOICES:
                 voices[language] = load_voice(language)
                 with wave.open(io.BytesIO(), "wb") as output:

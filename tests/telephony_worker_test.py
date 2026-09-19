@@ -50,6 +50,20 @@ class WireAudioTests(unittest.TestCase):
         finally:
             os.umask(old_mask)
 
+    def test_capture_worker_neither_imports_nor_warms_speech_models(self):
+        modules = {"mlx_whisper": None, "piper": None,
+                   "sounddevice": types.SimpleNamespace(),
+                   "recording": types.SimpleNamespace(Recording=object)}
+        old_mask = os.umask(0o077)
+        try:
+            with patch.dict(sys.modules, modules), patch.object(sys, "stdin", io.StringIO()), patch.object(sys, "argv", ["worker.py", "/tmp/synthetic-voice", "capture"]):
+                worker = runpy.run_path(str(Path(__file__).parent.parent / "local-voice/worker.py"))
+                self.assertEqual(worker["handle"]({"operation": "warmup"}), {"ready": True})
+                self.assertNotIn("mlx_whisper", worker)
+                self.assertNotIn("PiperVoice", worker)
+        finally:
+            os.umask(old_mask)
+
     def test_synthesis_is_raw_8000hz_mulaw_without_device_or_file_io(self):
         with patch.object(sf, "write", side_effect=AssertionError("No disk audio in wire mode")):
             result = self.worker["handle"]({"operation": "speak", "text": "Hola", "language": "es", "wire": True, "play": False})

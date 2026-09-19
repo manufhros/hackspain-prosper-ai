@@ -62,10 +62,11 @@ export function delay(ms: number, signal: AbortSignal): Promise<void> {
 
 /** Independent bounded ASR/TTS lanes. Caller cancellation never kills shared native work. */
 export class SharedAudio {
-  private recognition = new WorkQueue(1);
+  private recognition: WorkQueue;
   private synthesis: WorkQueue;
   private speechCache = new Map<string, Promise<AudioReply>>();
-  constructor(private inference: Pick<Inference, "audio">, private lifetime: AbortSignal, ttsWorkers = 1) {
+  constructor(private inference: Pick<Inference, "audio" | "recognitionConcurrency" | "cancellableRecognition">, private lifetime: AbortSignal, ttsWorkers = 1) {
+    this.recognition = new WorkQueue(inference.recognitionConcurrency ?? 1);
     this.synthesis = new WorkQueue(ttsWorkers);
   }
   run(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
@@ -81,7 +82,8 @@ export class SharedAudio {
     const work = lane.run(async queue_ms => {
       this.lifetime.throwIfAborted();
       // A started native request retains its slot until it finishes, even after caller cancellation.
-      const reply = await this.inference.audio(operation, fields, this.lifetime);
+      const remoteRecognition = this.inference.cancellableRecognition && (operation === "transcribe" || operation === "transcribe_mulaw");
+      const reply = await this.inference.audio(operation, fields, remoteRecognition ? AbortSignal.any([signal, this.lifetime]) : this.lifetime);
       return { ...reply, queue_ms: queue_ms + (reply.queue_ms ?? 0),
         total_ms: Math.round(performance.now() - queuedAt), cache_hit: false };
     }, cacheKey ? this.lifetime : AbortSignal.any([signal, this.lifetime]));

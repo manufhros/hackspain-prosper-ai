@@ -9,19 +9,32 @@ import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
 import { LlamaChat, llamaArguments, llamaCapacity } from "./llama";
 import { localSettings, type LocalSettings } from "./settings";
+import { isTranscription, OpenRouterTranscription, transcriptionConfig, type TranscriptionConfig } from "./transcription";
 
-type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; role: "asr" | "tts"; pending: number };
+type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; role: "asr" | "tts" | "capture"; pending: number };
 
 export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; tool_call_id?: string; reasoning_details?: unknown[] }
 export interface ToolCall { id?: string; arguments_text?: string; function: { name: string; arguments: ObjectValue } }
 export interface ChatReply { message: Message; elapsed_ms: number; metrics?: Record<string, number | string> }
-export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; decoder?: string; skip_reason?: string; input_rms?: number; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean }
+export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; decoder?: string; skip_reason?: string; input_rms?: number; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean; metrics?: Record<string, string | number> }
 export interface Inference {
+  readonly recognitionConcurrency?: number;
+  readonly cancellableRecognition?: boolean;
   chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply>;
   audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply>;
   removeAudio(file: string): Promise<void>;
 }
 export const voiceDir = join(stateDir, "voice");
+
+export function audioRuntimePlan(settings: LocalSettings, transcription: TranscriptionConfig, recognitionOnly = false) {
+  const remote = transcription.provider === "openrouter";
+  const selected = speechAssets(settings.asrModel);
+  const assets = recognitionOnly ? (remote ? [] : selected.filter(asset => asset.path.startsWith("whisper")))
+    : [...selected.filter(asset => !remote || !asset.path.startsWith("whisper")), vadAsset];
+  const roles: Worker["role"][] = recognitionOnly ? (remote ? [] : ["asr"])
+    : [remote ? "capture" : "asr", ...Array<"tts">(settings.ttsWorkers).fill("tts")];
+  return { assets, roles };
+}
 
 export function installationCommands(uv: string, python: string, directory: string): string[][] {
   return [
@@ -65,21 +78,29 @@ export class LocalRuntime implements Inference {
   private stopSignal = new AbortController();
   private workers: Worker[] = [];
   readonly settings: LocalSettings;
+  readonly transcription: TranscriptionConfig;
+  get recognitionConcurrency() { return this.transcription.concurrency; }
+  get cancellableRecognition() { return this.transcription.provider === "openrouter"; }
+  get recognitionLabel() { return this.transcription.provider === "openrouter"
+    ? `OpenRouter ${this.transcription.model} (managed routing, ${this.transcription.concurrency} requests)`
+    : `Whisper ${this.settings.asrModel}/${this.settings.asrDecoder}`; }
+  private remoteRecognition?: OpenRouterTranscription;
   private local?: OllamaChat | LlamaChat;
   modelRuntime?: { backend: string; slots: number; context_per_slot: number; build?: string; model_asset?: string; model_sha256?: string };
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
   get modelLabel() {
-    if (this.options.recognitionOnly) return `Whisper ${this.settings.asrModel}/${this.settings.asrDecoder} (recognition only)`;
+    if (this.options.recognitionOnly) return `${this.recognitionLabel} (recognition only)`;
     try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
     catch { return "Model configuration incomplete; check LLM_PROVIDER / OPENROUTER_MODEL"; }
   }
   private starting?: Promise<void>;
   private pending = new Map<string, { resolve: (reply: AudioReply) => void; reject: (error: Error) => void }>();
   constructor(private readonly update: (message: string) => void = () => {},
-    private readonly options: { recognitionOnly?: boolean; settings?: LocalSettings } = {}) {
+    private readonly options: { recognitionOnly?: boolean; settings?: LocalSettings; transcription?: TranscriptionConfig } = {}) {
     this.settings = options.settings ?? localSettings();
+    this.transcription = options.transcription ?? transcriptionConfig();
   }
   private environment(extra: Record<string, string> = {}) {
     return { ...childEnvironment(process.env), PYTHONUNBUFFERED: "1", HF_HUB_DISABLE_TELEMETRY: "1", HOMEBREW_NO_AUTO_UPDATE: "1", ...extra };
@@ -137,10 +158,17 @@ export class LocalRuntime implements Inference {
     if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Local voice requires Apple Silicon macOS. Use bun start --offline on other systems.");
     this.state = "installing"; this.error = "";
     const config = this.options.recognitionOnly ? { provider: "local" as const, model: MODEL } : modelConfig();
-    this.remote = config.provider === "openrouter" ? new OpenRouterChat(config, await openRouterKey()) : undefined;
+    const key = config.provider === "openrouter" || this.transcription.provider === "openrouter" ? await openRouterKey() : undefined;
+    this.remote = config.provider === "openrouter" ? new OpenRouterChat(config, key!) : undefined;
+    this.remoteRecognition = this.transcription.provider === "openrouter"
+      ? new OpenRouterTranscription(this.transcription, key!, join(voiceDir, "audio")) : undefined;
     this.update(`Model: ${this.modelLabel}`);
     await mkdir(join(voiceDir, "audio"), { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700); await chmod(voiceDir, 0o700);
+    this.update(`Recognition: ${this.recognitionLabel}`);
+    if (this.options.recognitionOnly && this.remoteRecognition) {
+      this.state = "ready"; this.update("Remote recognition configured; no billable warmup request sent."); return;
+    }
     const brew = Bun.which("brew") ?? (await Bun.file("/opt/homebrew/bin/brew").exists() ? "/opt/homebrew/bin/brew" : null);
     const executables = runtimeExecutables(config, this.settings.backend, this.options.recognitionOnly);
     const missing = executables.filter(name => !Bun.which(name));
@@ -160,21 +188,20 @@ export class LocalRuntime implements Inference {
       for (const command of installationCommands(executable("uv"), python, voiceDir)) await this.command(command);
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
-    const assets = speechAssets(this.settings.asrModel);
-    for (const asset of this.options.recognitionOnly ? assets.filter(asset => asset.path.startsWith("whisper")) : [...assets, vadAsset]) await this.download(asset);
+    const plan = audioRuntimePlan(this.settings, this.transcription, this.options.recognitionOnly);
+    for (const asset of plan.assets) await this.download(asset);
     if (config.provider === "local" && !this.options.recognitionOnly) {
       if (this.settings.backend === "llama") await this.startLlama(executable("llama-server"));
       else await this.startOllama(executable("ollama"));
     }
-    this.startWorker(python, "asr");
-    if (!this.options.recognitionOnly) for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");
+    for (const role of plan.roles) this.startWorker(python, role);
     this.update(this.options.recognitionOnly ? "Warming recognition…" : "Warming recognition, speech workers and the language model…");
     // Warm every worker explicitly; a pool request could otherwise reuse the first worker.
     for (const worker of this.workers) await this.workerRequest(worker, "warmup", {}, this.stopSignal.signal);
     if (!this.options.recognitionOnly) await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
     if (this.workers.some(worker => worker.process.exitCode !== null) || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
     this.state = "ready";
-    this.update(this.options.recognitionOnly ? `${this.modelLabel} ready.` : `Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+    this.update(this.options.recognitionOnly ? `${this.modelLabel} ready.` : `Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + ${this.recognitionLabel} + ${this.settings.ttsWorkers} Piper workers.`);
   }
   private async startLlama(executable: string) {
     const modelPath = join(voiceDir, qwenAsset.path);
@@ -282,7 +309,9 @@ export class LocalRuntime implements Inference {
   }
   async audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
     signal.throwIfAborted();
-    const role = operation === "speak" ? "tts" : "asr";
+    if (this.remoteRecognition && isTranscription(operation))
+      return this.remoteRecognition.audio(operation, fields, AbortSignal.any([signal, this.stopSignal.signal]));
+    const role = operation === "speak" ? "tts" : this.transcription.provider === "openrouter" ? "capture" : "asr";
     const worker = this.workers.filter(worker => worker.role === role && worker.process.exitCode === null)
       .sort((a, b) => a.pending - b.pending)[0];
     if (!worker) throw new Error("Audio worker is not running; retry local setup.");
@@ -330,7 +359,7 @@ export class LocalRuntime implements Inference {
       const timer = setTimeout(() => { if (child.exitCode === null) { try { process.kill(-child.pid, "SIGKILL"); } catch {} } }, 1500);
       timer.unref();
     }
-    this.children.clear(); this.workers = []; this.modelRuntime = undefined; this.local = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
+    this.children.clear(); this.workers = []; this.modelRuntime = undefined; this.local = undefined; this.llm = undefined; this.remote = undefined; this.remoteRecognition = undefined; this.origin = "";
     for (const pending of [...this.pending.values()]) pending.reject(new Error("Local runtime stopped"));
     this.pending.clear();
   }

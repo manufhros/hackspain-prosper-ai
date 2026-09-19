@@ -1,5 +1,5 @@
 /**
- * Three fixed accounts, no passwords: this is a demo panel behind a cookie.
+ * Two fixed accounts, no passwords: this is a demo panel behind a cookie.
  * The role decides which sections of /panel are reachable.
  */
 export type Role = "admin" | "clinic" | "tester";
@@ -10,14 +10,13 @@ export type Account = { email: string; role: Role; label: string; note: string }
 
 export const ACCOUNTS: Account[] = [
   { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen y llamadas del centro" },
-  { email: "admin@turno.app", role: "admin", label: "Operador turno", note: "Agente, llamadas y pruebas" },
-  { email: "voz@turno.app", role: "tester", label: "Pruebas de voz", note: "Simulador de llamadas" },
+  { email: "admin@turno.app", role: "admin", label: "Admin", note: "Agente, llamadas y pruebas" },
 ];
 
 export const COOKIE = "admision";
 
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: "Operador turno",
+  admin: "Admin",
   clinic: "Admisión",
   tester: "Pruebas de voz",
 };

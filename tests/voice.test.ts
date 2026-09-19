@@ -6,6 +6,7 @@ import { callerMessages, resultFromRehearsal, runRehearsal, spokenRoundtrip, voi
 import { type Inference, type Message } from "../src/voice/runtime";
 import { completionSpeech } from "../src/voice/resolution";
 import { runFreeConversation } from "../src/voice/free";
+import { type ConsentChoice } from "../src/voice/consent-decision";
 import { openRouterMessages } from "../src/voice/openrouter";
 
 const signal = () => new AbortController().signal;
@@ -17,6 +18,8 @@ class FakeInference implements Inference {
   removed: string[] = [];
   speech = new Map<string, string>();
   failTranscription = false;
+  decisions: ConsentChoice[] = [];
+  async decideConsent() { return { choice: this.decisions.shift() ?? "accept", probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-decision" }; }
   constructor(public replies: Message[] = []) {}
   async chat(messages: Message[], tools: unknown[], abort: AbortSignal, format?: unknown) {
     abort.throwIfAborted(); this.seen.push({ messages: structuredClone(messages), tools, format });
@@ -324,6 +327,7 @@ test("platform report clarification and continuation cannot complete a grounded 
     const inference = new FakeInference([directory(), availability(), offer(), complete(booking), say("Please choose the appointment first.")]);
     const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
     await agent.turn(identityText + "I need an appointment", signal());
+    inference.decisions = ["clarify"];
     await agent.turn(reply, signal());
     expect(agent.record).toBeUndefined();
     expect(agent.messages.find(m => m.tool_name === "complete_call")?.content).toContain("explicitly accepted");
@@ -426,6 +430,7 @@ test("clarification re-offers the grounded slot and natural acceptance completes
     say("Yes, that is the earliest. Shall I book that slot?"), complete(booking)]);
   const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en", () => {}, { mode: "platform" });
   await agent.turn(identityText + "I need an appointment", signal()); agent.markDelivered();
+  inference.decisions = ["clarify", "accept"];
   const explanation = await agent.turn("Is that the earliest?", signal());
   expect(explanation).toContain("Yes, that is the earliest.");
   expect(explanation).toContain("Does that work for you?");
@@ -468,7 +473,36 @@ test("Spanish clarification cannot create an untracked booking confirmation", as
   const inference = new FakeInference([directory(), availability(), offer(), say("Sí, es la primera cita. ¿Le reservo esa cita?"), complete(booking)]);
   const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "es", () => {}, { mode: "platform" });
   await agent.turn("Me llamo Patient Example, nací el 1980-01-01.", signal()); agent.markDelivered();
+  inference.decisions = ["clarify", "accept"];
   const explanation = await agent.turn("¿Es la primera cita disponible?", signal());
   expect(explanation).toContain("¿Le viene bien?"); expect(explanation).not.toContain("¿Le reservo");
   agent.markDelivered(); await agent.turn("Sí, me parece bien.", signal()); expect(agent.record).toEqual(booking);
+});
+
+test("reported informal and emphatic replies complete through the decision model without re-offering", async () => {
+  for (const reply of ["Perfecto, muy bien.", "Que sí, coño, que me viene muy bien eso, sí."]) {
+    const inference = new FakeInference([directory(), availability(), offer(), offer(), complete(booking)]);
+    const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "es", () => {}, { mode: "platform" });
+    await agent.turn("Me llamo Patient Example, nací el 1980-01-01.", signal()); agent.markDelivered();
+    const closing = await agent.turn(reply, signal());
+    expect(agent.record).toEqual(booking);
+    expect(closing).not.toContain("¿Le viene bien?");
+    expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
+    expect(agent.events.find(e => e.stage === "consent")!.metrics).toMatchObject({ model: "fake-decision", choice: "accept", accepted_actions: 1 });
+  }
+});
+test("decision failure cannot complete a booking and its instructions expire on recovery", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), complete(booking), offer(), complete(booking)]);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText, signal());
+  const decide = inference.decideConsent.bind(inference);
+  inference.decideConsent = async () => { throw new Error("Consent decision timed out"); };
+  await agent.turn("Yes", signal());
+  expect(agent.record).toBeUndefined();
+  expect(agent.events.some(e => e.stage === "consent_error")).toBe(true);
+  expect(inference.seen.at(-1)!.messages[0]!.content).toContain("consent decision service failed");
+  inference.decideConsent = decide;
+  await agent.turn("Yes", signal());
+  expect(agent.record).toEqual(booking);
+  expect(inference.seen.at(-1)!.messages[0]!.content).not.toContain("consent decision service failed");
 });

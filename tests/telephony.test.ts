@@ -303,6 +303,9 @@ test("reported clarification and natural confirmation produce exactly one platfo
     tool("availability", { patient_id: "P1", provider_id: "PR01", date_from: "2026-09-21", date_to: "2026-09-25" }), tool("offer_actions", booking),
     say("Yes, that Monday 09:00 is the earliest. Shall I hold that Monday slot?"), tool("complete_call", booking)], true, 200,
     { now: () => Date.parse("2026-09-18T09:00:00+02:00") });
+  const decisions = ["clarify", "accept"] as const;
+  let decisionIndex = 0;
+  f.inference.decideConsent = async () => ({ choice: decisions[decisionIndex++]!, probability: 0.99, confidence: 0.99, elapsed_ms: 1, model: "fake-decision" });
   const replies = ["My name is Patient Example, born 1980-01-01. I need the earliest appointment.",
     "Is that the earliest?", "Ah, okay, yes, please book me for Monday at 9 with Dr. Martin."];
   const audio = f.inference.audio;

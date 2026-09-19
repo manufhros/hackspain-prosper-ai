@@ -43,6 +43,7 @@ export class Receptionist {
   private completionFailures = 0;
   private speech: ConversationLanguage;
   private consent = new Consent();
+  private consentIssue = false;
   private offerSpeech?: string;
   private turnStart?: { messages: number; transcript: number };
   private draft?: { message: Message; turn: TranscriptTurn };
@@ -89,7 +90,7 @@ export class Receptionist {
   private inferenceMessages(): Message[] {
     // Keep one system message: model templates differ in their handling of later system turns.
     const instructions = this.messages.filter(m => m.role === "system").map(m => m.content).join("\n");
-    return [{ role: "system", content: `${instructions}\nACCEPTED ACTIONS (do not re-offer): ${JSON.stringify(this.consent.acceptedActions)}\n${this.consent.awaitingReoffer ? "A previous proposal needs clarification and a delivered re-offer before accepting a yes. Answer the question briefly; the application will append the grounded offer to a statement. If you need different information, ask that question without asking to book." : ""}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
+    return [{ role: "system", content: `${instructions}\nACCEPTED ACTIONS (do not re-offer): ${JSON.stringify(this.consent.acceptedActions)}\n${this.consentIssue ? "The consent decision service failed this turn. No write action is authorized. Briefly explain that confirmation could not be processed; ask the caller to try again. Do not claim they refused or that an appointment was confirmed." : ""}\n${this.consent.awaitingReoffer ? "A previous proposal needs clarification and a delivered re-offer before accepting a yes. Answer the question briefly; the application will append the grounded offer to a statement. If you need different information, ask that question without asking to book." : ""}\nACTIVE RESPONSE LANGUAGE: ${this.currentLanguage}. Every spoken sentence must use this language.` },
       ...this.messages.filter(m => m.role !== "system")];
   }
   greet() { return this.speak(callPhrases[this.currentLanguage].greeting); }
@@ -122,16 +123,29 @@ export class Receptionist {
   private emit(stage: string, elapsed_ms: number, detail: string, metrics?: TraceEvent["metrics"]) { const event = { stage, elapsed_ms, detail, ...(metrics ? { metrics } : {}) }; this.events.push(event); this.update(event); }
   async turn(text: string, signal: AbortSignal): Promise<string> {
     if (this.record) throw new Error("Call already completed");
+    this.consentIssue = false;
     this.language = this.speech.update(text);
-    if (text) {
-      this.consent.hear(text);
-      this.emit("consent", 0, "Updated consent from caller reply", { accepted_actions: this.consent.acceptedActions.length, reoffer_required: this.consent.awaitingReoffer ? 1 : 0 });
-    }
     let speechRepairs = 0;
     let identityFailures = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
     this.turnStart = { messages: this.messages.length, transcript: this.transcript.length };
+    if (text) {
+      try {
+        const decision = await this.consent.hear(text, this.transcript, async (input, abort) => {
+          if (!this.inference.decideConsent) throw new Error("Consent decision model is not configured");
+          return this.inference.decideConsent(input, abort);
+        }, signal);
+        signal.throwIfAborted();
+        if (decision) this.emit("consent", decision.elapsed_ms, "Model evaluated caller consent", {
+          choice: decision.choice, probability: decision.probability, confidence: decision.confidence, model: decision.model,
+          accepted_actions: this.consent.acceptedActions.length, reoffer_required: this.consent.awaitingReoffer ? 1 : 0 });
+      } catch (error) {
+        signal.throwIfAborted();
+        this.emit("consent_error", 0, error instanceof Error ? error.message : "Consent decision unavailable");
+        this.consentIssue = true;
+      }
+    }
     for (let step = 0; step < 10; step++) {
       signal.throwIfAborted();
       const tools = this.options.mode === "platform" ? agentTools.map(tool => tool.function.name === "complete_call"
@@ -205,7 +219,7 @@ export class Receptionist {
           .replace(/¿?(?:(?:le|te|li|et) (?:reservo|reservem|confirmo)|quiere que le reserve|vol que li reservi|le viene bien|te viene bien|li va bé|et va bé)\b[^?]*\?\s*$/i, "").trim();
         if (!/[?¿]/.test(explanation)) {
           this.checkGrounding(pending.actions);
-          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider, pending.location);
+          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider, pending.location, this.proposalSpeech(pending.actions[0]!));
           answer = `${explanation} ${this.proposalSpeech(pending.actions[0]!)}`.trim();
         }
       }
@@ -223,7 +237,7 @@ export class Receptionist {
       this.checkGrounding(record.actions);
       if (this.consent.hasAccepted(record.actions)) return { already_accepted: true, instruction: "Do not ask again. Call complete_call with all accepted actions when all intents are resolved." };
       const action = record.actions[0]!;
-      this.consent.offer(record.actions, this.options.mode !== "platform", this.providers.get(String(action.provider_id)), this.locations.get(String(action.location_id)));
+      this.consent.offer(record.actions, this.options.mode !== "platform", this.providers.get(String(action.provider_id)), this.locations.get(String(action.location_id)), this.proposalSpeech(action));
       this.offerSpeech = this.proposalSpeech(action);
       return { proposal_ready: true, awaiting_caller_acceptance: true };
     }

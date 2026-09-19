@@ -6,6 +6,7 @@ import { stateDir } from "../storage";
 import { speechAssets, vadAsset, qwenAsset, MODEL, type Asset } from "./assets";
 import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables, type ModelConfig } from "./model";
 import { OpenRouterChat } from "./openrouter";
+import { OpenRouterConsent, consentConfig, type DecideConsent } from "./consent-decision";
 import { OllamaChat } from "./ollama";
 import { LlamaChat, llamaArguments, llamaCapacity } from "./llama";
 import { localSettings, type LocalSettings } from "./settings";
@@ -18,6 +19,7 @@ export interface ToolCall { id?: string; arguments_text?: string; function: { na
 export interface ChatReply { message: Message; elapsed_ms: number; metrics?: Record<string, number | string> }
 export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; decoder?: string; skip_reason?: string; input_rms?: number; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean; metrics?: Record<string, string | number> }
 export interface Inference {
+  decideConsent?: DecideConsent;
   readonly recognitionConcurrency?: number;
   readonly cancellableRecognition?: boolean;
   chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply>;
@@ -90,6 +92,7 @@ export class LocalRuntime implements Inference {
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
+  private consentModel?: OpenRouterConsent;
   get modelLabel() {
     if (this.options.recognitionOnly) return `${this.recognitionLabel} (recognition only)`;
     try { const config = this.options.model ?? modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
@@ -300,6 +303,13 @@ export class LocalRuntime implements Inference {
       if (pullError || !complete) throw new Error(pullError || "Incomplete model pull; rerun setup to resume.");
     } else this.update(`Using cached ${MODEL}.`);
   }
+  decideConsent: DecideConsent = async (input, signal) => {
+    const lifetime = AbortSignal.any([signal, this.stopSignal.signal]);
+    lifetime.throwIfAborted();
+    this.consentModel ??= new OpenRouterConsent(consentConfig(), await openRouterKey());
+    lifetime.throwIfAborted();
+    return this.consentModel.decide(input, lifetime);
+  };
   async chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply> {
     const lifetime = AbortSignal.any([signal, this.stopSignal.signal]);
     lifetime.throwIfAborted();

@@ -97,7 +97,10 @@ icon controls, visible 2px focus rings. Provider controls lock while saving/test
 ### Navigation and data display
 
 Only call history in the left sidebar. Newest calls first, grouped by Madrid date. Tool
-runs append chronologically, and input/output disclosures preserve their open state.
+runs append chronologically. Human-readable outcomes lead each disclosure: labelled patient
+fields, appointment options, recorded actions, and explicit errors/restrictions. Dates use
+Europe/Madrid; known names retain their identifiers. Raw payloads live in a secondary
+“Detalles técnicos” disclosure. Both disclosure levels preserve their open state.
 
 ### Forms and overlays
 

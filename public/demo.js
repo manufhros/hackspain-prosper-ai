@@ -1,3 +1,25 @@
+export function demoAvailability(now = Date.now(), count = 4) {
+  const slots = Array.from({ length: count }, (_, index) => {
+    const date = new Date(now + (index + 2) * 86400000);
+    date.setUTCHours(14, 30, 0, 0);
+    return {
+      start_time: date.toISOString(),
+      provider_id: "DEMO-DR-01",
+      provider_name: "Dra. Vega · demostración",
+      location_id: "centro",
+      location_name: "Arenal Centro",
+      appointment_type_id: "dermatology_review",
+    };
+  });
+  return {
+    soonest: slots[0],
+    slots,
+    saturday: [],
+    blocked: [],
+    appointment_type_id: "dermatology_review",
+  };
+}
+
 // This fixture is only shown after the user explicitly opens demonstration mode.
 export function createDemo(now = Date.now()) {
   const stamp = (seconds) => new Date(now + seconds * 1000).toISOString();
@@ -46,10 +68,7 @@ export function createDemo(now = Date.now()) {
         id: "demo-tool-2",
         name: "search_availability",
         input: { specialty_id: "dermatology", patient_id: "DEMO-01" },
-        output: {
-          available_slots: 4,
-          note: "Datos simulados para explorar la consola",
-        },
+        output: demoAvailability(now),
         status: "completed",
         startedAt: stamp(-81),
         endedAt: stamp(-80.66),

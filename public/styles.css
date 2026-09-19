@@ -934,9 +934,8 @@ input[type="search"]::-webkit-search-cancel-button {
   display: block;
   margin-top: 1px;
 }
-.tool-title code {
+.tool-preview {
   display: block;
-  font-family: ui-monospace, SFMono-Regular, monospace;
   font-size: 10px;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -948,7 +947,7 @@ input[type="search"]::-webkit-search-cancel-button {
   margin-top: 8px;
   transition: transform var(--motion);
 }
-.tool-item details[open] summary > .ph {
+.tool-item details[open] > summary > .ph {
   transform: rotate(180deg);
 }
 .tool-status {
@@ -1005,6 +1004,93 @@ input[type="search"]::-webkit-search-cancel-button {
   font: 11px var(--sans);
   color: var(--secondary);
   padding: 3px 0;
+}
+.tool-section + .tool-section {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 16px;
+}
+.tool-section > h4 {
+  font-size: 12px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.tool-section-error > h4 {
+  color: var(--danger);
+}
+.tool-section-warning > h4 {
+  color: var(--warning);
+}
+.tool-fields {
+  margin: 0;
+}
+.tool-fields > div + div {
+  margin-top: 9px;
+}
+.tool-fields dt {
+  color: var(--secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.tool-fields dd {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.tool-fields .tool-fields {
+  border-left: 1px solid var(--line);
+  padding-left: 10px;
+  margin-top: 8px;
+}
+.tool-message,
+.tool-muted {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--secondary);
+  overflow-wrap: anywhere;
+}
+.tool-results,
+.tool-values {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.tool-results > li {
+  border-left: 2px solid var(--line);
+  padding-left: 12px;
+}
+.tool-results > li + li {
+  margin-top: 18px;
+}
+.tool-results h4 {
+  font-size: 11px;
+}
+.tool-values > li + li {
+  margin-top: 4px;
+}
+.tool-technical {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 9px;
+}
+.tool-technical > summary {
+  align-items: center;
+  justify-content: space-between;
+  color: var(--secondary);
+  font-size: 11px;
+  min-height: 36px;
+}
+.tool-technical > code {
+  display: block;
+  color: var(--secondary);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+}
+.tool-technical > summary > .ph {
+  margin-top: 0;
 }
 .tools-empty {
   padding: 54px 12px;
@@ -1584,7 +1670,7 @@ dialog::backdrop {
   .tool-title strong {
     font-size: 13px;
   }
-  .tool-title code {
+  .tool-preview {
     font-size: 11px;
   }
   .tool-data pre {

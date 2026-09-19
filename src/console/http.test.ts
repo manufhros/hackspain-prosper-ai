@@ -78,6 +78,7 @@ test("console serves the actual UI and locally packaged assets without a listeni
   for (const asset of [
     "/styles.css",
     "/app.js",
+    "/tool-presentation.js",
     "/assets/lucia-orb.png",
     "/vendor/icons/Phosphor.woff2",
     "/vendor/dm-sans/dm-sans-latin-400-normal.woff2",

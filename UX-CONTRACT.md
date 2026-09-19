@@ -27,6 +27,8 @@
 - Transcript follows only when follow is enabled and the operator is already at the bottom.
 - Backlog after reconnect comes from a fresh server snapshot. Offline means stale, never live.
 - Native details owns tool disclosure behavior; each run has a distinct ID, including repeats.
+- `public/tool-presentation.js` owns readable output for all nine tools. Results reflect the returned payload, never the requested outcome. Names resolve only from earlier successful results in the same call; unresolved IDs stay visible. Technical payloads remain available in a nested disclosure, whose open/focus state survives updates.
+- Empty, failed, interrupted and pending tool results have distinct Spanish messages. Unknown payloads use labelled fields; malformed text remains readable. All untrusted content is escaped.
 - Native dialog owns modal semantics; Escape/close asks to discard dirty provider edits. Focus returns to Ajustes.
 - Preferences apply immediately in this browser; credentials save only on explicit submit.
 - Provider test uses draft credentials for a read-only agent lookup. It neither saves nor updates ElevenLabs.

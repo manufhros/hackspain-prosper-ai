@@ -9,7 +9,8 @@ import {
   escapeHTML as esc,
   summary,
 } from "./model.js";
-import { createDemo } from "./demo.js";
+import { createDemo, demoAvailability } from "./demo.js";
+import { presentTool } from "./tool-presentation.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -409,7 +410,7 @@ function renderTools() {
   const scroll = panel.scrollTop;
   const atBottom = panel.scrollHeight - panel.clientHeight - scroll < 50;
   const focusedTool = panel.contains(document.activeElement)
-    ? document.activeElement.closest("[data-tool]")?.dataset.tool
+    ? document.activeElement.closest("[data-disclosure]")?.dataset.disclosure
     : undefined;
   $("#tool-count").textContent = call.tools.length;
   if (!call.tools.length) {
@@ -425,6 +426,7 @@ function renderTools() {
         failed: ["Error", "x"],
         interrupted: ["Interrumpida", "pause"],
       }[tool.status];
+      const presentation = presentTool(tool, call.tools);
       const key = `${call.id}:${tool.id}`;
       const isOpen = openTools.has(key)
         ? openTools.get(key)
@@ -437,19 +439,19 @@ function renderTools() {
           : tool.durationMs < 1000
             ? `${tool.durationMs} ms`
             : `${(tool.durationMs / 1000).toFixed(1).replace(".", ",")} s`;
-      return `<article class="tool-item"><span class="tool-node ${tool.status}">${icon(info[1])}</span><time class="tool-time" datetime="${esc(tool.startedAt)}">${time(tool.startedAt, true)}</time><details data-tool="${esc(tool.id)}" ${isOpen ? "open" : ""}><summary><span class="tool-icon">${icon(glyph)}</span><span class="tool-title"><strong>${esc(name)}</strong><code>${esc(tool.name)}</code><span class="tool-status ${tool.status}">${icon(tool.status === "completed" ? "check-circle" : tool.status === "running" ? "spinner-gap" : "warning-circle")}${info[0]} · <span data-tool-elapsed="${esc(tool.id)}">${esc(elapsed)}</span></span></span>${icon("caret-down")}</summary><div class="tool-data"><h4>Entrada</h4><pre>${esc(JSON.stringify(tool.input, null, 2))}</pre><h4>Salida</h4>${tool.output === undefined ? `<p class="pending">${tool.status === "running" ? "Esperando respuesta…" : "No se recibió un resultado."}</p>` : `<pre>${esc(typeof tool.output === "string" ? tool.output : JSON.stringify(tool.output, null, 2))}</pre>`}</div></details></article>`;
+      return `<article class="tool-item"><span class="tool-node ${tool.status}">${icon(info[1])}</span><time class="tool-time" datetime="${esc(tool.startedAt)}">${time(tool.startedAt, true)}</time><details data-tool="${esc(tool.id)}" data-disclosure="${esc(tool.id)}" ${isOpen ? "open" : ""}><summary><span class="tool-icon">${icon(glyph)}</span><span class="tool-title"><strong>${esc(name)}</strong><span class="tool-preview">${esc(presentation.summary)}</span><span class="tool-status ${tool.status}">${icon(tool.status === "completed" ? "check-circle" : tool.status === "running" ? "spinner-gap" : "warning-circle")}${info[0]} · <span data-tool-elapsed="${esc(tool.id)}">${esc(elapsed)}</span></span></span>${icon("caret-down")}</summary><div class="tool-data">${presentation.html}<details class="tool-technical" data-disclosure="${esc(tool.id)}:technical" ${openTools.get(`${key}:technical`) ? "open" : ""}><summary>Detalles técnicos ${icon("caret-down")}</summary><code>${esc(tool.name)}</code><h4>Entrada original</h4><pre>${esc(JSON.stringify(tool.input, null, 2))}</pre><h4>Salida original</h4><pre>${tool.output === undefined ? "Sin respuesta" : esc(typeof tool.output === "string" ? tool.output : JSON.stringify(tool.output, null, 2))}</pre></details></div></details></article>`;
     })
     .join("");
-  panel.querySelectorAll("details").forEach((details) => {
-    const key = `${call.id}:${details.dataset.tool}`;
+  panel.querySelectorAll("[data-disclosure]").forEach((details) => {
+    const key = `${call.id}:${details.dataset.disclosure}`;
     // The toggle event also fires on initial open; capturing the value is intentional.
     details.addEventListener("toggle", () => openTools.set(key, details.open));
   });
   if (atBottom && follow) panel.scrollTop = panel.scrollHeight;
   else panel.scrollTop = scroll;
   if (focusedTool)
-    [...panel.querySelectorAll("[data-tool]")]
-      .find((node) => node.dataset.tool === focusedTool)
+    [...panel.querySelectorAll("[data-disclosure]")]
+      .find((node) => node.dataset.disclosure === focusedTool)
       ?.querySelector("summary")
       .focus({ preventScroll: true });
 }
@@ -600,10 +602,7 @@ function startDemo() {
       tool.status = "completed";
       tool.endedAt = new Date().toISOString();
       tool.durationMs = Date.parse(tool.endedAt) - Date.parse(tool.startedAt);
-      tool.output = {
-        available_slots: 2,
-        note: "Ejemplo simulado: dos huecos por la tarde.",
-      };
+      tool.output = demoAvailability(Date.now(), 2);
     } else if (demoStage === 2) {
       call.transcript.push({
         id: "demo-new-1",

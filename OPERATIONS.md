@@ -7,8 +7,8 @@ Integración sobre `feature/lucia-work` (base `d282f1f`). Entrada: **Panel → O
 
 - **Demo mock**: tres conversaciones locales; reproducir, pausar, avanzar y reiniciar.
   Sin llamadas a proveedores. Saludo inicial en español; idioma tras la primera respuesta.
-- **Ensayar sin teléfono**: tres pacientes de prueba verificados en Prosper. OpenAI
-  (`SIMULATOR_MODEL`, por defecto `gpt-4.1-mini`) responde como paciente; ElevenLabs
+- **Ensayar sin teléfono**: tres pacientes de prueba verificados en Prosper. Vercel AI Gateway
+  (`SIMULATOR_MODEL`, por defecto `openai/gpt-4.1-mini`) responde como paciente; ElevenLabs
   ejecuta el mismo `handleCall`, herramientas y configuración de la rama.
   Estas tres conversaciones son de texto, no sintetizan audio.
 - **Start demo**: lo anterior + una llamada a **+34601408225**. El móvil inicia una
@@ -42,8 +42,8 @@ La autenticación por cookie/cuentas fijas es la de la rama: **no es autenticaci
 
 Variables:
 
-- `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `PLATFORM_API_KEY`, `OPENAI_API_KEY`.
-- Opcional: `PLATFORM_API_BASE_URL`, `SIMULATOR_MODEL`.
+- `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID`, `PLATFORM_API_KEY`, `AI_GATEWAY_API_KEY`.
+- Opcional: `PLATFORM_API_BASE_URL`, `SIMULATOR_MODEL` (formato `proveedor/modelo`).
 - Para teléfono: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` (o API key SID/secret),
   `TWILIO_PHONE_NUMBER`, `VOICE_AGENT_PUBLIC_URL=https://tu-dominio`.
   La URL debe llegar al servidor de voz; se verifica antes de originar la llamada.
@@ -55,7 +55,7 @@ inicio y habilita los overrides usados por el motor actualizado: prompt, saludo,
 voz y `conversation.text_only`. Operaciones usa `conversationConfigOverride(runtime)`
 con la voz, metaprompt e instrucciones persistidas de la clínica. El saludo de la demo
 siempre empieza en español. Se verifica la configuración remota antes de iniciar; no se
-cambia automáticamente el agente remoto. El simulador usa Responses API con `store:false`.
+cambia automáticamente el agente remoto. El simulador usa Responses API de Vercel AI Gateway con `store:false`.
 
 ## Cloudflare
 
@@ -66,7 +66,7 @@ Los ensayos no se insertan en `voice_calls`, para no contaminar las métricas cl
 
 Antes de desplegar:
 
-1. Configurar `OPERATIONS_SECRET` (mismo valor en voice y desk), `OPENAI_API_KEY` en voice,
+1. Configurar `OPERATIONS_SECRET` (mismo valor en voice y desk), `AI_GATEWAY_API_KEY` en voice,
    y las credenciales de agentes/Prosper/Twilio existentes. No usar variables NEXT_PUBLIC.
 2. Configurar `VOICE_AGENT_PUBLIC_URL` en voice con el dominio público de desk o voice.
 3. Ejecutar las migraciones D1 existentes (incluida `0004_call_transcripts.sql`).

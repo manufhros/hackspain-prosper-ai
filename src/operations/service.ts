@@ -165,7 +165,7 @@ export class OperationsService {
   private async launch(includePhone: boolean) {
     const signal = this.controller.signal;
     try {
-      for (const key of ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID", "PLATFORM_API_KEY"]) {
+      for (const key of ["AI_GATEWAY_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID", "PLATFORM_API_KEY"]) {
         if (!process.env[key]) throw new Error(`Falta ${key}.`);
       }
       if (includePhone) {

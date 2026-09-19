@@ -139,6 +139,17 @@ y slots de fechas que nadie pedía (el modelo alucinaba días). En la nuestra,
 - El eval prueba el **cerebro**, no la voz. STT/TTS/VAD/latencia/concurrencia solo
   se ven con un Call real. Necesitas los dos.
 
+### F7 · Tope de presupuesto del AI Gateway ($5) mata el agente — ABIERTO
+`Team budget exceeded. Current spend: $5.13, limit: $5.00`. Con el tope agotado,
+TODA llamada al gateway (chat/STT/TTS) falla (520/525/561/429). El agente
+white-label queda muerto: un switchboard o Run All contra él sacaría 0, no por
+concurrencia sino porque no responde. Lo agotamos con el eval de 73 casos + los
+stress tests de 20 + generar audio por TTS. Fix: subir/resetear el budget en el
+dashboard de Vercel (Team → AI Gateway → Budget). **Vigilar el gasto**: cada
+corrida completa del eval cuesta lo suyo. El agente de Lucía usa ElevenLabs, no
+el gateway, así que este tope no le afecta — punto a favor de que el Run All
+puntuable lo tire su agente mientras esto se arregla.
+
 ### F6 · Correr 73 casos concurrentes agota el gateway (rate-limit) — ABIERTO
 Los últimos ~13 casos de una corrida de 73 con `WL_EVAL_CONCURRENCY=4` salen como
 ERROR. Es el mismo cuello que la latencia: bajo carga sostenida el gateway limita.

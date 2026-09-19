@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { LeadForm } from "@/components/LeadForm";
-import { HOSPITALS } from "@/lib/hospitals";
+import { SITES } from "@/lib/clinic";
 import fromLogs from "@/lib/from-logs.json";
 import styles from "./landing.module.css";
 
@@ -13,7 +14,7 @@ export default async function Home({
   return (
     <main className={styles.page}>
       <header className={styles.nav}>
-        <a className={styles.logo} href="/" aria-label="hash, inicio"><span>h</span> hash</a>
+        <Link className={styles.logo} href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
         <nav>
           <a href="#producto">El producto</a>
           <a href="/entrar">Entrar</a>
@@ -35,7 +36,7 @@ export default async function Home({
           </div>
           <div className={styles.trust}>
             <span><b>{calls}</b> llamadas procesadas en pruebas</span>
-            <span><b>{HOSPITALS.length}</b> centros configurados</span>
+            <span><b>{SITES.length}</b> centros configurados</span>
             <span><b>24/7</b> sin ampliar turnos</span>
           </div>
         </div>
@@ -124,7 +125,7 @@ export default async function Home({
       <footer className={styles.footer}>
         <div className={styles.footerMain}>
           <div className={styles.footerBrand}>
-            <a href="/" aria-label="hash, inicio"><span>h</span> hash</a>
+            <Link href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
             <p>La recepción por voz que atiende, agenda y resuelve.</p>
           </div>
           <nav>

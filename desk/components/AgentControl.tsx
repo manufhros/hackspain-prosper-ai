@@ -4,7 +4,7 @@ import {
   publishAgentDraft,
   rollbackAgentConfig,
   saveAgentDraft,
-} from "@/app/admin/agent-config-actions";
+} from "@/app/panel/agente/agent-config-actions";
 import type { AgentConfig, AgentConfigState } from "@/lib/agent-config";
 import { useState, useTransition } from "react";
 import styles from "./AgentControl.module.css";
@@ -112,8 +112,8 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
         onChange={(value) => update({ postCallWebhook: value })}
       />
       <Toggle
-        label="Retención cero"
-        copy="No conserva audio ni transcripción."
+        label="Redactar datos en auditoría"
+        copy="Oculta datos personales en la auditoría y omite el texto en transferencias. La transcripción se guarda en Llamadas."
         checked={draft.zeroRetention}
         onChange={(value) => update({ zeroRetention: value })}
       />

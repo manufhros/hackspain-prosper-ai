@@ -8,13 +8,11 @@ web
 
 ## Users
 
-- **Dirección / gerencia:** `direccion@` o `gerencia@` + dominio del grupo. Ve el retorno de sus centros, no de otros grupos.
-- **Admisión:** `info@`, `admision@` o `citas@` (info es el buzón público, no gerencia). O el local del centro (`fjd@`, `sur@`).
-- **Privacidad / DPO:** `privacidad@` o `dpo@`.
-- **TI:** `ti@` o `sistemas@`.
-- **hash:** `lucia@hash.app` / `admin@hash.app` → `/admin`.
+Tres cuentas, sin contraseña (cookie de demo). El rol decide qué secciones de `/panel` se abren.
 
-Un correo no abre el censo ajeno. `/admin` es solo hash.
+- **Clínica Arenal · admisión:** `admision@clinicaarenal.es` → Resumen y Llamadas.
+- **Operador hash:** `admin@hash.app` → Resumen, Llamadas, Configuración del agente y Pruebas de voz.
+- **Pruebas de voz:** `voz@hash.app` → Pruebas de voz y Llamadas.
 
 ## Product Purpose
 
@@ -31,17 +29,17 @@ No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra 
 ## Operating Context
 
 - Llamada inbound (telefonía) → agente → herramientas de clínica → POST al registro.
-- Panel web (`desk/`): login por correo → dashboard de ese centro; hash en `/admin`.
-- Datos de Arenal en el panel salen de logs de llamadas; otros grupos son cuentas de demostración y no se mezclan.
+- Panel web (`desk/`): login por correo → `/panel`, una sola app con navegación filtrada por rol.
+- Los datos del panel salen de las llamadas reales de Clínica Arenal (export de logs en local, D1 en Cloudflare). No hay cuentas de demostración.
 - El hospital no recorre un directorio de centros dados de alta.
 
 ## Capabilities and Constraints
 
 - Agente: búsqueda de paciente, disponibilidad, reserva / alta / no-acción / escalado; no colgar como cierre de cortesía.
-- Panel: hoy, negocio, citas, escalados, pacientes, nómina, privacidad (retención cero, audio, UE).
-- Un hospital no ve el censo. hash sí.
+- Panel: resumen (KPIs, resultados, consultas, actividad por centro, valor de la agenda), llamadas con trazabilidad, configuración del agente y simulador de voz.
+- La clínica no ve la configuración del agente; hash sí.
 - El modelo de voz no se expone a roles de hospital; hash lo trata como configuración restringida.
-- No inventar pacientes, DNI ni citas. No mostrar transcripción si el centro activa retención cero.
+- No inventar pacientes, DNI ni citas. La transcripción de cada llamada se conserva en D1 para su vista de detalle, incluidos los turnos del simulador. La opción de privacidad redacta la auditoría y omite la transcripción en transferencias; no elimina la transcripción del registro de llamadas. Este cambio de retención fue solicitado explícitamente para el detalle de llamadas.
 - Abierto: permisos más finos (quién ve nómina vs citas) si hace falta más que el local del correo.
 
 ## Brand Commitments

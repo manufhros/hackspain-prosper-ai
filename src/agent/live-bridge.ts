@@ -1,12 +1,10 @@
-import type { WebSocket } from "ws";
+import type { AuditAction } from "./audit.ts";
+import type { CallSocket } from "./socket.ts";
 
-export type PhoneSink = {
-  ws: WebSocket;
-  streamSid: string;
-};
-
+export type PhoneSink = { ws: CallSocket; streamSid: string };
 export type LiveSession = {
   callId: string;
+  audit?: AuditAction;
   sendElevenAudio: (ulaw: string) => void;
   sendToCaller: (ulaw: string) => void;
   addPhone: (ws: WebSocket, streamSid: string) => void;

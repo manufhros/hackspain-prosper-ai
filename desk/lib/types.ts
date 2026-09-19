@@ -1,5 +1,20 @@
 export type Source = "llamadas" | "demo";
 
+export type TranscriptEntry = {
+  id: string;
+  at: string;
+  speaker: "caller" | "agent";
+  text: string;
+};
+
+export type CallDetail = {
+  call: LoggedCall;
+  transcript: TranscriptEntry[];
+  transcriptTotal: number;
+  page: number;
+  pages: number;
+};
+
 export type LoggedCall = {
   id: string;
   phone: string | null;
@@ -34,29 +49,4 @@ export type LoggedCall = {
     reason: string | null;
     summary: string;
   }>;
-};
-
-export type Hospital = {
-  id: string;
-  name: string;
-  city: string;
-};
-
-export type Org = {
-  slug: string;
-  name: string;
-  legal: string;
-  kind: "grupo" | "clinica";
-  source: Source;
-  blurb: string;
-  hospitals: Hospital[];
-};
-
-export type Person = {
-  name: string;
-  role: string;
-  site: string;
-  fte: number;
-  costYear: number;
-  source: Source;
 };

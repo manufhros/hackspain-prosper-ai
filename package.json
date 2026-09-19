@@ -15,13 +15,22 @@
     "clinic:fetch": "node --env-file=.env --import tsx src/scripts/fetch-clinic.ts",
     "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",
     "test": "node --env-file=.env --import tsx --test src/agent/*.test.ts",
-    "test:live": "node --env-file=.env --import tsx src/scripts/check.ts"
+    "test:live": "node --env-file=.env --import tsx src/scripts/check.ts",
+    "cf:types": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler types --env-interface Env worker-configuration.d.ts",
+    "cf:typecheck": "npm run cf:types && tsc --project tsconfig.worker.json",
+    "cf:check": "wrangler deploy --dry-run",
+    "cf:deploy": "wrangler deploy",
+    "cf:dev": "wrangler dev",
+    "desk:cf:check": "npm --prefix desk run cf:check",
+    "desk:cf:deploy": "npm --prefix desk run cf:deploy",
+    "test:worker": "node --import tsx --test src/worker/*.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
     "@types/ws": "^8.18.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "wrangler": "^4.135.0"
   },
   "dependencies": {
     "ws": "^8.21.3"

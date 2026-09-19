@@ -6,12 +6,13 @@ function required(name: string): string {
   return value;
 }
 
+// Read secrets when a request uses them, after Workers has populated process.env.
 export const env = {
-  platformApiKey: required("PLATFORM_API_KEY"),
-  platformApiBaseUrl: (
-    process.env.PLATFORM_API_BASE_URL ?? "https://hackspain.getprosperapp.com"
-  ).replace(/\/$/, ""),
-  elevenLabsApiKey: required("ELEVENLABS_API_KEY"),
-  elevenLabsAgentId: required("ELEVENLABS_AGENT_ID"),
-  port: Number(process.env.PORT ?? 7860),
+  get platformApiKey() { return required("PLATFORM_API_KEY"); },
+  get platformApiBaseUrl() {
+    return (process.env.PLATFORM_API_BASE_URL ?? "https://hackspain.getprosperapp.com").replace(/\/$/, "");
+  },
+  get elevenLabsApiKey() { return required("ELEVENLABS_API_KEY"); },
+  get elevenLabsAgentId() { return required("ELEVENLABS_AGENT_ID"); },
+  get port() { return Number(process.env.PORT ?? 7860); },
 };

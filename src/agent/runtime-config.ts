@@ -31,7 +31,7 @@ export const DEFAULT_RUNTIME_CONFIG: RuntimeConfig = {
   faq: [],
 };
 
-export async function loadRuntimeConfig(_orgSlug = "arenal"): Promise<RuntimeConfig> {
+export async function loadRuntimeConfig(orgSlug = "arenal"): Promise<RuntimeConfig> {
   let parsed: {
     active?: {
       id?: string;
@@ -47,6 +47,32 @@ export async function loadRuntimeConfig(_orgSlug = "arenal"): Promise<RuntimeCon
   } catch {
     parsed = {};
   }
+  let orgConfig: {
+    preCallEndpoint?: string;
+    postCallEndpoint?: string;
+    frustrationThreshold?: number;
+    faq?: Array<{ question: string; answer: string }>;
+  } = {};
+  try {
+    const all = JSON.parse(
+      await readFile(join(process.cwd(), "data", "org-agent-config.json"), "utf8"),
+    ) as Record<string, typeof orgConfig>;
+    orgConfig = all[orgSlug] ?? {};
+  } catch {
+    orgConfig = {};
+  }
+  return mergeRuntimeConfig(parsed, orgConfig);
+}
+
+export function mergeRuntimeConfig(
+  parsed: { active?: { id?: string; config?: Partial<Omit<RuntimeConfig, "version">> } },
+  orgConfig: {
+    preCallEndpoint?: string;
+    postCallEndpoint?: string;
+    frustrationThreshold?: number;
+    faq?: Array<{ question: string; answer: string }>;
+  },
+): RuntimeConfig {
   const config = parsed.active?.config ?? {};
   return {
     ...DEFAULT_RUNTIME_CONFIG,
@@ -57,8 +83,8 @@ export async function loadRuntimeConfig(_orgSlug = "arenal"): Promise<RuntimeCon
       100,
       Math.max(50, Number(config.frustrationThreshold ?? 75)),
     ),
-    preCallEndpoint: "",
-    postCallEndpoint: "",
+    preCallEndpoint: orgConfig.preCallEndpoint ?? "",
+    postCallEndpoint: orgConfig.postCallEndpoint ?? "",
     faq: Array.isArray(config.faq) ? config.faq : [],
   };
 }

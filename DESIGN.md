@@ -194,3 +194,22 @@ Sello 36px, iniciales blancas, peso 650, color por centro (no el verde de acento
 - **Don't** Inter, Geist, serif editorial, ni lila SaaS.
 - **Don't** listar otros grupos en un login de centro.
 - **Don't** pintar de verde más que estados.
+
+## Call list and detail
+
+The calls flow uses the existing `desk/components/ui/primitives.tsx` owners for
+headers, breadcrumbs, cards, statuses, and navigation buttons. Call rows are links
+to `/panel/llamadas/[callId]`; the conversation uses a chronological reading layout
+with speaker and Madrid time beside each turn, stacking on narrow screens.
+
+The new view consumes existing CSS variables from `desk/app/globals.css` without
+introducing palette or font values. The runtime palette already differs from the
+older specification above; reconciling that existing drift is outside this change.
+
+List search, outcome filter, and pagination survive list/detail navigation in the
+calls layout's in-memory provider. Search may contain patient information, so it
+is deliberately excluded from URLs and browser storage. A reload resets it.
+Transcript pages are bounded to 100 turns and use `turnPage` in the URL.
+Empty, loading, unavailable, and retry states keep navigation back to Llamadas.
+`PRODUCT.md` owns retention behavior; `desk/lib/auth.ts` owns section access, and
+`desk/lib/call-records.ts` scopes both the call and its transcript to the clinic.

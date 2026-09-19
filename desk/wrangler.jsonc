@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "prosper-desk",
+  "routes": [
+    { "pattern": "turno.somelabs.dev", "custom_domain": true }
+  ],
+  "main": "worker.js",
+  "compatibility_date": "2026-09-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "prosper-desk" },
+    { "binding": "VOICE_AGENT", "service": "prosper-voice" }
+  ],
+  "d1_databases": [
+    {
+      "binding": "prosper_desk",
+      "database_name": "prosper-desk",
+      "database_id": "2d1a883d-639b-4246-a6cc-d6e0bc69c571",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "DESK_STORAGE": "d1"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  }
+}

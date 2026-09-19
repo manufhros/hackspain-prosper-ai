@@ -1,5 +1,8 @@
+import type { AuditAction } from "./audit.ts";
+import { callLogError } from "./call-log.ts";
+
 function xml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 }
 
 function sayEs(text: string) {
@@ -142,6 +145,7 @@ export async function publicHttpOrigin(): Promise<string | null> {
       .replace(/\/ws\/?$/, "")
       .replace(/\/twiml\/.*$/, "");
   }
+  if (process.env.VOICE_STORAGE === "d1") return null;
   try {
     const response = await fetch("http://127.0.0.1:4040/api/tunnels", {
       signal: AbortSignal.timeout(1500),
@@ -157,9 +161,11 @@ function wsUrlFromOrigin(origin: string) {
   return `${origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/ws`;
 }
 
-async function twilioPost(path: string, body: URLSearchParams) {
+async function twilioPost(path: string, body: URLSearchParams, audit?: AuditAction) {
   const creds = credentials();
   if (!creds) return null;
+  const requestId = crypto.randomUUID();
+  await audit?.("handoff.requested", { requestId, provider: "twilio", path, body: Object.fromEntries(body) });
   const response = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(creds.accountSid)}${path}`,
     {
@@ -171,7 +177,10 @@ async function twilioPost(path: string, body: URLSearchParams) {
       body,
       signal: AbortSignal.timeout(8_000),
     },
-  );
+  ).catch(async (error: unknown) => {
+    await audit?.("handoff.failed", { requestId, provider: "twilio", errorType: error instanceof Error ? error.name : "UnknownError" });
+    throw error;
+  });
   const raw = await response.text();
   let payload: { sid?: string; message?: string } = {};
   try {
@@ -180,8 +189,9 @@ async function twilioPost(path: string, body: URLSearchParams) {
     payload = { message: raw.slice(0, 240) };
   }
   if (!response.ok) {
-    console.error("twilio transfer failed", response.status, payload.message ?? raw.slice(0, 240));
+    callLogError("twilio transfer failed", response.status, payload.message ?? raw.slice(0, 240));
   }
+  await audit?.("handoff.completed", { requestId, provider: "twilio", status: response.status, callSid: payload.sid ?? null });
   return {
     ok: response.ok,
     status: response.status,
@@ -203,23 +213,29 @@ export async function startCallMediaStream(callSid: string, wsUrl: string) {
 export async function originateHandoffCall(join?: {
   callId: string;
   orgSlug?: string;
-}): Promise<TransferResult> {
+  handoffUrl?: string | undefined;
+}, audit?: AuditAction): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
+    await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
   let url = handoffVoiceUrl();
   if (join) {
-    const origin = await publicHttpOrigin();
-    if (!origin) {
+    const origin = join.handoffUrl ? null : await publicHttpOrigin();
+    if (!join.handoffUrl && !origin) {
+      await audit?.("handoff.skipped", { reason: "missing_public_url" });
       return {
         configured: true,
         transferred: false,
         originated: false,
-        error: "No hay URL pública (ngrok) para unir el móvil a la llamada.",
+        error: "No hay URL pública para unir el móvil a la llamada.",
       };
     }
-    url = `${origin}/twiml/live?join=${encodeURIComponent(join.callId)}&org=${encodeURIComponent(join.orgSlug ?? "arenal")}`;
+    const target = new URL(join.handoffUrl ?? `${origin}/twiml/live`);
+    target.searchParams.set("join", join.callId);
+    target.searchParams.set("org", join.orgSlug ?? "arenal");
+    url = target.toString();
   }
   const posted = await twilioPost(
     "/Calls.json",
@@ -228,6 +244,7 @@ export async function originateHandoffCall(join?: {
       From: creds.callerId,
       Url: url,
     }),
+    audit,
   );
   if (!posted) return { configured: false, error: "No se pudo contactar con Twilio." };
   return {
@@ -242,23 +259,26 @@ export async function originateHandoffCall(join?: {
 
 export async function transferTwilioCall(
   callSid?: string,
-  join?: { callId: string; orgSlug?: string },
+  join?: { callId: string; orgSlug?: string; handoffUrl?: string | undefined },
+  audit?: AuditAction,
 ): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
+    await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
-  if (join) return originateHandoffCall(join);
+  if (join) return originateHandoffCall(join, audit);
   if (callSid && !callSid.includes("-")) {
     const updated = await twilioPost(
       `/Calls/${encodeURIComponent(callSid)}.json`,
       new URLSearchParams({ Url: dialHumanUrl(creds.humanNumber) }),
+      audit,
     );
     if (updated?.ok) {
       return { configured: true, transferred: true, status: updated.status, callSid };
     }
   }
-  return originateHandoffCall();
+  return originateHandoffCall(undefined, audit);
 }
 
 export { wsUrlFromOrigin };

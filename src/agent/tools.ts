@@ -1,3 +1,4 @@
+import type { AuditAction } from "./audit.ts";
 import { PlatformClient } from "../platform/client.ts";
 import type {
   AvailabilityQuery,
@@ -504,6 +505,7 @@ export type CallContext = {
   callId: string;
   fromNumber?: string;
   platform: PlatformClient;
+  audit?: AuditAction;
   configVersion?: string;
   routingMode?: "shadow" | "enforce";
   actionTools?: boolean;
@@ -513,6 +515,8 @@ export type CallContext = {
   simulationMode?: boolean;
   twilioCallSid?: string;
   orgSlug?: string;
+  handoffUrl?: string | undefined;
+  liveBridge?: LiveBridge;
   patientName?: string;
   patientId?: string;
   insurer?: string;
@@ -540,10 +544,22 @@ export type CallContext = {
   } | undefined;
 };
 
+const AGENDA_TOOLS = new Set(["submit_book", "submit_register", "submit_cancel", "submit_reschedule"]);
+
+export function actionToolBlocked(ctx: CallContext, name: string): boolean {
+  return ctx.routingMode === "enforce" && ctx.actionTools === false && AGENDA_TOOLS.has(name);
+}
+
 export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
   if (ctx.submitted || !ctx.draftBook) return;
+  if (actionToolBlocked(ctx, "submit_book")) {
+    ctx.draftBook = undefined;
+    await ctx.audit?.("tool.blocked", { toolName: "submit_book", reason: "action_tools_disabled" });
+    return;
+  }
   const draft = ctx.draftBook;
   ctx.draftBook = undefined;
+  await ctx.audit?.("action.flush_pending_booking", { parameters: draft });
   await ctx.platform.submitBook({ call_id: ctx.callId, ...draft });
   ctx.submitted = true;
   ctx.outcome = "cita";
@@ -554,6 +570,10 @@ export async function runClinicTool(
   name: string,
   params: Record<string, unknown>,
 ): Promise<string> {
+  if (actionToolBlocked(ctx, name)) {
+    await ctx.audit?.("tool.blocked", { toolName: name, reason: "action_tools_disabled" });
+    return JSON.stringify({ error: "action_tools_disabled", message: "Agenda actions are disabled. Offer human assistance." });
+  }
   switch (name) {
     case "search_directory": {
       const found = await ctx.platform.directory(
@@ -820,11 +840,12 @@ export async function runClinicTool(
       const result = ctx.simulationMode
         ? { accepted: true, action: "ESCALATE" as const, reason, simulated: true }
         : await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
-      const transfer = alreadyRungHuman(ctx.callId)
+      const transfer = (ctx.liveBridge ?? nodeLiveBridge).alreadyRungHuman(ctx.callId)
         ? { configured: true as const, transferred: true, originated: false }
         : await transferTwilioCall(
             ctx.simulationMode ? undefined : ctx.twilioCallSid,
-            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}) },
+            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}), handoffUrl: ctx.handoffUrl },
+            ctx.audit,
           );
       if (transfer.configured && transfer.transferred) markHumanRung(ctx.callId, transfer.callSid);
       if (transfer.error) callLog(ctx.callId.slice(0, 8), "twilio transfer", transfer.error);

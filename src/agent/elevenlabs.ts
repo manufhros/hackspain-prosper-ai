@@ -1,6 +1,7 @@
 import { env } from "../config.ts";
+import type { AuditAction } from "./audit.ts";
 
-export async function getSignedConversationUrl(): Promise<string> {
+export async function getSignedConversationUrl(audit?: AuditAction): Promise<string> {
   const url = new URL("https://api.elevenlabs.io/v1/convai/conversation/get-signed-url");
   url.searchParams.set("agent_id", env.elevenLabsAgentId);
   let lastError = "signed url failed";
@@ -8,11 +9,14 @@ export async function getSignedConversationUrl(): Promise<string> {
     if (attempt > 0) {
       await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** Math.min(attempt - 1, 4)));
     }
+    const requestId = crypto.randomUUID();
+    await audit?.("voice.authorization.requested", { requestId, provider: "elevenlabs", attempt: attempt + 1 });
     try {
       const response = await fetch(url, {
         headers: { "xi-api-key": env.elevenLabsApiKey },
         signal: AbortSignal.timeout(12_000),
       });
+      await audit?.("voice.authorization.completed", { requestId, provider: "elevenlabs", status: response.status });
       if (response.ok) {
         const body = (await response.json()) as { signed_url: string };
         return body.signed_url;
@@ -20,6 +24,7 @@ export async function getSignedConversationUrl(): Promise<string> {
       lastError = `ElevenLabs signed URL ${response.status}: ${await response.text()}`;
       if (response.status !== 429 && response.status < 500) break;
     } catch (error) {
+      await audit?.("voice.authorization.failed", { requestId, provider: "elevenlabs" });
       lastError = error instanceof Error ? error.message : "signed url failed";
     }
   }

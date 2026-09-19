@@ -1,14 +1,9 @@
 .page {
   min-height: 100svh;
-  color: #14343e;
+  color: var(--ink);
   background:
     radial-gradient(650px 500px at 12% 90%, rgba(55, 185, 163, 0.16), transparent 70%),
-    #f4f9fa;
-  font-family: var(--font-brand), sans-serif;
-}
-
-.page * {
-  box-sizing: border-box;
+    var(--bg);
 }
 
 .page header {
@@ -25,9 +20,9 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #0b3b49;
+  color: var(--brand);
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: -0.04em;
 }
 
@@ -37,16 +32,21 @@
   height: 34px;
   place-items: center;
   border-radius: 10px;
-  color: white;
-  background: #0b3b49;
+  background: var(--brand);
+  color: #fff;
 }
 
 .back {
-  min-height: 44px;
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
-  color: #617a82;
+  color: var(--muted);
   font-size: 13px;
+  font-weight: 600;
+}
+
+.back:hover {
+  color: var(--ink);
 }
 
 .page main {
@@ -62,19 +62,19 @@
 
 .intro > p:first-child {
   margin: 0 0 18px;
-  color: #147b8c;
+  color: var(--brand-2);
   font-size: 12px;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .intro h1 {
   max-width: 650px;
   margin: 0;
-  color: #0b3b49;
+  color: var(--brand);
   font-size: clamp(48px, 6vw, 76px);
-  font-weight: 600;
+  font-weight: 700;
   line-height: 0.97;
   letter-spacing: -0.06em;
 }
@@ -82,7 +82,7 @@
 .lead {
   max-width: 510px;
   margin: 28px 0 0;
-  color: #607881;
+  color: var(--muted);
   font-size: 17px;
   line-height: 1.6;
 }
@@ -91,19 +91,19 @@
   max-width: 530px;
   margin-top: 50px;
   padding: 20px;
-  border: 1px solid #d5e5e8;
+  border: 1px solid var(--border);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.75);
-  box-shadow: 0 25px 70px rgba(36, 88, 100, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-md);
 }
 
 .preview > div {
   display: flex;
-  gap: 14px;
   align-items: center;
   justify-content: space-between;
+  gap: 14px;
   padding-bottom: 18px;
-  border-bottom: 1px solid #e0eaec;
+  border-bottom: 1px solid var(--border);
 }
 
 .preview > div > div {
@@ -114,22 +114,23 @@
 
 .preview span,
 .preview dd {
-  color: #71868d;
-  font-size: 11px;
+  color: var(--muted);
+  font-size: 11.5px;
 }
 
 .preview strong {
   display: block;
+  color: var(--ink);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .preview i {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #22a284;
-  box-shadow: 0 0 0 5px rgba(34, 162, 132, 0.1);
+  background: var(--success);
+  box-shadow: 0 0 0 5px var(--success-soft);
 }
 
 .preview dl {
@@ -140,13 +141,15 @@
 
 .preview dl div + div {
   padding-left: 18px;
-  border-left: 1px solid #e0eaec;
+  border-left: 1px solid var(--border);
 }
 
 .preview dt {
+  color: var(--ink);
   font-size: 28px;
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
 }
 
 .preview dd {
@@ -155,9 +158,9 @@
 
 .loginCard {
   padding: 34px;
-  border: 1px solid #d7e5e8;
+  border: 1px solid var(--border);
   border-radius: 28px;
-  background: white;
+  background: var(--surface);
   box-shadow: 0 30px 90px rgba(30, 82, 94, 0.12);
 }
 
@@ -165,33 +168,33 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #168c82;
+  color: var(--mint);
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .lock::before {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #20a787;
+  background: var(--success);
   content: "";
 }
 
 .loginCard h2 {
   margin: 18px 0 6px;
-  color: #0b3b49;
+  color: var(--brand);
   font-size: 36px;
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: -0.05em;
 }
 
 .loginCard > p {
   margin: 0 0 24px;
-  color: #6b8188;
-  font-size: 13px;
+  color: var(--muted);
+  font-size: 13.5px;
   line-height: 1.5;
 }
 
@@ -199,35 +202,28 @@
   margin: 0;
 }
 
-.loginCard :global(.login label) {
-  color: #526d75;
-}
-
 .loginCard :global(.login input) {
   height: 50px;
-  border-color: #cadcde;
   border-radius: 12px;
-  background: #f8fbfb;
+  background: var(--surface-2);
 }
 
 .loginCard :global(.login button) {
   height: 50px;
   border-radius: 12px;
-  color: white;
-  background: #167d91;
 }
 
 .help {
   margin-top: 24px;
   padding-top: 20px;
-  border-top: 1px solid #e3ecee;
-  color: #73878d;
-  font-size: 12px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
 }
 
 .help a {
-  color: #116f80;
-  font-weight: 650;
+  color: var(--brand-2);
+  font-weight: 700;
 }
 
 @media (max-width: 850px) {

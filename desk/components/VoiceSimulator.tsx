@@ -142,18 +142,18 @@ function rms(samples: Float32Array) {
   return Math.sqrt(sum / samples.length);
 }
 
-function fleetCases(): Scenario[] {
+function fleetCases(handoffNumber: string): Scenario[] {
   return [
     {
-      id: "live-talk-quiron",
+      id: "live-talk-arenal",
       title: "1 · Transferencia",
       prompt: "Pide una persona. Al descolgar, el paciente de prueba pide cita; tú solo dices que sí, que se la coges.",
       expected: "submit_escalate + tú en el móvil como recepción",
       patient: "Tú",
-      phone: "+34687275510",
+      phone: handoffNumber || "+34600000000",
       started: null,
-      site: "Clínica Quirón",
-      orgSlug: "quironsalud",
+      site: "Clínica Arenal",
+      orgSlug: "arenal",
       script: ["Quiero hablar con una persona, páseme con recepción."],
       actions: [],
     },
@@ -175,15 +175,15 @@ function fleetCases(): Scenario[] {
       actions: [],
     },
     {
-      id: "live-faq-sanitas",
+      id: "live-faq-arenal",
       title: "3 · Horario sábado",
       prompt: "Caso de prueba: pregunta si abren los sábados. No debe transferir.",
       expected: "FAQ: solo Centro abre sábado",
       patient: "Elena Vidal",
       phone: "+34611926767",
       started: null,
-      site: "Clínica Sanitas",
-      orgSlug: "sanitas",
+      site: "Clínica Arenal",
+      orgSlug: "arenal",
       script: ["Buenos días, ¿abrís los sábados?"],
       actions: [],
     },
@@ -194,10 +194,13 @@ export function VoiceSimulator({
   scenarios,
   endpoint,
   orgSlug = "arenal",
+  handoffNumber = "",
 }: {
   scenarios: Scenario[];
   endpoint: string;
   orgSlug?: string;
+  /** Number Twilio dials for the human-handoff test case (VOICE_TEST_PHONE). */
+  handoffNumber?: string;
 }) {
   const [scenarioId, setScenarioId] = useState(scenarios[0]?.id ?? "");
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
@@ -319,7 +322,7 @@ export function VoiceSimulator({
   async function start(mode: "one" | "three") {
     try {
       stop();
-      const cases = mode === "three" ? fleetCases() : [selected ?? fleetCases()[0]!];
+      const cases = mode === "three" ? fleetCases(handoffNumber) : [selected ?? fleetCases(handoffNumber)[0]!];
       const firstId = cases[0]!.id;
       talkIdRef.current = firstId;
       setTalkId(firstId);

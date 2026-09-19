@@ -120,6 +120,7 @@ const wss = new WebSocketServer({
 
 server.on("upgrade", (req, socket, head) => {
   const pathname = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+  if (pathname !== "/ws") { socket.destroy(); return; }
   callLog(
     "ws upgrade",
     pathname,

@@ -1,0 +1,178 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { handleCall } from "../agent/session.ts";
+import { DEFAULT_RUNTIME_CONFIG } from "../agent/runtime-config.ts";
+
+class Socket extends EventEmitter {
+  readyState = 1;
+  sent = [];
+  send(value) { this.sent.push(JSON.parse(value)); }
+  close(code = 1000, reason = "") {
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    this.emit("close", code, reason);
+  }
+  message(value) { this.emit("message", JSON.stringify(value)); }
+}
+
+const settle = async () => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
+
+test("shared call engine bridges audio and finalizes once across stop and close", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  process.env.VOICE_STORAGE = "d1";
+  process.env.PLATFORM_API_KEY = "test";
+  process.env.ELEVENLABS_API_KEY = "test";
+  process.env.ELEVENLABS_AGENT_ID = "test";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  const twilio = new Socket();
+  const eleven = new Socket();
+  const events = [];
+  const tasks = [];
+  let connections = 0;
+  await handleCall(twilio, {
+    connect: async () => { connections++; return eleven; },
+    loadConfig: async () => ({ ...DEFAULT_RUNTIME_CONFIG, version: "test-v1" }),
+    emitEvent: (type, callId, configVersion, payload) => { const event = { type, callId, configVersion, payload }; events.push(event); return event; },
+    waitUntil: (task) => tasks.push(task),
+  });
+  const start = { event: "start", start: { streamSid: "stream", callSid: "call", customParameters: { org_slug: "sanitas" } } };
+  twilio.message(start);
+  twilio.message(start);
+  twilio.message({ event: "media", media: { payload: "queued-audio" } });
+  await settle();
+  assert.equal(connections, 1);
+  assert.equal(eleven.sent[0].dynamic_variables.config_version, "test-v1");
+  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"));
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "reply-audio" } });
+  assert.ok(twilio.sent.some((message) => message.media?.payload === "reply-audio"));
+  twilio.message({ event: "stop" });
+  twilio.close();
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
+  assert.equal(events.find((event) => event.type === "call.ended").payload.orgSlug, "sanitas");
+  assert.equal(eleven.readyState, 3);
+});
+
+test("invalid start frames close without opening an upstream socket", async () => {
+  const twilio = new Socket();
+  await handleCall(twilio, { connect: async () => { throw new Error("must not connect"); } });
+  twilio.message({ event: "start" });
+  assert.equal(twilio.readyState, 3);
+});
+
+test("disconnect during upstream connection closes the late socket", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  process.env.VOICE_STORAGE = "d1";
+  process.env.PLATFORM_API_KEY = "test";
+  process.env.ELEVENLABS_API_KEY = "test";
+  process.env.ELEVENLABS_AGENT_ID = "test";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  const twilio = new Socket();
+  const eleven = new Socket();
+  const tasks = [];
+  let completeConnection;
+  await handleCall(twilio, {
+    connect: () => new Promise((resolve) => { completeConnection = resolve; }),
+    loadConfig: async () => DEFAULT_RUNTIME_CONFIG,
+    emitEvent: () => ({}),
+    waitUntil: (task) => tasks.push(task),
+  });
+  twilio.message({ event: "start", start: { streamSid: "stream", callSid: "call" } });
+  await settle();
+  assert.ok(completeConnection);
+  twilio.close();
+  completeConnection(eleven);
+  await Promise.all(tasks);
+  t.mock.timers.tick(8_000);
+  assert.equal(eleven.readyState, 3);
+  assert.deepEqual(eleven.sent, []);
+});
+
+async function liveCall(t) {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  process.env.VOICE_STORAGE = "d1";
+  process.env.PLATFORM_API_KEY = "test";
+  process.env.ELEVENLABS_API_KEY = "test";
+  process.env.ELEVENLABS_AGENT_ID = "test";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  const { LiveBridge } = await import("../agent/live-bridge.ts");
+  const bridge = new LiveBridge();
+  const caller = new Socket();
+  const eleven = new Socket();
+  const events = [];
+  const tasks = [];
+  const options = {
+    liveBridge: bridge,
+    connect: async () => eleven,
+    loadConfig: async () => DEFAULT_RUNTIME_CONFIG,
+    emitEvent: (type, callId, version, payload) => { events.push({ type, callId, payload }); return {}; },
+    waitUntil: (task) => tasks.push(task),
+  };
+  await handleCall(caller, options);
+  caller.message({ event: "start", start: { streamSid: "original", callSid: "live" } });
+  await settle();
+  return { bridge, caller, eleven, events, tasks, options };
+}
+
+test("phone joins the existing agent and survives caller disconnect with a single final summary", async (t) => {
+  const { bridge, caller, eleven, events, tasks, options } = await liveCall(t);
+  bridge.markHumanRung("live");
+  const phone = new Socket();
+  await handleCall(phone, { ...options, joinOnly: true });
+  const start = { event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters: { join: "live" } } };
+  phone.message(start);
+  phone.message(start);
+  phone.message({ event: "media", media: { payload: "human-audio" } });
+  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "human-audio"));
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "reply" } });
+  assert.equal(phone.sent.filter((message) => message.media?.payload === "reply").length, 1);
+  assert.ok(caller.sent.some((message) => message.media?.payload === "reply"));
+  caller.close();
+  await settle();
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 0);
+  t.mock.timers.tick(181_000);
+  phone.close();
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+  assert.equal(events.filter((event) => event.type === "handoff.phone.joined").length, 1);
+  assert.equal(events.filter((event) => event.type === "handoff.phone.left").length, 1);
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
+  assert.equal(bridge.getLiveSession("live"), undefined);
+  assert.equal(bridge.alreadyRungHuman("live"), false);
+  assert.equal(eleven.readyState, 3);
+});
+
+test("an unanswered handoff expires after the caller disconnects", async (t) => {
+  const { bridge, caller, eleven, events, tasks } = await liveCall(t);
+  bridge.markHumanRung("live");
+  caller.close();
+  await settle();
+  t.mock.timers.tick(180_001);
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
+  assert.equal(bridge.getLiveSession("live"), undefined);
+  assert.equal(eleven.readyState, 3);
+});
+
+test("missing joins and joins into another Durable Object never start a new agent", async (t) => {
+  const { LiveBridge } = await import("../agent/live-bridge.ts");
+  const { bridge, caller, tasks, options } = await liveCall(t);
+  const isolated = new LiveBridge();
+  for (const customParameters of [{ join: "live" }, {}]) {
+    const phone = new Socket();
+    await handleCall(phone, { ...options, liveBridge: isolated, joinOnly: true, connect: async () => { assert.fail("must not connect"); } });
+    phone.message({ event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters } });
+    assert.equal(phone.readyState, 3);
+  }
+  assert.ok(bridge.getLiveSession("live"));
+  caller.close();
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+});

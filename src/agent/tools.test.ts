@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { addYmd, alignSurnameWithEmail, asInsurer, asLocation, asProviderId, asSpecialty, clinicTodayYmd, clampDateRange, isAfterWork, normalizeRegisterEmail, normalizeRegisterPhone, rankAvailability, restoreRegisterName, runClinicTool, type CallContext } from "./tools.ts";
+import { actionToolBlocked, flushPendingSubmit, addYmd, alignSurnameWithEmail, asInsurer, asLocation, asProviderId, asSpecialty, clinicTodayYmd, clampDateRange, isAfterWork, normalizeRegisterEmail, normalizeRegisterPhone, rankAvailability, restoreRegisterName, runClinicTool, type CallContext } from "./tools.ts";
 import type { PlatformClient } from "../platform/client.ts";
 
 test("maps spoken specialty names to clinic ids", () => {
@@ -399,3 +399,44 @@ test("second submit is blocked and no_availability remaps to provider_not_found"
   assert.equal(second.error, "already submitted");
 });
 
+test("disabled agenda tools block every write and retain an audit entry", async () => {
+  const events: string[] = [];
+  const call = ctx({});
+  call.routingMode = "enforce";
+  call.actionTools = false;
+  call.audit = async (type) => { events.push(type); };
+  for (const name of ["submit_book", "submit_register", "submit_cancel", "submit_reschedule"]) {
+    assert.equal(JSON.parse(await runClinicTool(call, name, {})).error, "action_tools_disabled");
+  }
+  assert.equal(call.submitted, undefined);
+  assert.deepEqual(events, Array(4).fill("tool.blocked"));
+});
+
+test("disabled agenda tools preserve reads, escalation and shadow mode", async () => {
+  let reads = 0;
+  const call = ctx({ directory: async () => { reads++; return { matches: [] }; } });
+  call.routingMode = "enforce";
+  call.actionTools = false;
+  await runClinicTool(call, "search_directory", { name: "Test" });
+  assert.equal(reads, 1);
+  for (const name of ["search_availability", "list_appointments", "submit_escalate", "submit_no_action"]) {
+    assert.equal(actionToolBlocked(call, name), false);
+  }
+  call.routingMode = "shadow";
+  assert.equal(actionToolBlocked(call, "submit_book"), false);
+});
+
+test("call-end booking flush cannot bypass disabled agenda tools", async () => {
+  let writes = 0;
+  const call = ctx({ submitBook: async () => { writes++; throw new Error("must not book"); } });
+  call.routingMode = "enforce";
+  call.actionTools = false;
+  call.draftBook = {
+    patient_id: "patient", provider_id: "provider", location_id: "centro",
+    appointment_type_id: "visit", slot: "2026-09-21T10:00:00", policy_id: "sanitas",
+  };
+  await flushPendingSubmit(call);
+  assert.equal(writes, 0);
+  assert.equal(call.submitted, undefined);
+  assert.equal(call.draftBook, undefined);
+});

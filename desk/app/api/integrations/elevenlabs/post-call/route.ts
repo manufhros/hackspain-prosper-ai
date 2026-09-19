@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
+import { appendEvent, usesCloudflareStorage } from "@/lib/cloudflare-storage";
 
 export const runtime = "nodejs";
 
@@ -20,6 +21,9 @@ function validSignature(raw: string, header: string | null, secret: string) {
 export async function POST(request: Request) {
   const raw = await request.text();
   const secret = process.env.ELEVENLABS_WEBHOOK_SECRET?.trim();
+  if (usesCloudflareStorage() && !secret) {
+    return NextResponse.json({ error: "Webhook sin configurar" }, { status: 503 });
+  }
   if (secret && !validSignature(raw, request.headers.get("elevenlabs-signature"), secret)) {
     return NextResponse.json({ error: "Firma inválida" }, { status: 401 });
   }
@@ -49,8 +53,12 @@ export async function POST(request: Request) {
       cost: metadata.cost ?? null,
     },
   };
-  const file = path.resolve(process.cwd(), "..", "data", "elevenlabs-postcall.jsonl");
-  await mkdir(path.dirname(file), { recursive: true });
-  await appendFile(file, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  if (usesCloudflareStorage()) {
+    await appendEvent("elevenlabs-postcall", record);
+  } else {
+    const file = path.resolve(process.cwd(), "..", "data", "elevenlabs-postcall.jsonl");
+    await mkdir(path.dirname(file), { recursive: true });
+    await appendFile(file, `${JSON.stringify(record)}\n`, { mode: 0o600 });
+  }
   return NextResponse.json({ received: true });
 }

@@ -30,3 +30,7 @@ npm run dev               # ws://127.0.0.1:7860/ws
 Túnel: `ngrok http --region eu 7860` y en El Turno Settings el endpoint `wss://…/ws`.
 
 Docs del reto en [`task/README.md`](task/README.md). API: https://hackspain.getprosperapp.com/api/redoc
+
+## Cloudflare Workers
+
+El desk y el agente de voz se despliegan como Workers separados con Wrangler, compartiendo D1 para configuración, llamadas y auditoría. Instrucciones de preparación, secretos, migraciones y despliegue en [CLOUDFLARE.md](CLOUDFLARE.md).

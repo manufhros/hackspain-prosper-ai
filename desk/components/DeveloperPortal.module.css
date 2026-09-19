@@ -1,57 +1,425 @@
-.portal { display: grid; gap: 18px; }
-.portal section { overflow: hidden; border: 1px solid #d9e7e9; border-radius: 20px; background: white; box-shadow: 0 16px 40px rgba(24,55,64,.045); }
-.portal section > header, .faqHead { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 20px 22px; border-bottom: 1px solid #e5eef0; }
-.portal header p { margin: 0 0 5px; color: #168378; font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
-.portal h2, .portal h3, .portal p { margin: 0; }
-.portal h2 { font-size: 22px; letter-spacing: -.025em; }
-.portal button { min-height: 40px; border: 1px solid #cfe0e3; border-radius: 10px; padding: 0 15px; color: #155a67; background: #f8fbfb; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
-.endpoints > label { display: grid; grid-template-columns: minmax(170px,.7fr) minmax(260px,1.3fr) 150px; align-items: center; gap: 18px; padding: 18px 22px; border-bottom: 1px solid #edf2f3; }
-.endpoints label > span strong, .endpoints label > span small { display: block; }
-.endpoints strong { font-size: 14px; }
-.endpoints small { margin-top: 5px; color: #667f86; font-size: 12px; line-height: 1.4; }
-.endpoints input, .faqList input, .faqList textarea { width: 100%; border: 1px solid #d7e4e6; border-radius: 10px; padding: 11px 12px; color: #254851; background: #fbfdfd; font: inherit; font-size: 13px; outline: none; }
-.endpoints input:focus, .faqList input:focus, .faqList textarea:focus { border-color: #63a9a1; box-shadow: 0 0 0 3px rgba(22,140,130,.09); }
-.endpoints input[readonly] { border-color: transparent; padding-left: 0; background: transparent; cursor: default; }
-.endpoints em { justify-self: end; color: #71878e; font-size: 12px; font-style: normal; font-weight: 700; }
-.endpoints em[data-status="healthy"] { color: #12816f; }
-.endpoints em[data-status="down"] { color: #b44848; }
-.endpointState { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-.endpointState .edit, .endpointState .editing { display: grid; min-width: 36px; width: 36px; height: 36px; min-height: 36px; place-items: center; border: 1px solid #d5e4e7; border-radius: 10px; padding: 0; color: #4f6f77; background: white; }
-.endpointState .editing { color: white; border-color: #168c82; background: #168c82; }
-.endpointState svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.threshold { display: grid; grid-template-columns: 1fr 220px 70px; align-items: center; gap: 20px; padding: 20px 22px; }
-.threshold span strong, .threshold span small { display: block; }
-.threshold strong { font-size: 14px; }
-.threshold small { margin-top: 5px; color: #667f86; font-size: 12px; }
-.threshold input { accent-color: #168c82; }
-.threshold b { color: #155a67; font-size: 14px; text-align: right; }
-.suggestions { border-top: 1px solid #e5eef0; background: #f8fbfb; }
-.suggestionHead { padding: 18px 22px 10px; }
-.suggestionHead strong, .suggestionHead small { display: block; }
-.suggestionHead strong { color: #244b54; font-size: 15px; }
-.suggestionHead small { margin-top: 4px; color: #667f86; font-size: 12px; }
-.suggestions article { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; margin: 10px 22px; padding: 17px; border: 1px solid #dbe9e8; border-radius: 14px; background: white; }
-.suggestions article > div span, .suggestions article > div strong, .suggestions article > div small { display: block; }
-.suggestions article > div span { color: #168378; font-size: 11px; font-weight: 750; }
-.suggestions article > div strong { margin-top: 6px; color: #234851; font-size: 14px; }
-.suggestions article > div small { max-width: 760px; margin-top: 6px; color: #607981; font-size: 12px; line-height: 1.45; }
-.suggestions nav { display: flex; gap: 7px; }
-.suggestions nav button:last-child { color: #6d8085; border-color: transparent; background: transparent; }
-.faqHead { border-top: 1px solid #e5eef0; }
-.faqHead p { margin-top: 4px; color: #667f86; font-size: 12px; }
-.faqList { display: grid; gap: 10px; padding: 16px 22px 22px; }
-.faqList article { display: grid; grid-template-columns: .8fr 1.4fr auto; gap: 10px; align-items: start; }
-.faqList textarea { min-height: 74px; resize: vertical; }
-.faqList article button { color: #9b4e4e; }
-.empty { padding: 18px; color: #6b858c; background: #f8fbfb; border-radius: 12px; font-size: 13px; text-align: center; }
-.portal > footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 4px 2px; }
-.portal > footer span { color: #5f7980; font-size: 12px; }
-.portal > footer button { min-width: 180px; color: white; border-color: #0f7081; background: #0f7081; }
-.notice { color: #0f7081; font-size: 13px; text-align: right; }
+.portal {
+  display: grid;
+  gap: 16px;
+}
+
+.portal section {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.portal section > header,
+.faqHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.portal header p {
+  margin: 0 0 4px;
+  color: var(--brand-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.portal h2,
+.portal h3,
+.portal p {
+  margin: 0;
+}
+
+.portal h2 {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.portal h3 {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.portal button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.portal button:hover {
+  border-color: var(--brand-2);
+  background: var(--surface-2);
+}
+
+.portal button:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+/* Endpoints -------------------------------------------------------------- */
+.endpoints > label {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.7fr) minmax(260px, 1.3fr) 170px;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.endpoints > label:last-child {
+  border-bottom: 0;
+}
+
+.endpoints label > span strong,
+.endpoints label > span small {
+  display: block;
+}
+
+.endpoints strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.endpoints small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.endpoints input,
+.faqList input,
+.faqList textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.endpoints input:focus,
+.faqList input:focus,
+.faqList textarea:focus {
+  border-color: var(--brand-2);
+  box-shadow: var(--focus);
+}
+
+.endpoints input[readonly] {
+  padding-left: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  cursor: default;
+}
+
+.endpoints em {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.endpoints em::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.endpoints em[data-status="healthy"] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.endpoints em[data-status="degraded"] {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.endpoints em[data-status="down"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.endpointState {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.endpointState .edit,
+.endpointState .editing {
+  display: grid;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  place-items: center;
+  border-radius: 10px;
+}
+
+.endpointState .editing {
+  border-color: var(--mint);
+  background: var(--mint);
+  color: #fff;
+}
+
+.endpointState svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Behaviour -------------------------------------------------------------- */
+.threshold {
+  display: grid;
+  grid-template-columns: 1fr 220px 70px;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 22px;
+}
+
+.threshold span strong,
+.threshold span small {
+  display: block;
+}
+
+.threshold strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.threshold small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.threshold input {
+  accent-color: var(--mint);
+}
+
+.threshold b {
+  color: var(--brand-2);
+  font-size: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestions {
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.suggestionHead {
+  padding: 16px 22px 8px;
+}
+
+.suggestionHead strong,
+.suggestionHead small {
+  display: block;
+}
+
+.suggestionHead strong {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.suggestionHead small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.suggestions article {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 20px;
+  margin: 10px 22px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.suggestions article:last-child {
+  margin-bottom: 18px;
+}
+
+.suggestions article > div span,
+.suggestions article > div strong,
+.suggestions article > div small {
+  display: block;
+}
+
+.suggestions article > div span {
+  color: var(--brand-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.suggestions article > div strong {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.suggestions article > div small {
+  max-width: 76ch;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.suggestions nav {
+  display: flex;
+  gap: 6px;
+}
+
+.suggestions nav button:last-child {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.faqHead {
+  border-top: 1px solid var(--border);
+}
+
+.faqHead p {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.faqList {
+  display: grid;
+  gap: 10px;
+  padding: 16px 22px 22px;
+}
+
+.faqList article {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.faqList textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.faqList article button {
+  color: var(--danger);
+}
+
+.faqList article button:hover {
+  border-color: var(--danger-soft);
+  background: var(--danger-soft);
+}
+
+.empty {
+  padding: 18px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.portal > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 2px;
+}
+
+.portal > footer span {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.portal > footer button {
+  min-width: 180px;
+  border-color: var(--brand-2);
+  background: var(--brand-2);
+  color: #fff;
+}
+
+.portal > footer button:hover {
+  background: var(--brand-2-hover);
+}
+
+.notice {
+  color: var(--brand-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+}
+
 @media (max-width: 800px) {
-  .endpoints > label, .threshold, .faqList article { grid-template-columns: 1fr; }
-  .suggestions article { grid-template-columns: 1fr; }
-  .suggestions nav { flex-wrap: wrap; }
-  .endpoints em { justify-self: start; }
-  .portal > footer { align-items: stretch; flex-direction: column; }
+  .endpoints > label,
+  .threshold,
+  .faqList article,
+  .suggestions article {
+    grid-template-columns: 1fr;
+  }
+
+  .suggestions nav {
+    flex-wrap: wrap;
+  }
+
+  .endpointState {
+    justify-content: flex-start;
+  }
+
+  .portal > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

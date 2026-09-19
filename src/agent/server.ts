@@ -4,6 +4,7 @@ import { env } from "../config.ts";
 import { callLog, callLogError, LOG_FILE } from "./call-log.ts";
 import { getLiveSession, hasPhoneJoined, outboundCallSid } from "./live-bridge.ts";
 import { handleCall } from "./session.ts";
+import { connectNodeSocket } from "./node-socket.ts";
 import { handoffTwiml, joinStreamUrl, liveStreamTwiml, patientReplyTwiml, startCallMediaStream, wsUrlFromOrigin } from "./twilio-transfer.ts";
 
 const startedAt = Date.now();
@@ -137,7 +138,7 @@ wss.on("connection", (socket, req) => {
   socket.on("error", (error) => {
     callLogError("twilio socket", error);
   });
-  void handleCall(socket, req.url ?? "/ws");
+  void handleCall(socket, { connect: connectNodeSocket, requestUrl: req.url ?? "/ws" });
 });
 
 wss.on("error", (error) => {

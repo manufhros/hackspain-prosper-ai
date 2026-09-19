@@ -30,8 +30,10 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   const events = [];
   const tasks = [];
   let connections = 0;
+  let ended = 0;
   await handleCall(twilio, {
     connect: async () => { connections++; return eleven; },
+    onEnd: () => { ended++; },
     loadConfig: async () => ({ ...DEFAULT_RUNTIME_CONFIG, version: "test-v1" }),
     emitEvent: (type, callId, configVersion, payload) => { const event = { type, callId, configVersion, payload }; events.push(event); return event; },
     waitUntil: (task) => tasks.push(task),
@@ -46,6 +48,7 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"));
   eleven.message({ type: "audio", audio_event: { audio_base_64: "reply-audio" } });
   assert.ok(twilio.sent.some((message) => message.media?.payload === "reply-audio"));
+  eleven.message({ type: "agent_response", agent_response_event: { agent_response: "Buenos días." } });
   twilio.message({ event: "stop" });
   twilio.close();
   await settle();
@@ -53,6 +56,8 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   await Promise.all(tasks);
   assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
   assert.equal(events.find((event) => event.type === "call.ended").payload.orgSlug, "sanitas");
+  assert.equal(events.find((event) => event.type === "conversation.agent").payload.text, "Buenos días.");
+  assert.equal(ended, 1);
   assert.equal(eleven.readyState, 3);
 });
 
@@ -143,6 +148,7 @@ test("phone joins the existing agent and survives caller disconnect with a singl
   assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
   assert.equal(bridge.getLiveSession("live"), undefined);
   assert.equal(bridge.alreadyRungHuman("live"), false);
+  assert.equal(bridge.hasPhoneJoined("live"), false);
   assert.equal(eleven.readyState, 3);
 });
 
@@ -175,4 +181,46 @@ test("missing joins and joins into another Durable Object never start a new agen
   await settle();
   t.mock.timers.tick(8_000);
   await Promise.all(tasks);
+});
+
+test("delayed handoff uses the call's registry and remains tracked until Twilio responds", async (t) => {
+  const { LiveBridge, nodeLiveBridge } = await import("../agent/live-bridge.ts");
+  const { runClinicTool } = await import("../agent/tools.ts");
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const keys = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_HUMAN_NUMBER", "TWILIO_PHONE_NUMBER"];
+  const previous = keys.map((key) => process.env[key]);
+  keys.forEach((key) => { process.env[key] = "test"; });
+  t.after(() => keys.forEach((key, index) => {
+    if (previous[index] === undefined) delete process.env[key];
+    else process.env[key] = previous[index];
+  }));
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (_url, init) => {
+    requests.push(init.body);
+    return Response.json({ sid: "outbound" });
+  });
+  const bridge = new LiveBridge();
+  const tasks = [];
+  const events = [];
+  const ctx = {
+    callId: "isolated-handoff", simulationMode: true, platform: {}, liveBridge: bridge,
+    handoffUrl: "https://voice.example/twiml/live/object", orgSlug: "sanitas",
+    waitUntil: (task) => tasks.push(task), audit: async (type) => { events.push(type); },
+  };
+  await runClinicTool(ctx, "submit_escalate", { reason: "out_of_scope" });
+  await runClinicTool(ctx, "submit_escalate", { reason: "out_of_scope" });
+  assert.equal(tasks.length, 1);
+  assert.equal(bridge.alreadyRungHuman(ctx.callId), true);
+  assert.equal(nodeLiveBridge.alreadyRungHuman(ctx.callId), false);
+  t.mock.timers.tick(3_199);
+  await settle();
+  assert.equal(requests.length, 0);
+  t.mock.timers.tick(1);
+  await Promise.all(tasks);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].get("Url"), "https://voice.example/twiml/live/object?join=isolated-handoff&org=sanitas");
+  assert.deepEqual(events, ["handoff.requested", "handoff.completed"]);
+  assert.equal(bridge.outboundCallSid(ctx.callId), "outbound");
+  bridge.unregisterLiveSession(ctx.callId);
+  assert.equal(bridge.outboundCallSid(ctx.callId), undefined);
 });

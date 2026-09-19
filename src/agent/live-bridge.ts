@@ -12,54 +12,44 @@ export type LiveSession = {
   freezeDisplay: () => void;
 };
 
-const sessions = new Map<string, LiveSession>();
-const rangAt = new Map<string, number>();
-const outboundCalls = new Map<string, string>();
 export const KEEP_PHONE_MS = 180_000;
 
-export function markHumanRung(callId: string, outboundCallSid?: string) {
-  rangAt.set(callId, Date.now());
-  if (outboundCallSid) outboundCalls.set(callId, outboundCallSid);
+/** One registry per Durable Object; the Node server shares its default registry. */
+export class LiveBridge {
+  private sessions = new Map<string, LiveSession>();
+  private rangAt = new Map<string, number>();
+  private outboundCalls = new Map<string, string>();
+  private phoneJoined = new Set<string>();
+
+  markHumanRung = (callId: string, outboundCallSid?: string) => {
+    this.rangAt.set(callId, Date.now());
+    if (outboundCallSid) this.outboundCalls.set(callId, outboundCallSid);
+  };
+  outboundCallSid = (callId: string) => this.outboundCalls.get(callId);
+  alreadyRungHuman = (callId: string) => this.rangAt.has(callId);
+  sessionKeptForPhone = (callId: string) => {
+    const rang = this.rangAt.get(callId);
+    return rang != null && Date.now() - rang < KEEP_PHONE_MS;
+  };
+  registerLiveSession = (session: LiveSession) => { this.sessions.set(session.callId, session); };
+  unregisterLiveSession = (callId: string) => {
+    this.sessions.delete(callId);
+    this.rangAt.delete(callId);
+    this.outboundCalls.delete(callId);
+    this.phoneJoined.delete(callId);
+  };
+  getLiveSession = (callId: string) => this.sessions.get(callId);
+  liveSessionIds = () => [...this.sessions.keys()];
+  markPhoneJoined = (callId: string) => { this.phoneJoined.add(callId); };
+  hasPhoneJoined = (callId: string) => this.phoneJoined.has(callId);
 }
 
-export function outboundCallSid(callId: string) {
-  return outboundCalls.get(callId);
-}
-
-export function alreadyRungHuman(callId: string) {
-  return rangAt.has(callId);
-}
-
-export function sessionKeptForPhone(callId: string) {
-  const rang = rangAt.get(callId);
-  return rang != null && Date.now() - rang < KEEP_PHONE_MS;
-}
-
-export function registerLiveSession(session: LiveSession) {
-  sessions.set(session.callId, session);
-}
-
-export function unregisterLiveSession(callId: string) {
-  sessions.delete(callId);
-}
-
-export function getLiveSession(callId: string) {
-  return sessions.get(callId);
-}
-
-export function liveSessionIds() {
-  return [...sessions.keys()];
-}
-
-const phoneJoined = new Set<string>();
-
-export function markPhoneJoined(callId: string) {
-  phoneJoined.add(callId);
-}
-
-export function hasPhoneJoined(callId: string) {
-  return phoneJoined.has(callId);
-}
+export const nodeLiveBridge = new LiveBridge();
+export const {
+  markHumanRung, outboundCallSid, alreadyRungHuman, sessionKeptForPhone,
+  registerLiveSession, unregisterLiveSession, getLiveSession, liveSessionIds,
+  markPhoneJoined, hasPhoneJoined,
+} = nodeLiveBridge;
 
 export function parseJoinPath(requestUrl: string): { joinId?: string; orgSlug?: string } {
   try {

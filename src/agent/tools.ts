@@ -8,7 +8,7 @@ import type {
   Insurer,
   OutcomeReason,
 } from "../platform/types.ts";
-import { alreadyRungHuman, markHumanRung } from "./live-bridge.ts";
+import { nodeLiveBridge, type LiveBridge } from "./live-bridge.ts";
 import { callLog } from "./call-log.ts";
 import { transferTwilioCall } from "./twilio-transfer.ts";
 
@@ -516,6 +516,8 @@ export type CallContext = {
   twilioCallSid?: string;
   orgSlug?: string;
   handoffUrl?: string | undefined;
+  liveBridge?: LiveBridge;
+  waitUntil?: (promise: Promise<unknown>) => void;
   patientName?: string;
   patientId?: string;
   insurer?: string;
@@ -816,6 +818,7 @@ export async function runClinicTool(
       return JSON.stringify(result);
     }
     case "submit_escalate": {
+      const { alreadyRungHuman, markHumanRung } = ctx.liveBridge ?? nodeLiveBridge;
       if (ctx.submitted && ctx.outcome === "escalado") {
         if (!alreadyRungHuman(ctx.callId)) {
           const retry = await transferTwilioCall(
@@ -853,12 +856,15 @@ export async function runClinicTool(
           ...(ctx.handoffUrl ? { handoffUrl: ctx.handoffUrl } : {}),
         };
         const twilioSid = ctx.simulationMode ? undefined : ctx.twilioCallSid;
-        setTimeout(() => {
-          void transferTwilioCall(twilioSid, join, ctx.audit).then((transfer) => {
+        const handoff = new Promise<void>((resolve) => setTimeout(resolve, 3_200))
+          .then(() => transferTwilioCall(twilioSid, join, ctx.audit))
+          .then((transfer) => {
             if (transfer.configured && transfer.callSid) markHumanRung(ctx.callId, transfer.callSid);
             if (transfer.error) callLog(ctx.callId.slice(0, 8), "twilio transfer", transfer.error);
-          });
-        }, 3_200);
+          })
+          .catch(() => callLog(ctx.callId.slice(0, 8), "twilio transfer failed"));
+        if (ctx.waitUntil) ctx.waitUntil(handoff);
+        else void handoff;
       }
       ctx.draftBook = undefined;
       ctx.submitted = true;

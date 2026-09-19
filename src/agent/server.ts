@@ -6,6 +6,13 @@ import { getLiveSession, hasPhoneJoined, outboundCallSid } from "./live-bridge.t
 import { handleCall } from "./session.ts";
 import { connectNodeSocket } from "./node-socket.ts";
 import { handoffTwiml, joinStreamUrl, liveStreamTwiml, patientReplyTwiml, startCallMediaStream, wsUrlFromOrigin } from "./twilio-transfer.ts";
+import { OperationsService } from "../operations/service.ts";
+import { operationsOrigin } from "../operations/twilio.ts";
+
+const operations = new OperationsService({
+  origin: operationsOrigin,
+  options: { connect: connectNodeSocket },
+});
 
 const startedAt = Date.now();
 
@@ -43,6 +50,24 @@ function readBody(req: IncomingMessage) {
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (url.pathname.startsWith("/operations/")) {
+    void (async () => {
+      let body = "";
+      for await (const chunk of req) {
+        body += String(chunk);
+        if (body.length > 4096) { res.writeHead(413); res.end(); return; }
+      }
+      const request = new Request(url, {
+        method: req.method ?? "GET",
+        headers: { authorization: String(req.headers.authorization ?? "") },
+        ...(req.method === "POST" ? { body } : {}),
+      });
+      const response = await operations.fetch(request);
+      res.writeHead(response.status, Object.fromEntries(response.headers));
+      res.end(await response.text());
+    })().catch(() => { res.writeHead(500); res.end(); });
+    return;
+  }
   if (url.pathname === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({
@@ -121,6 +146,11 @@ const wss = new WebSocketServer({
 
 server.on("upgrade", (req, socket, head) => {
   const pathname = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+  if (pathname.startsWith("/operations/phone/") && pathname.endsWith("/ws")) {
+    if (!operations.phoneAllowed(new URL(req.url!, "http://localhost"))) { socket.destroy(); return; }
+    wss.handleUpgrade(req, socket, head, ws => { void operations.attachPhone(ws); });
+    return;
+  }
   if (pathname !== "/ws") { socket.destroy(); return; }
   callLog(
     "ws upgrade",

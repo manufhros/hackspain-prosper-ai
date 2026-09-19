@@ -6,6 +6,7 @@
 }
 
 .sidebar {
+  min-width: 0;
   position: sticky;
   top: 0;
   display: flex;
@@ -250,6 +251,7 @@
 }
 
 .content {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -259,9 +261,11 @@
 }
 
 /* Responsive -------------------------------------------------------------- */
+.operationsContent { max-width: none; }
+
 @media (max-width: 880px) {
   .shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .sidebar {

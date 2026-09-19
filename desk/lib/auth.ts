@@ -24,9 +24,9 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 /** Sections under /panel each role may open ("" is the overview). */
 const SECTIONS: Record<Role, string[]> = {
-  admin: ["", "/llamadas", "/agente", "/pruebas"],
+  admin: ["", "/llamadas", "/agente", "/pruebas", "/operaciones"],
   clinic: ["", "/llamadas"],
-  tester: ["/pruebas", "/llamadas"],
+  tester: ["/pruebas", "/llamadas", "/operaciones"],
 };
 
 export function originUrl(req: Request, path: string) {

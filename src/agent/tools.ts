@@ -513,6 +513,7 @@ export type CallContext = {
   postCallEndpoint?: string;
   zeroRetention?: boolean;
   simulationMode?: boolean;
+  demo?: boolean;
   twilioCallSid?: string;
   orgSlug?: string;
   handoffUrl?: string | undefined;
@@ -818,6 +819,14 @@ export async function runClinicTool(
       return JSON.stringify(result);
     }
     case "submit_escalate": {
+      // Operations rehearsal must never enter the delayed/retry phone handoff path.
+      if (ctx.demo) {
+        const reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked) ?? "out_of_scope";
+        ctx.submitted = true; ctx.outcome = "escalado"; ctx.outcomeReason = reason; ctx.draftBook = undefined;
+        return JSON.stringify({ accepted: true, simulated: true, action: "ESCALATE", reason,
+          transfer: { transferred: false, originated: false },
+          next_step: "Describe the escalation as simulated, not an actual connected colleague." });
+      }
       const { alreadyRungHuman, markHumanRung } = ctx.liveBridge ?? nodeLiveBridge;
       if (ctx.submitted && ctx.outcome === "escalado") {
         if (!alreadyRungHuman(ctx.callId)) {
@@ -844,7 +853,7 @@ export async function runClinicTool(
       if (ctx.submitted) return alreadySubmitted();
       let reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
       if (!reason || !OUTCOME_REASONS.has(reason)) reason = "out_of_scope";
-      const result = ctx.simulationMode
+      const result = ctx.simulationMode || ctx.demo
         ? { accepted: true, action: "ESCALATE" as const, reason, simulated: true }
         : await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
       const shouldRing = !alreadyRungHuman(ctx.callId);

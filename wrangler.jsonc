@@ -9,6 +9,7 @@
 	],
 	"durable_objects": {
 		"bindings": [
+			{ "name": "OPERATIONS", "class_name": "OperationsDemo" },
 			{
 				"name": "CALLS",
 				"class_name": "VoiceCall"
@@ -21,7 +22,8 @@
 			"new_sqlite_classes": [
 				"VoiceCall"
 			]
-		}
+		},
+		{ "tag": "operations-v1", "new_sqlite_classes": ["OperationsDemo"] }
 	],
 	"d1_databases": [
 		{

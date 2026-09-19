@@ -27,12 +27,12 @@ export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<
     VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO NOTHING`)
     .bind(event.eventId, event.schemaVersion, event.callId, event.configVersion,
       event.type, event.occurredAt, JSON.stringify(payload)).run();
-  if (event.type === "call.started") {
+  if (event.type === "call.started" && !event.payload.demo) {
     await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at)
       VALUES (?, ?, ?) ON CONFLICT(call_id) DO NOTHING`)
       .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt).run();
   }
-  if (event.type === "call.ended") {
+  if (event.type === "call.ended" && !event.payload.demo) {
     await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary)
       VALUES (?, ?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
       ended_at = excluded.ended_at, summary = excluded.summary`)

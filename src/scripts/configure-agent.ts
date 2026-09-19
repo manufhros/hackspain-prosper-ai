@@ -225,6 +225,13 @@ const patch = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${env.elev
   headers,
   body: JSON.stringify({
     name: "Clínica Arenal",
+    platform_settings: {
+      overrides: { conversation_config_override: {
+        conversation: { text_only: true },
+        agent: { first_message: true, language: true, prompt: { prompt: true } },
+        tts: { voice_id: true },
+      } },
+    },
     conversation_config: {
       agent: {
         first_message:
@@ -301,6 +308,7 @@ const patch = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${env.elev
       },
       conversation: {
         client_events: [
+          "conversation_initiation_metadata",
           "audio",
           "interruption",
           "agent_response",

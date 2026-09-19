@@ -4,6 +4,7 @@ import { handoffTwiml, liveStreamTwiml } from "../agent/twilio-transfer.ts";
 import { WorkerSocket, connectWorkerSocket } from "./socket.ts";
 import { readRuntimeConfig, storeCallEvent } from "./storage.ts";
 import { LiveBridge } from "../agent/live-bridge.ts";
+export { OperationsDemo } from "./operations.ts";
 
 const MAX_CALL_MS = 30 * 60 * 1_000;
 
@@ -91,6 +92,9 @@ export class VoiceCall extends DurableObject<Env> {
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/operations/")) {
+      return env.OPERATIONS.get(env.OPERATIONS.idFromName("arenal-demo")).fetch(request);
+    }
     const routed = url.pathname.match(/^\/(?:ws|twiml\/live|twiml\/stream-status)\/([a-f0-9]{64})$/);
     if (routed) return env.CALLS.get(env.CALLS.idFromString(routed[1]!)).fetch(request);
     if (url.pathname === "/ws") {

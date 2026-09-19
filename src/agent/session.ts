@@ -128,6 +128,10 @@ function clinicNameFor(orgSlug: string): string {
 }
 
 export type CallOptions = {
+  /** Server-only demo controls, never inferred from untrusted WebSocket parameters. */
+  demo?: boolean;
+  textOnly?: boolean;
+  onMonitor?: (event: Record<string, unknown>) => void;
   liveBridge?: LiveBridge;
   requestUrl?: string;
   handoffUrl?: string;
@@ -184,7 +188,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   const emitCallEvent = (...args: Parameters<typeof emitLocalCallEvent>) => {
     const [type, callId, version, payload = {}] = args;
     const promise = Promise.resolve().then(() => (options.emitEvent ?? emitLocalCallEvent)(
-      type, callId, version, { ...payload, orgSlug: ctx?.orgSlug ?? "arenal", zeroRetention: ctx?.zeroRetention ?? true },
+      type, callId, version, { ...payload, orgSlug: ctx?.orgSlug ?? "arenal", demo: options.demo ?? false, zeroRetention: ctx?.zeroRetention ?? true },
     ));
     background(promise);
     return promise;
@@ -219,7 +223,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       zeroRetention: callCtx.zeroRetention ?? true,
     };
     await emitCallEvent("call.ended", callCtx.callId, callCtx.configVersion ?? "defaults", summary);
-    if (callCtx.postCallWebhook) {
+    if (callCtx.postCallWebhook && !options.demo) {
       await deliverPostCall(summary, callCtx.postCallEndpoint, callCtx.audit).catch((error: unknown) => {
         callLogError(callCtx.callId.slice(0, 8), "post-call failed", error);
       });
@@ -271,6 +275,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   };
 
   const sendMonitor = (monitor: Record<string, unknown>) => {
+    options.onMonitor?.(monitor);
     if (simulationMode) sendTwilio({ event: "monitor", monitor });
   };
 
@@ -391,6 +396,8 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       }
 
       if (typed.type === "conversation_initiation_metadata") {
+        sendMonitor({ type: "ready" });
+        if (options.demo) sendEleven({ type: "contextual_update", text: "This is a rehearsal. All appointment actions are simulated; never describe them as real confirmed appointments. Start in Spanish and switch only after hearing the caller." });
         elevenReady = true;
         flushAudio();
         if (pendingHint) {
@@ -589,7 +596,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
                   is_error: false,
                 }),
               );
-              if (toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
+              if (!options.demo && toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
                 sendEleven({
                   type: "contextual_update",
                   text: "Say one short sentence: Le paso con una compañera. Then stay silent.",
@@ -602,7 +609,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
                 socket.send(
                   JSON.stringify({
                     type: "contextual_update",
-                    text: "Record submitted. Confirm in one sentence if you have not. Stay silent. Do not say goodbye.",
+                    text: options.demo ? "Rehearsal action only. Explain the simulated outcome briefly; no real appointment or transfer was made." : "Record submitted. Confirm in one sentence if you have not. Stay silent. Do not say goodbye.",
                   }),
                 );
               }
@@ -658,6 +665,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
             }
           })
           .catch(async (error: unknown) => {
+            sendMonitor({ type: "error", text: "La herramienta no pudo completar la operación.", name: toolCall.tool_name });
             toolErrors += 1;
             callCtx.failureCount = (callCtx.failureCount ?? 0) + 1;
             callLogError(tag, "tool error", toolCall.tool_name, error);
@@ -752,9 +760,19 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       const orgSlug = start.start.customParameters?.org_slug || pathJoin.orgSlug || "arenal";
       const clinicName = clinicNameFor(orgSlug);
       simulationMode = start.start.customParameters?.simulation != null;
-      const platform = new PlatformClient(undefined, undefined, async (type, payload) => {
+      const client = new PlatformClient(undefined, undefined, async (type, payload) => {
         await callCtx.audit?.(type, payload);
       });
+      const platform = options.demo ? new Proxy(client, {
+        get(target, key) {
+          if (typeof key === "string" && key.startsWith("submit")) return async () => ({
+            accepted: true, simulated: true, action: key,
+            message: "Ensayo: acción simulada, no se ha modificado la agenda real.",
+          });
+          const value = Reflect.get(target, key);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) : client;
       const callCtx: CallContext = fromNumber
         ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug, handoffUrl: options.handoffUrl, liveBridge: bridge, waitUntil: background }
         : { callId, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug, handoffUrl: options.handoffUrl, liveBridge: bridge, waitUntil: background };
@@ -764,6 +782,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         });
       };
       ctx = callCtx;
+      callCtx.demo = options.demo ?? false;
       durationTimer = setTimeout(() => {
         stopped = true;
         background(finish(callCtx));
@@ -874,7 +893,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               ])
             : emptyPreCall;
         let externalContext = "";
-        if (runtime.preCallEndpoint) {
+        if (runtime.preCallEndpoint && !options.demo) {
           try {
             await callCtx.audit?.("context.requested", { endpoint: runtime.preCallEndpoint });
             const response = await fetch(runtime.preCallEndpoint, {
@@ -915,7 +934,11 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               socket.send(
                 JSON.stringify({
                   type: "conversation_initiation_client_data",
-                  conversation_config_override: conversationConfigOverride(runtime),
+                  conversation_config_override: {
+                    ...conversationConfigOverride(options.demo ? { ...runtime, language: "es",
+                      firstMessage: runtime.language === "es" ? runtime.firstMessage : "{{clinic_name}}, buenos días. ¿En qué puedo ayudarle?" } : runtime),
+                    ...(options.textOnly ? { conversation: { text_only: true } } : {}),
+                  },
                   dynamic_variables: {
                     call_id: callId,
                     from_number: fromNumber ?? "",

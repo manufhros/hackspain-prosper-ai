@@ -21,6 +21,10 @@ export function proxy(req: NextRequest) {
   }
 
   if (pathname.startsWith("/api/logout")) return NextResponse.next();
+  if (pathname.startsWith("/api/operations/")) {
+    if (!session || !["admin", "tester"].includes(session.role)) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    return NextResponse.next();
+  }
 
   if (!session) return NextResponse.redirect(originUrl(req, "/"));
 

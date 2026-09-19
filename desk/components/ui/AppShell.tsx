@@ -133,7 +133,7 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
       </aside>
 
       <main className={styles.main}>
-        <div className={styles.content}>{children}</div>
+        <div className={`${styles.content} ${path === "/panel/operaciones" ? styles.operationsContent : ""}`}>{children}</div>
       </main>
     </div>
   );

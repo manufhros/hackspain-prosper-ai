@@ -5,7 +5,7 @@ const worker = {
   fetch(request, env, ctx) {
     // WebSocket upgrades must bypass Next.js' HTTP response adapter.
     const path = new URL(request.url).pathname;
-    if (path === "/ws" || /^\/(?:ws|twiml\/live|twiml\/stream-status)\/[a-f0-9]{64}$/.test(path)) {
+    if (path.startsWith("/operations/phone/") || path === "/ws" || /^\/(?:ws|twiml\/live|twiml\/stream-status)\/[a-f0-9]{64}$/.test(path)) {
       return env.VOICE_AGENT.fetch(request);
     }
     return nextWorker.fetch(request, env, ctx);

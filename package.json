@@ -7,6 +7,8 @@
     "node": ">=22"
   },
   "scripts": {
+    "operations:dev": "node --env-file-if-exists=.env --import tsx src/scripts/operations-dev.ts",
+    "test:operations": "node --import tsx --test src/operations/*.test.ts",
     "typecheck": "tsc --noEmit",
     "dev": "node --env-file=.env --import tsx src/agent/server.ts",
     "desk": "npm --prefix desk run dev",

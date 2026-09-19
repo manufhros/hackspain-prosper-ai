@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/* shadcn tokens, scoped by Operations.module.css; existing desk palette is unchanged. */
+@theme inline {
+  --color-background: var(--background, #fff);
+  --color-foreground: var(--foreground, #12303a);
+  --color-primary: var(--primary, #168c82);
+  --color-primary-foreground: var(--primary-foreground, #fff);
+  --color-secondary: var(--secondary, #e2f4f0);
+  --color-secondary-foreground: var(--secondary-foreground, #387263);
+  --color-muted: var(--muted, #f0f6f3);
+  --color-muted-foreground: var(--muted-foreground, #77878a);
+  --color-accent: var(--accent, #edf5f1);
+  --color-accent-foreground: var(--accent-foreground, #27705e);
+  --color-destructive: var(--destructive, #b91c1c);
+  --color-destructive-foreground: var(--destructive-foreground, #fff);
+  --color-border: var(--border, #e5ebeb);
+  --color-input: var(--input, #dae4e3);
+  --color-ring: var(--ring, #16816c);
+}
+
 /* ---------------------------------------------------------------------------
    turno desk · design tokens
    Single source of truth for colour, type, radius and elevation. Every module

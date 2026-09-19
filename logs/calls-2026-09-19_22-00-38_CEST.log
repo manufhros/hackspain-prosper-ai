@@ -1,0 +1,17 @@
+[2026-09-19T22:00:38,280 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_22-00-38_CEST.log
+[2026-09-19T22:00:38,280 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T22:00:59,184 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:00:59,185 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:00:59,185 CEST] stream start 45f96134-be36-4399-8a9a-8bb4ad397688 {"call_id":"45f96134-be36-4399-8a9a-8bb4ad397688","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:00:59,185 CEST] call start 45f96134-be36-4399-8a9a-8bb4ad397688 +34600000000
+[2026-09-19T22:01:05,951 CEST] 45f96134 eleven conversation_initiation_metadata
+[2026-09-19T22:01:06,271 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:01:06,271 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:01:06,272 CEST] stream start e184a9d9-ef79-4256-aa72-81a55c6d4989 {"call_id":"e184a9d9-ef79-4256-aa72-81a55c6d4989","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:01:06,272 CEST] call start e184a9d9-ef79-4256-aa72-81a55c6d4989 +34600000000
+[2026-09-19T22:01:07,707 CEST] 45f96134 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:01:07,707 CEST] 45f96134 eleven agent_response
+[2026-09-19T22:01:11,192 CEST] 45f96134 elevenlabs closed 1006 
+[2026-09-19T22:01:17,522 CEST] e184a9d9 eleven conversation_initiation_metadata
+[2026-09-19T22:01:18,646 CEST] e184a9d9 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:01:18,647 CEST] e184a9d9 eleven agent_response

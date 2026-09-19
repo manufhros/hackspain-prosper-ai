@@ -1,0 +1,61 @@
+[2026-09-19T18:47:55,232 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_18-47-55_CEST.log
+[2026-09-19T18:47:55,232 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T18:49:26,003 CEST] socket open 1 live
+[2026-09-19T18:49:26,004 CEST] call start c9cc88ac-7236-4e67-ada4-efe52c238cd4 +34687275510
+[2026-09-19T18:49:26,023 CEST] socket open 2 live
+[2026-09-19T18:49:26,024 CEST] call start 907dd8ca-6341-40cf-bb06-d10885066a17 +34711330529
+[2026-09-19T18:49:26,035 CEST] socket open 3 live
+[2026-09-19T18:49:26,036 CEST] call start 15049dd7-041f-4418-b142-02993b080623 +34611926767
+[2026-09-19T18:49:26,206 CEST] directory hint c9cc88ac-7236-4e67-ada4-efe52c238cd4 []
+[2026-09-19T18:49:26,206 CEST] directory hint 15049dd7-041f-4418-b142-02993b080623 [{"patient_id":"P00492","name":"Javier Martín Delgado","insurer":"mapfre","has_visited_before":true,"note":"Last seen November 2025. Coming here since January 2024 -- four visits. A GP referral for De
+[2026-09-19T18:49:26,426 CEST] directory hint 907dd8ca-6341-40cf-bb06-d10885066a17 [{"patient_id":"P00001","name":"Josefa Domínguez Navarro","insurer":"mapfre","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vid
+[2026-09-19T18:49:26,659 CEST] c9cc88ac eleven conversation_initiation_metadata
+[2026-09-19T18:49:26,681 CEST] 15049dd7 eleven conversation_initiation_metadata
+[2026-09-19T18:49:26,816 CEST] 907dd8ca eleven conversation_initiation_metadata
+[2026-09-19T18:49:26,996 CEST] c9cc88ac eleven agent_response
+[2026-09-19T18:49:26,997 CEST] c9cc88ac agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:49:27,000 CEST] 15049dd7 agent Clínica Sanitas, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:49:27,000 CEST] 15049dd7 eleven agent_response
+[2026-09-19T18:49:27,136 CEST] 907dd8ca agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:49:27,137 CEST] 907dd8ca eleven agent_response
+[2026-09-19T18:49:31,000 CEST] c9cc88ac user Quiero hablar con una persona, páseme con recepción.
+[2026-09-19T18:49:31,835 CEST] c9cc88ac eleven client_tool_call
+[2026-09-19T18:49:31,836 CEST] c9cc88ac tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T18:49:32,629 CEST] 907dd8ca user Hola, quiero la primera cita de medicina general, lo antes posible.
+[2026-09-19T18:49:32,958 CEST] c9cc88ac tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true,"callSid":"CAb1597203e029aa2f5e94ff97ec4d7918"}}
+[2026-09-19T18:49:33,061 CEST] c9cc88ac eleven agent_tool_response
+[2026-09-19T18:49:33,444 CEST] 907dd8ca tool search_directory {"phone":"+34711330529"}
+[2026-09-19T18:49:33,444 CEST] 907dd8ca eleven client_tool_call
+[2026-09-19T18:49:33,590 CEST] 907dd8ca tool result search_directory {"matches":[{"patient_id":"P00001","given_name":"Josefa","first_surname":"Domínguez","second_surname":"Navarro","national_id":"48064716Y","date_of_birth":"2001-09-19","phone":"711330529","sex":"F","has_visited_before":true,"insurer":"mapfre","referrals":["dermatology"],"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Josefa Domínguez Navarro. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.. If hard of
+[2026-09-19T18:49:33,695 CEST] 907dd8ca eleven agent_tool_response
+[2026-09-19T18:49:34,241 CEST] 15049dd7 user Buenos días, ¿abrís los sábados?
+[2026-09-19T18:49:34,561 CEST] 907dd8ca eleven agent_response
+[2026-09-19T18:49:34,562 CEST] 907dd8ca agent ¿Es usted Josefa Domínguez Navarro?
+[2026-09-19T18:49:35,575 CEST] 15049dd7 agent Sí, abrimos los sábados, pero únicamente en nuestro centro de Centro. Los centros de Norte y Sur permanecen cerrados los fines de semana. ¿Desea que busquemos una cita para el sábado?
+[2026-09-19T18:49:35,576 CEST] 15049dd7 eleven agent_response
+[2026-09-19T18:49:40,628 CEST] 907dd8ca user Sí, soy yo.
+[2026-09-19T18:49:41,615 CEST] 907dd8ca tool search_availability {"date_from":"2026-09-20","date_to":"2026-10-04","patient_id":"P00001","specialty_id":"general_practice","insurer":"mapfre"}
+[2026-09-19T18:49:41,615 CEST] 907dd8ca eleven client_tool_call
+[2026-09-19T18:49:41,928 CEST] 907dd8ca tool result search_availability {"soonest":{"start_time":"2026-09-21T09:00:00+02:00","provider_id":"PR03","provider_name":"Dr. Martín Sáez","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"review"},"soonest_centro":{"start_time":"2026-09-21T09:15:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"},"soonest_norte":{"start_time":"2026-09-22T09:00:00+02:00","provider_id":"PR07","provider_name":"Dra. Laura Benítez Roca","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"review"},"soonest_sur":{"start_time":"2026-09-21T09:00:00+02:00","provider_id":"PR03","provider_name":"Dr. Martín Sáez","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"review"},"cen
+[2026-09-19T18:49:42,033 CEST] 907dd8ca eleven agent_tool_response
+[2026-09-19T18:49:43,282 CEST] 907dd8ca eleven agent_response
+[2026-09-19T18:49:43,283 CEST] 907dd8ca agent Tengo una cita disponible para el lunes veintiuno de septiembre a las nueve de la mañana en Arenal Sur con el doctor Martín Sáez. ¿Le viene bien?
+[2026-09-19T18:49:48,630 CEST] 907dd8ca user Sí, esa hora me viene bien.
+[2026-09-19T18:49:48,736 CEST] 907dd8ca eleven agent_response_correction
+[2026-09-19T18:49:49,723 CEST] 907dd8ca eleven client_tool_call
+[2026-09-19T18:49:49,723 CEST] 907dd8ca tool submit_book {"patient_id":"P00001","provider_id":"PR03","location_id":"sur","appointment_type_id":"review","slot":"2026-09-21T09:00:00+02:00","policy_id":"mapfre"}
+[2026-09-19T18:49:50,123 CEST] ERROR 907dd8ca tool error submit_book PlatformApiError: Platform API 404 /api/v1/submit/book: {"detail":"unknown call 907dd8ca-6341-40cf-bb06-d10885066a17"}
+    at PlatformClient.request (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/platform/client.ts:122:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async runClinicTool (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/tools.ts:769:22)
+[2026-09-19T18:49:50,227 CEST] 907dd8ca eleven agent_tool_response
+[2026-09-19T18:49:51,555 CEST] 907dd8ca eleven agent_response
+[2026-09-19T18:49:51,556 CEST] 907dd8ca agent He intentado registrar su cita en el sistema, pero se ha producido un error técnico en nuestra plataforma. Por favor, espere un momento mientras lo soluciono o vuelva a intentarlo en unos minutos.
+[2026-09-19T18:49:52,460 CEST] ERROR 907dd8ca flush on stop failed PlatformApiError: Platform API 404 /api/v1/submit/book: {"detail":"unknown call 907dd8ca-6341-40cf-bb06-d10885066a17"}
+    at PlatformClient.request (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/platform/client.ts:122:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async flushPendingSubmit (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/tools.ts:544:3)
+[2026-09-19T18:49:57,478 CEST] c9cc88ac elevenlabs closed 1005 
+[2026-09-19T18:49:57,479 CEST] c9cc88ac flushed book on eleven close
+[2026-09-19T18:49:57,480 CEST] 907dd8ca elevenlabs closed 1006 
+[2026-09-19T18:49:57,480 CEST] 15049dd7 elevenlabs closed 1005 

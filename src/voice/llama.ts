@@ -9,7 +9,7 @@ export function llamaArguments(modelPath: string, port: number, settings: LocalS
   return ["--model", modelPath, "--alias", MODEL, "--host", "127.0.0.1", "--port", String(port),
     "--parallel", String(settings.parallel), "--ctx-size", String(settings.context * settings.parallel),
     "--gpu-layers", "999", "--jinja", "--cont-batching", "--no-context-shift",
-    "--chat-template-kwargs", '{"enable_thinking":false}'];
+    "--reasoning", "off", "--cors-origins", "localhost"];
 }
 
 /** Verify server capacity, rather than treating client concurrency as active model slots. */
@@ -36,7 +36,6 @@ export class LlamaChat {
         method: "POST", redirect: "error", headers: { "Content-Type": "application/json" }, signal: requestSignal,
         body: JSON.stringify({ model: MODEL, messages: chatMessages(messages, "Local model"),
           stream: false, temperature: 0.1, max_tokens: this.settings.maxTokens,
-          chat_template_kwargs: { enable_thinking: false },
           ...(tools.length ? { tools, tool_choice: "auto", parallel_tool_calls: false } : {}),
           ...(format ? { response_format: { type: "json_schema", json_schema: { name: "voice_response", strict: true, schema: format } } } : {}),
         }),

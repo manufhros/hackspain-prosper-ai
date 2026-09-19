@@ -16,6 +16,9 @@ test("llama capacity preserves per-slot context and rejects server-side parallel
   expect(args[args.indexOf("--host") + 1]).toBe("127.0.0.1");
   expect(args).toContain("--jinja"); expect(args).toContain("--cont-batching");
   expect(args).toContain("--no-context-shift");
+  expect(args[args.indexOf("--reasoning") + 1]).toBe("off");
+  expect(args).not.toContain("--chat-template-kwargs");
+  expect(args[args.indexOf("--cors-origins") + 1]).toBe("localhost");
   expect(llamaCapacity({ total_slots: 4, default_generation_settings: { n_ctx: 16384 }, build_info: "b123" }, settings))
     .toEqual({ backend: "llama", slots: 4, context_per_slot: 16384, build: "b123" });
   for (const props of [{ total_slots: 1, default_generation_settings: { n_ctx: 16384 } },
@@ -29,7 +32,8 @@ test("local llama tool calls roundtrip IDs and return operational timing metadat
     expect(url).toBe("http://127.0.0.1:4321/v1/chat/completions");
     expect(init.headers).not.toHaveProperty("Authorization"); expect(init.redirect).toBe("error");
     const body = JSON.parse(String(init.body));
-    expect(body.chat_template_kwargs.enable_thinking).toBe(false);
+    // Thinking is disabled at server startup; requests must not override that policy.
+    expect(body).not.toHaveProperty("chat_template_kwargs");
     expect(body.max_tokens).toBe(512);
     if (++requests === 1) {
       expect(body.parallel_tool_calls).toBe(false);

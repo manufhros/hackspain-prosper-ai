@@ -26,7 +26,7 @@ export function assertGatewayAuth(): void {
 }
 
 export const models = {
-  chat: process.env.WL_CHAT_MODEL ?? "openai/gpt-5.6-sol",
+  chat: process.env.WL_CHAT_MODEL ?? "openai/gpt-5.6-luna-fast", // barato ($0.40 vs $4 de sol) y baja latencia; iguala/supera a sol en el eval
   caller: process.env.WL_CALLER_MODEL ?? "openai/gpt-5.6-luna", // simulador de paciente: barato
 
   stt: process.env.WL_STT_MODEL ?? "openai/whisper-1",

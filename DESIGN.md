@@ -1,6 +1,6 @@
 ---
 name: Admisión
-description: Panel hospitalario de hash — papel, sistema, un centro por cuenta
+description: Panel hospitalario de turno — papel, sistema, un centro por cuenta
 colors:
   ink: "#1c1c1a"
   paper: "#f3f2ee"

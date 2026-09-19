@@ -5,9 +5,9 @@ primary_target: "desk/app/admin/page.tsx"
 related_targets: ["desk/app/admin/admin.module.css","desk/components/AgentFleet.tsx","desk/components/AgentFleet.module.css"]
 ---
 
-# Admin hash · Operate
+# Admin turno · Operate
 
-Audience: equipo interno hash. Job: entender el estado de toda la red y llegar rápidamente a llamadas, escalados, pruebas o configuración.
+Audience: equipo interno turno. Job: entender el estado de toda la red y llegar rápidamente a llamadas, escalados, pruebas o configuración.
 
 ## Direction contract
 

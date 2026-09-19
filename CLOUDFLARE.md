@@ -103,7 +103,7 @@ High-volume audio frames, transport pings, and credentials are not stored. Exist
 
 Tool/provider actions await the pre-action D1 audit write. A failed audit write prevents starting that action. A post-response audit failure propagates without automatically repeating a successful provider request. Event IDs make repeated ingestion idempotent. Outstanding tool work is awaited before the final call summary is recorded. Database outages and abrupt runtime failures can still leave an attempted action without a completion event; inspect those as incomplete attempts rather than assuming success.
 
-A signed-in hash administrator can inspect:
+A signed-in turno administrator can inspect:
 
 ```text
 GET /api/agent-trace?callId=<call-id>
@@ -127,3 +127,51 @@ npx wrangler d1 execute prosper_desk --remote --command "SELECT call_id, type, o
 - Cloudflare build/type/unit checks are not a live Twilio or ElevenLabs call test. After you start or deploy the environment, verify a simulator call, a real provider call, a persisted tool trace, settings publication, and signed webhook delivery.
 
 Reference: [Cloudflare Next.js/OpenNext guide](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/) and [Durable Object WebSockets](https://developers.cloudflare.com/durable-objects/examples/websocket-server/).
+
+## Import historical call logs
+
+`npm run calls:import` reviews conversations from `logs/`, including rotated logs
+under `logs/old/`, and `call-events.jsonl`. It defaults to a dry run and prints
+counts without contacting D1. Selection is per conversation: keep substantive
+caller requests or confirmed outcomes; skip greetings, silence, microphone checks,
+and the manually reviewed developer sessions in `logs/import-exclusions.json`.
+A short, useful request is kept even when the call ended before resolution.
+
+```sh
+npm run calls:import
+npm run calls:import -- --org arenal --report /tmp/call-selection.json
+npm run calls:import -- --org arenal --out /tmp/call-import.sql
+npm run calls:import -- --org arenal --apply --remote
+```
+
+`--org` filters the source organization; it does not reassign calls. Without it,
+all selected clinics are imported. The dashboard currently reads Arenal only.
+Organization comes from stream/structured metadata, then an explicit clinic
+opening greeting; older unlabelled calls default to Arenal.
+
+The import targets `prosper_desk` in `desk/wrangler.jsonc` (the existing
+`prosper-desk` database). Migrations `0002` through `0004` must already be applied;
+the importer checks the table columns before inserting and never applies migrations.
+Use `--apply --local` only to load an existing local database. Neither command
+starts a server or deploys a Worker. SQL exports contain conversation text, are
+created with owner-only permissions, and refuse to overwrite an existing file.
+
+Calls, ordered transcripts, and redacted structured audit events are inserted
+with stable IDs. Repeating the same import is safe, including after an interrupted
+import. Existing live call rows and their transcripts are preserved: only records
+marked as this import's own can receive imported turns/events. Existing imported
+summaries are also preserved. This is a historical backfill, not a live sync.
+
+Confirmed provider receipts and structured call outcomes determine completion;
+merely requesting a tool, holding a slot, or logging “flushed book” does not prove
+a booking. Missing end events stay marked incomplete, with duration based on the
+last observed activity. Helpers are shown as agent-side turns prefixed
+`[Recepción humana]`, because the dashboard stores two speaker roles. No missing
+speech is invented. Ambiguous call prefixes are reported and skipped. Audit data
+uses the same redaction as the Worker, while transcript text is stored separately.
+
+Validation without starting an environment:
+
+```sh
+npm run test:import
+```

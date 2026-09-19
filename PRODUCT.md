@@ -11,8 +11,8 @@ web
 Tres cuentas, sin contraseña (cookie de demo). El rol decide qué secciones de `/panel` se abren.
 
 - **Clínica Arenal · admisión:** `admision@clinicaarenal.es` → Resumen y Llamadas.
-- **Operador hash:** `admin@hash.app` → Resumen, Llamadas, Configuración del agente y Pruebas de voz.
-- **Pruebas de voz:** `voz@hash.app` → Pruebas de voz y Llamadas.
+- **Operador turno:** `admin@turno.app` → Resumen, Llamadas, Configuración del agente y Pruebas de voz.
+- **Pruebas de voz:** `voz@turno.app` → Pruebas de voz y Llamadas.
 
 ## Product Purpose
 
@@ -24,7 +24,7 @@ El panel **Admisión** enseña a cada centro qué ha capturado esa línea (agend
 
 ## Positioning
 
-No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra ficha, disponibilidad y normas reales. El panel aísla por hospital y vende el efecto (agenda llena, llamadas que no se pierden, FTE no abiertos). El modelo de voz no es el producto; es una pieza. Lo que diferencia es el sistema alrededor: consultas reales, estado de la llamada, y visibilidad de por qué se dijo lo que se dijo — visible a hash, no a un hospital ajeno.
+No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra ficha, disponibilidad y normas reales. El panel aísla por hospital y vende el efecto (agenda llena, llamadas que no se pierden, FTE no abiertos). El modelo de voz no es el producto; es una pieza. Lo que diferencia es el sistema alrededor: consultas reales, estado de la llamada, y visibilidad de por qué se dijo lo que se dijo — visible a turno, no a un hospital ajeno.
 
 ## Operating Context
 
@@ -37,14 +37,14 @@ No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra 
 
 - Agente: búsqueda de paciente, disponibilidad, reserva / alta / no-acción / escalado; no colgar como cierre de cortesía.
 - Panel: resumen (KPIs, resultados, consultas, actividad por centro, valor de la agenda), llamadas con trazabilidad, configuración del agente y simulador de voz.
-- La clínica no ve la configuración del agente; hash sí.
-- El modelo de voz no se expone a roles de hospital; hash lo trata como configuración restringida.
+- La clínica no ve la configuración del agente; turno sí.
+- El modelo de voz no se expone a roles de hospital; turno lo trata como configuración restringida.
 - No inventar pacientes, DNI ni citas. La transcripción de cada llamada se conserva en D1 para su vista de detalle, incluidos los turnos del simulador. La opción de privacidad redacta la auditoría y omite la transcripción en transferencias; no elimina la transcripción del registro de llamadas. Este cambio de retención fue solicitado explícitamente para el detalle de llamadas.
 - Abierto: permisos más finos (quién ve nómina vs citas) si hace falta más que el local del correo.
 
 ## Brand Commitments
 
-- Marca: **hash**. No Prosper en producto.
+- Marca: **turno**. No Prosper en producto.
 - Nombre del panel: **Admisión**.
 - Idioma de interfaz: español.
 - El hospital se identifica por su centro (nombre, ciudad), no por un grupo genérico en el cromado.

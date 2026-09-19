@@ -1,52 +1,62 @@
 # Lucía UI verification
 
-final result: blocked
+final result: implemented; scoped browser checks passed, extended checks pending
 
-## Target
+## Scope
 
-Selected revised option 3 (ivory/forest three-column reception workspace), with
-option 2's En curso / Finalizada / No atendida status treatments. Both light and
-dark mode are implemented. The generated sage avatar is saved in public/assets.
+Approved ivory/forest console with light/dark mode, readable presentations for all
+nine clinic tools, patient-left / agent-right transcript bubbles, and a persistent
+SQLite overview accessible from the header. The call-history sidebar stays calls only.
 
-## Completed checks
+## Automated evidence
 
-- TypeScript: `npm run typecheck` passes.
-- Unit/HTTP/model tests: `npm test` passes, 25 tests; no external calls or Keychain writes.
-- Browser-module syntax: `npm run check:ui` passes.
-- HTTP handler serves HTML, styles, scripts, image, icons and fonts; tests call the
-  handler directly without starting a server.
-- Local/tunnel access separation, JSON mutations, credential redaction, snapshot and
-  live event delivery, transcript corrections, restart recovery and status isolation tested.
-- DESIGN.md lint: 0 errors, 5 informational orphan-token warnings (runtime CSS owns tokens).
-- Icon names resolve against the locally installed Phosphor set.
-- `git diff --check` passes.
+- `npm run typecheck`, `npm run check:ui`, `npm test`: pass (45 tests).
+- Tool presentations cover all submission types, directory matches, appointments,
+  ranked availability, restrictions, empty/pending/failed/interrupted output,
+  malformed/future payloads, Madrid dates and escaped untrusted values.
+- SQLite tests use temporary files, reload between runs, verify 0600 permissions,
+  avoid storing patient details, and deduplicate cumulative/reordered receipts.
+- Metrics survive both the 200-call history and 400-tool detail retention limits.
+  Full receipts count before display truncation. Legacy JSON imports are idempotent;
+  interrupted calls recover after restart. Failed requests never create actions.
+- API tests cover totals, invalid filters, storage-error responses and local-only access.
+- Overview tests cover empty data, exact-value tables, escaping, rates and duration.
+- DESIGN.md lint: 0 errors; 5 existing orphan-token warnings (runtime CSS owns tokens).
+- `git diff --check`: pass.
+
+## Live and browser evidence
+
+The user started and restarted the app at http://localhost:7860. Read-only overview
+requests before/after restart returned the same 6 calls and 6 bookings, with no
+extra counts from the demo. The final backend reports 6 duration samples and an
+80,156 ms average. These are observations of existing records, not calls made by
+this verification task.
+
+Brave native-browser checks:
+
+- Demo transcript visibly separates patient-left and Lucía-right messages in both
+  light and dark themes, retaining names, timestamps and corrections support.
+- Running availability transitions to readable slots; directory names resolve in
+  later requests. Nested technical details expand on demand.
+- Live overview renders real totals, statuses, 100% attention rate, 01:20 average,
+  18 tool runs, date cohort copy, and an accessible daily table disclosure.
+- At a 400px responsive viewport, header navigation wraps, headline counts use two
+  columns, the overview owns its scroll, and the Today filter updates URL and dates.
+- The desktop dashboard was also visually checked in dark mode; the four headline
+  counts, chart and status breakdown fit the established console design.
+- Browser console showed no errors during this scoped overview inspection.
 
 ## Static premium audit
 
-Raw results are in `premium-audit.json`. It reports 17 `affordance.actionless-button`
-findings. The auditor recognizes inline onclick/framework directives but does not
-resolve vanilla `addEventListener` bindings in a separate JavaScript module. These
-controls are bound in `public/app.js`, directly by ID or through click delegation.
-No inline event handlers or CSP weakening were added to silence the audit.
-Runtime behavior remains part of the pending browser pass.
+`premium-audit.json` reports 24 actionless-button findings. This auditor recognizes
+inline/framework handlers but not external vanilla `addEventListener` bindings.
+The controls are bound by ID or delegated period/call actions in `public/app.js`
+and `public/overview.js`. No inline handlers or CSP weakening were introduced.
 
-## Browser blocker
+## Remaining verification limits
 
-The user starts environments. Initial startup failed because .env was absent; a
-private blank-credential .env was created, and credentials are now only required
-for provider/clinic use. A sibling checkout's Bun process binds 127.0.0.1:7860
-and intercepts localhost requests, returning 404. This checkout's .env was moved
-to PORT=7861 without touching that sibling. The user was asked to restart their
-Node process. At the last check, localhost:7861 refused connections.
-
-A separate Brave review tab is ready at http://localhost:7861/?demo=1. No browser
-fidelity, responsive behavior, keyboard interactions, accessibility, or real
-provider-call verification is claimed yet.
-
-## Pending after user restart
-
-- Compare the demo to selected option 3 in light and dark themes at the same viewport.
-- Select calls, search/clear, inspect empty/missed calls, expand tool inputs/results.
-- Confirm incoming simulated messages and tool completion preserve reading position.
-- Inspect settings, theme persistence, keyboard focus/Escape and narrow layouts.
-- Verify real provider credentials and call traffic only with user-supplied configuration.
+Native browser control was intermittently interrupted by concurrent user activity
+and stale accessibility snapshots. Exhaustive dashboard keyboard/back-forward,
+refresh/disclosure preservation, offline recovery, full desktop dashboard light/dark comparison and 200% zoom remain unverified in the browser. Model/HTTP tests are
+not substitutes for these interaction checks. No provider calls, clinic writes,
+credential changes, environment startups, push or deployment were performed.

@@ -18,6 +18,7 @@ bun run evaluate <results.json>    Compare a result batch; emits JSON
 bun src/cli.ts trace <trace.json>  Validate inbound Twilio messages
 bun run benchmark                 Local synthetic inference capacity test (starts models)
 bun run benchmark --help          Benchmark details; no startup
+bun run benchmark:asr             Human-recorded ASR comparison (starts recognition only)
 bun run doctor                    Offline archive + contract self-check
 bun run check                     Typecheck and unit tests; no servers
 
@@ -47,6 +48,7 @@ async function main() {
   if (["--help", "-h", "help"].includes(command)) { console.log(help); return; }
   if (command === "serve") { const { runServer } = await import("./telephony/server"); await runServer(process.argv.slice(3)); return; }
   if (command === "benchmark") { const { runBenchmark } = await import("./voice/benchmark"); await runBenchmark(process.argv.slice(3)); return; }
+  if (command === "benchmark-asr") { const { runRecognitionCheck } = await import("./voice/recognition-check"); await runRecognitionCheck(process.argv.slice(3)); return; }
   if (command === "cases") {
     console.log(problems.flatMap(p => p.cases.map(c => `${c.id}\t${c.language}\t${c.summary || c.persona.objectives[0]}`)).join("\n")); return;
   }

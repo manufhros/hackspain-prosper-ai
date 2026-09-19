@@ -35,7 +35,7 @@ export function benchmarkOptions(args: string[]) {
   if (rounds < 1 || rounds > 20) throw new Error("Rounds must be 1–20");
   return { concurrency, rounds };
 }
-export function wordErrorRate(expected: string, actual: string): number {
+export function wordErrorCounts(expected: string, actual: string) {
   const words = (text: string) => text.toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
   const a = words(expected), b = words(actual);
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -44,7 +44,11 @@ export function wordErrorRate(expected: string, actual: string): number {
     for (let j = 1; j <= b.length; j++) next[j] = Math.min(next[j - 1]! + 1, row[j]! + 1, row[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
     row = next;
   }
-  return row[b.length]! / Math.max(1, a.length);
+  return { errors: row[b.length]!, words: a.length };
+}
+export function wordErrorRate(expected: string, actual: string): number {
+  const { errors, words } = wordErrorCounts(expected, actual);
+  return errors / Math.max(1, words);
 }
 export function percentiles(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b);

@@ -14,7 +14,8 @@
     "check": "bun run typecheck && bun test",
     "evaluate": "bun src/cli.ts evaluate",
     "doctor": "bun src/cli.ts doctor",
-    "benchmark": "bun src/cli.ts benchmark"
+    "benchmark": "bun src/cli.ts benchmark",
+    "benchmark:asr": "bun src/cli.ts benchmark-asr"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

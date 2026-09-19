@@ -29,7 +29,7 @@
     "calls:repair": "node --import tsx src/scripts/repair-call-identities.mjs",
     "test:identities": "node --import tsx --test src/scripts/repair-call-identities.test.mjs desk/lib/call-records.test.mjs",
     "calls:import": "node --import tsx src/scripts/import-call-logs.mjs",
-    "test:reporting": "node --import tsx --test desk/lib/reporting.test.mjs desk/lib/call-records.test.mjs src/scripts/import-call-logs.test.mjs src/worker/storage.test.mjs",
+    "test:reporting": "node --import tsx --test desk/lib/reporting.test.mjs desk/lib/call-records.test.mjs desk/lib/orgs.test.mjs src/scripts/import-call-logs.test.mjs src/worker/storage.test.mjs",
     "test:import": "node --import tsx --test src/scripts/import-call-logs.test.mjs"
   },
   "devDependencies": {

@@ -56,25 +56,6 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
         <h3>Comportamiento</h3>
         <span>{state.active ? "Publicado" : "Borrador"}</span>
       </header>
-      <div className={styles.voice}>
-        <label>
-          <span><strong>Voz de recepción</strong><small>Nativa de España · cálida y profesional</small></span>
-          <select value={draft.voiceId} onChange={(event) => update({ voiceId: event.target.value })}>
-            <option value="UOIqAnmS11Reiei1Ytkc">Carolina · español peninsular</option>
-          </select>
-        </label>
-        <label>
-          <span><strong>Velocidad</strong><small>{draft.voiceSpeed.toFixed(2).replace(".", ",")}×</small></span>
-          <input
-            type="range"
-            min="0.8"
-            max="1.1"
-            step="0.01"
-            value={draft.voiceSpeed}
-            onChange={(event) => update({ voiceSpeed: Number(event.target.value) })}
-          />
-        </label>
-      </div>
       <Toggle
         label="Ambiente de recepción"
         copy={`Oficina muy suave · volumen ${Math.round(draft.backgroundVolume * 100)} %`}
@@ -156,47 +137,6 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
           onChange={(event) => update({ frustrationThreshold: Number(event.target.value) })}
         />
       </label>
-      <div className={styles.faq}>
-        <div>
-          <h3>Preguntas frecuentes</h3>
-          <p>Contenido aprobado para toda la red. No se configura por hospital.</p>
-          <button
-            type="button"
-            onClick={() => update({
-              faq: [...draft.faq, { id: crypto.randomUUID(), question: "", answer: "" }],
-            })}
-          >
-            Añadir FAQ
-          </button>
-        </div>
-        {draft.faq.length ? draft.faq.map((item, index) => (
-          <article key={item.id}>
-            <input
-              aria-label="Pregunta"
-              placeholder="¿Cuál es el horario?"
-              value={item.question}
-              onChange={(event) => {
-                const faq = [...draft.faq];
-                faq[index] = { ...item, question: event.target.value };
-                update({ faq });
-              }}
-            />
-            <textarea
-              aria-label="Respuesta"
-              placeholder="Centro abre de lunes a sábado…"
-              value={item.answer}
-              onChange={(event) => {
-                const faq = [...draft.faq];
-                faq[index] = { ...item, answer: event.target.value };
-                update({ faq });
-              }}
-            />
-            <button type="button" onClick={() => update({ faq: draft.faq.filter((entry) => entry.id !== item.id) })}>
-              Eliminar
-            </button>
-          </article>
-        )) : <p className={styles.note}>Todavía no hay preguntas frecuentes publicadas.</p>}
-      </div>
       <div className={styles.actions}>
         <button type="button" disabled={isPending} onClick={() => run(() => saveAgentDraft(draft))}>
           Guardar borrador

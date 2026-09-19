@@ -39,33 +39,8 @@ export type AgentConfigState = {
   versions: AgentConfigVersion[];
 };
 
-export const DEFAULT_FAQ: AgentConfig["faq"] = [
-  {
-    id: "faq-centros",
-    question: "¿Qué centros tenéis?",
-    answer: "La red dispone de Centro, Norte y Sur. El agente consulta la disponibilidad del centro que prefiera el paciente.",
-  },
-  {
-    id: "faq-sabado",
-    question: "¿Qué centro abre los sábados?",
-    answer: "Centro abre los sábados. Norte y Sur permanecen cerrados. Ningún centro abre los domingos.",
-  },
-  {
-    id: "faq-gestiones",
-    question: "¿Qué gestiones puedo hacer por teléfono?",
-    answer: "Puede consultar disponibilidad, reservar, cambiar o cancelar una cita y registrarse como paciente nuevo.",
-  },
-  {
-    id: "faq-seguros",
-    question: "¿Con qué aseguradoras trabajáis?",
-    answer: "Se admiten Sanitas, Adeslas, DKV, ASISA, Mapfre, Caser, Cigna, AXA, Nueva Mutua y pacientes privados.",
-  },
-  {
-    id: "faq-urgencias",
-    question: "¿Qué ocurre si tengo una urgencia médica?",
-    answer: "El agente no ofrece consejo médico. Ante señales de urgencia escala inmediatamente la llamada al equipo humano.",
-  },
-];
+/** Global draft no longer owns FAQ; each hospital keeps its own collection. */
+export const DEFAULT_FAQ: AgentConfig["faq"] = [];
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   voiceId: DEFAULT_VOICE_ID,
@@ -114,7 +89,7 @@ export function normalizeAgentConfig(value: Partial<AgentConfig>): AgentConfig {
       value.frustrationThreshold,
       DEFAULT_AGENT_CONFIG.frustrationThreshold,
     ),
-    faq: Array.isArray(value.faq) && value.faq.length
+    faq: Array.isArray(value.faq)
       ? value.faq
           .slice(0, 40)
           .map((item) => ({
@@ -123,7 +98,7 @@ export function normalizeAgentConfig(value: Partial<AgentConfig>): AgentConfig {
             answer: String(item.answer ?? "").trim().slice(0, 1200),
           }))
           .filter((item) => item.question && item.answer)
-      : DEFAULT_FAQ.map((item) => ({ ...item })),
+      : [],
   };
 }
 

@@ -1,5 +1,5 @@
 import { loginAction } from "@/app/login-action";
-import { ACCOUNTS } from "@/lib/auth";
+import { LOGIN_ACCOUNTS } from "@/lib/auth";
 
 export function LoginForm({ failed, autofocus }: { failed?: boolean; autofocus?: boolean }) {
   return (
@@ -19,12 +19,10 @@ export function LoginForm({ failed, autofocus }: { failed?: boolean; autofocus?:
 
       <div className="login-accounts" aria-label="Cuentas de la demo">
         <span>O entra directamente como</span>
-        {ACCOUNTS.map((account) => (
+        {LOGIN_ACCOUNTS.map((account) => (
           <button key={account.email} type="submit" name="account" value={account.email} className="login-account">
             <strong>{account.label}</strong>
-            <small>
-              {account.note} · {account.email}
-            </small>
+            <small>{account.note}</small>
           </button>
         ))}
       </div>

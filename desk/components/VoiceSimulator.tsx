@@ -191,18 +191,18 @@ function fleetCases(handoffNumber: string): Scenario[] {
 }
 
 export function VoiceSimulator({
-  scenarios,
   endpoint,
   orgSlug = "arenal",
   handoffNumber = "",
 }: {
-  scenarios: Scenario[];
+  scenarios?: Scenario[];
   endpoint: string;
   orgSlug?: string;
   /** Number Twilio dials for the human-handoff test case (VOICE_TEST_PHONE). */
   handoffNumber?: string;
 }) {
-  const [scenarioId, setScenarioId] = useState(scenarios[0]?.id ?? "");
+  const monitorCases = fleetCases(handoffNumber);
+  const [scenarioId, setScenarioId] = useState(monitorCases[0]?.id ?? "");
   const [status, setStatus] = useState<"idle" | "connecting" | "live" | "error">("idle");
   const [talkId, setTalkId] = useState<LineId>("");
   const [lines, setLines] = useState<LineState[]>([]);
@@ -218,7 +218,7 @@ export function VoiceSimulator({
   const [micLive, setMicLive] = useState(false);
   const [helperOnPhone, setHelperOnPhone] = useState(false);
 
-  const selected = scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
+  const selected = monitorCases.find((item) => item.id === scenarioId) ?? monitorCases[0];
   const talkLine = lines.find((line) => line.id === talkId) ?? lines[0];
   const scenario = talkLine?.scenario ?? selected;
   const log = logs[talkId] ?? EMPTY_LOG;
@@ -249,8 +249,8 @@ export function VoiceSimulator({
       exportedAt: new Date().toISOString(),
     };
     download(
-      `exportacion-completa-hash-${new Date().toISOString().slice(0, 10)}.json`,
-      JSON.stringify({ savedCalls: scenarios, liveSession }, null, 2),
+      `monitor-tiempo-real-${new Date().toISOString().slice(0, 10)}.json`,
+      JSON.stringify({ cases: fleetCases(handoffNumber), liveSession }, null, 2),
       "application/json",
     );
   }
@@ -259,8 +259,8 @@ export function VoiceSimulator({
     const quote = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const rows = [
       ["tipo", "id", "fecha", "paciente_o_actor", "centro", "contenido", "resultado", "detalle"],
-      ...scenarios.map((item) => [
-        "llamada_guardada",
+      ...fleetCases(handoffNumber).map((item) => [
+        "caso_monitor",
         item.id,
         item.started,
         item.patient,
@@ -291,7 +291,7 @@ export function VoiceSimulator({
       ]),
     ];
     download(
-      `exportacion-completa-hash-${new Date().toISOString().slice(0, 10)}.csv`,
+      `monitor-tiempo-real-${new Date().toISOString().slice(0, 10)}.csv`,
       rows.map((row) => row.map(quote).join(",")).join("\n"),
       "text/csv;charset=utf-8",
     );
@@ -531,8 +531,7 @@ export function VoiceSimulator({
     <div className={styles.simulator}>
       <header className={styles.intro}>
         <div>
-          <h1>Pruebas de voz · Lucía</h1>
-          <p>El caso habla por el micro. Si pides una persona, te llama Twilio; pulsa una tecla. En el móvil el paciente pide cita y tú solo dices que sí, que se la coges.</p>
+          <h1>Tiempo real</h1>
         </div>
         <div className={styles.introActions}>
           <div>
@@ -541,19 +540,6 @@ export function VoiceSimulator({
           </div>
         </div>
       </header>
-
-      <div className={styles.controls}>
-        <label>
-          <span>Endpoint Twilio /ws</span>
-          <input value={endpoint} readOnly />
-        </label>
-        <label>
-          <span>Caso individual</span>
-          <select value={scenarioId} disabled={status !== "idle"} onChange={(event) => setScenarioId(event.target.value)}>
-            {scenarios.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
-          </select>
-        </label>
-      </div>
 
       {lines.length > 1 ? (
         <div className={styles.fleet}>
@@ -612,17 +598,10 @@ export function VoiceSimulator({
               )}
             </div>
           </section>
-          <section className={styles.summary}>
-            <h2>TL;DR</h2>
-            <code>{scenario?.id.slice(0, 24)}</code>
-            <p>{scenario?.prompt}</p>
-            <span>Esperado: <strong>{scenario?.expected}</strong></span>
-            <small>{scenarios.length} llamadas guardadas disponibles para repetir o exportar.</small>
-          </section>
         </aside>
 
         <section className={styles.conversation}>
-          <header><h2>Conversación</h2><p>{status === "live" ? (helperOnPhone ? "El paciente de prueba pide la cita en el móvil. Tú solo confirmas que se la coges. Aquí salen en dos turnos, no juntos." : (lines.length > 1 ? "El caso habla por TTS. Oyes a Marta. Las otras dos siguen su guion." : "El caso habla por TTS. Oyes a Marta.")) : turns.length ? "Transcripción conservada tras la llamada." : "Contesta para ver la conversación."}</p></header>
+          <header><h2>Conversación</h2><p>{status === "live" ? (helperOnPhone ? "El paciente de prueba pide la cita en el móvil. Tú solo confirmas que se la coges. Aquí salen en dos turnos, no juntos." : (lines.length > 1 ? "El caso habla por TTS. Oyes al agente. Las otras dos siguen su guion." : "El caso habla por TTS. Oyes al agente.")) : turns.length ? "Transcripción conservada tras la llamada." : "Contesta para ver la conversación."}</p></header>
           <div className={styles.transcript} aria-live="polite">
             {timeline.length ? timeline.map((item) => item.kind === "tool" ? (
               <div className={styles.toolLine} key={item.id}>
@@ -639,7 +618,7 @@ export function VoiceSimulator({
                 />
                 <div className={styles.messageContent}>
                   <span>
-                    {item.speaker === "helper" ? "Tú · recepción" : item.speaker === "caller" ? (helperOnPhone ? "Paciente de prueba" : scenario?.patient) : "Marta"}
+                    {item.speaker === "helper" ? "Tú · recepción" : item.speaker === "caller" ? (helperOnPhone ? "Paciente de prueba" : scenario?.patient) : "Agente"}
                     {item.language ? <em>{item.language.toUpperCase()}</em> : null}
                   </span>
                   <p>{item.text}</p>
@@ -661,9 +640,6 @@ export function VoiceSimulator({
           </div>
         </section>
       </div>
-      <footer className={styles.callHint}>
-        Usa auriculares. El micro de la tarjeta seleccionada está abierto. Si te llama Twilio, pulsa una tecla después del anuncio en inglés.
-      </footer>
     </div>
   );
 }

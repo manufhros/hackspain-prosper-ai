@@ -1,0 +1,160 @@
+{
+  "68c4a87b-1d97-4ef6-889b-a43c90348ac2": {
+    "title": "Análisis del log del Run All (pegado el 19/09/2026)",
+    "source": "Log de consola del clon de Lucía (src/platform/client.ts, src/agent/tools.ts); 20 llamadas entrelazadas. El log completo no está guardado, solo estas notas.",
+    "summary": "20 casos: 15 passed, 4 harness_error, 1 failed. Solo b0e8d459 es fallo real. Los 4 harness_error puntúan 0, pero en f020077a, 72518233 y 44881599 el agente también falló.",
+    "findings": [
+      {
+        "title": "date_from pisado por el cliente",
+        "detail": "Enviamos date_from=2026-10-05 y la petición real fue date_from=2026-09-19 con date_to intacto → 422 «date range cannot exceed 14 days». Las consultas de un día devuelven slots desde el 21/09 y el modelo filtra mal y alucina."
+      },
+      {
+        "title": "Filtrado de slots por fecha/tramo",
+        "detail": "Filtrar en código los slots por fecha y franja pedidas antes de dárselos al modelo; si no hay, devolver «no hay ese día; lo más cercano es X»."
+      },
+      {
+        "title": "Especialidad por motivo de consulta",
+        "detail": "Deducirla del motivo/nombre del médico (muñeca + Iglesia → orthopaedics) en vez de usar general_practice por defecto."
+      },
+      {
+        "title": "Silencios (`...`) no son fin de llamada",
+        "detail": "No enviar NO_ACTION hasta confirmación explícita o colgado, sobre todo si la nota del paciente avisa de pausas."
+      },
+      {
+        "title": "Una sola confirmación",
+        "detail": "Tras «yes, book it» enviar submit_book; en 44881599 pidió confirmar dos veces y no llegó a enviar."
+      },
+      {
+        "title": "No prometer SMS",
+        "detail": "d979e744 prometió un SMS de confirmación que no existe."
+      },
+      {
+        "title": "harness_socket_error",
+        "detail": "Aparece en 12 casos aprobados, casi siempre con closed 1006 tras despedirse; parece ruido del harness."
+      },
+      {
+        "title": "Llamadas del log fuera de este run",
+        "detail": "f90ad666, f8ea5b71, baed9571, 4617a9fd y e44e433a no están entre los 20 casos (submissions con known_call=false). f90ad666 es la que muestra el 422."
+      }
+    ],
+    "calls": {
+      "f020077a-3930-5e77-a82f-a6fd91978ba3": {
+        "verdict": "harness_issue+agent",
+        "note": "Quería GP el miércoles a primera hora. Buscó 23/09..23/09 y la respuesta empezaba el 21; concluyó «sin hueco» sin filtrar y envió NO_ACTION no_availability. El paciente dijo «...» (pausa; su nota avisa de que se queda callado mientras mira la agenda) y el agente lo trató como fin de llamada."
+      },
+      "72518233-e9ce-5c34-aa3f-f61e26c67971": {
+        "verdict": "harness_issue+agent",
+        "note": "Muñeca + «Dr. Iglesia» = ortopedia (PR06 Dr. Emilio Iglesia), pero buscó general_practice, ofreció GP e inventó a «Dr. Martín Iglesia» / «Dr. Javier Iglesias». tts_error del harness, pero la búsqueda también falló. Esperable: BOOK con PR06."
+      },
+      "44881599-501d-58f9-812b-74ee97814ab6": {
+        "verdict": "harness_issue+agent",
+        "note": "Ortopedia el jueves 24 a primera hora. Los tool results siempre empezaban el 21/09 (date_from pisado); el agente inventó «no hay ortopedas ese día», «viernes 25 15:30 en Norte» y «martes 29». Pidió confirmar dos veces y no envió submission (wall_clock)."
+      },
+      "c56121da-f983-5845-8bc1-6b5201ea1a7a": {
+        "verdict": "harness_issue",
+        "note": "Hija de ~6 años; Dr. Castellanos (PR11) bloqueado por not_eligible_age → NO_ACTION correcto según la herramienta. Probable caso de harness. Nota: transcribió «20/20/26» como fecha 2026-10-20 y se recuperó con el DNI."
+      },
+      "b0e8d459-9534-56c6-bacf-824392cd1dd7": {
+        "verdict": "failed",
+        "note": "ÚNICO FALLO REAL (agent_issue, record_mismatch): REGISTER Nuria Martín Hernández (70718941J). No aparece en el log pegado; falta revisar."
+      },
+      "710a7624-f9bb-5d82-ab0d-87ade98db1a3": {
+        "verdict": "passed",
+        "note": "REGISTER Natalia Álvarez Blanco, DKV. Correcto."
+      },
+      "d979e744-08fd-505c-b48f-7fa44d190828": {
+        "verdict": "passed",
+        "note": "BOOK PR06 centro 22/09 08:45, póliza privado. Ojo: el agente prometió «recibirá un SMS de confirmación», algo que no puede enviar."
+      },
+      "93a30513-e554-51b2-b919-7c889825f6a0": {
+        "verdict": "passed",
+        "note": "Fisioterapia, Asisa: búsqueda bloqueada por location_not_covered → NO_ACTION. Correcto."
+      },
+      "6228c751-30e2-5650-8793-975c1060f9e7": {
+        "verdict": "passed",
+        "note": "Fisioterapia, Asisa: location_not_covered → NO_ACTION. Explicación al paciente vaga («¿es por CISA?» → «sí, no lo cubre»)."
+      },
+      "eca66691-5144-5c7c-a4ec-16f7ba048551": {
+        "verdict": "passed",
+        "note": "Fisioterapia, Caser: referral_required → NO_ACTION. Correcto."
+      },
+      "82c09989-e804-5ca7-bcb6-c0f865d4c410": {
+        "verdict": "passed",
+        "note": "GP nueva_mutua: Norte no cubierto (location_not_covered); reservó PR03 sur 21/09 09:00 en su lugar. Correcto."
+      }
+    }
+  },
+  "990eef37-f312-42c1-98cf-641ba0144337": {
+    "title": "Análisis del log del Run All 990eef37 (19/09/2026)",
+    "source": "Log de consola del clon de Lucía; 20 llamadas entrelazadas + reintentos. Solo se guardan estas notas, no el log.",
+    "summary": "20 casos: 16 passed, 3 harness_error, 1 failed → 30/32. Mismo total que el run anterior con un aprobado más: aprobó más casos de 2 pts y menos de 3. Los 3 harness_error tienen también fallos del agente.",
+    "findings": [
+      {
+        "title": "Razones NO_ACTION incorrectas",
+        "detail": "El vocabulario es cerrado y la razón debe reflejar la restricción exacta: insurer_referral_required ≠ referral_required, y un médico inexistente es provider_not_found, no no_availability."
+      },
+      {
+        "title": "NO_ACTION prematuro + acciones acumuladas",
+        "detail": "El record guarda todas las acciones enviadas (contract.md). 659f6aa8 envió NO_ACTION y luego BOOK → dos acciones; no enviar NO_ACTION hasta que el paciente rechace la alternativa."
+      },
+      {
+        "title": "Médico inexistente sin avisar",
+        "detail": "«Dra. Quintero» no existe; el agente ofreció otro médico sin decirlo. Avisar y, si el paciente no acepta a otro, NO_ACTION provider_not_found."
+      },
+      {
+        "title": "Reintentos del harness",
+        "detail": "Los mismos pacientes se re-llaman con call_id nuevo: 1b67cf0a→105ba7f8 y 16f91fe5→659f6aa8. Solo cuenta el último intento, así que hay que ser consistente en ambos."
+      },
+      {
+        "title": "REGISTER: campos inventados",
+        "detail": "562da7e9 falló pese a DNI válido; revisar second_surname (no inventarlo si el paciente no lo dice) y confirmar los campos leyéndolos."
+      },
+      {
+        "title": "DNI con letra inválida",
+        "detail": "d80683c9: el agente envió una letra que el paciente no había dicho (422). Pedir el DNI completo y validar la letra antes de enviar."
+      },
+      {
+        "title": "Error transitorio de fetch",
+        "detail": "16f91fe5: search_availability devolvió «fetch failed» una vez; el agente se recuperó reintentando. Conviene reintentar en código."
+      }
+    ],
+    "calls": {
+      "659f6aa8-c4c5-54ea-b183-08c783b0eb79": {
+        "verdict": "harness_issue+agent",
+        "note": "Roberto (16 años): pediatría bloqueada por not_eligible_age. El agente envió NO_ACTION not_eligible_age ANTES de que el padre decidiera y después, al aceptar el GP, hizo BOOK. El record acumula ambas acciones [NO_ACTION, BOOK] y el caso espera solo BOOK. Error del agente. Es reintento de 16f91fe5 (mismo paciente/teléfono), que sí lo hizo bien: solo BOOK."
+      },
+      "105ba7f8-ac8f-5da3-9a5e-6402a2e0b64d": {
+        "verdict": "harness_issue+agent",
+        "note": "David (Cigna), ortopedia: la búsqueda devolvió insurer_referral_required, pero se envió NO_ACTION referral_required. Son razones distintas en el vocabulario cerrado (contract.md §reason); debió ser insurer_referral_required. Es reintento de 1b67cf0a, que cometió el mismo error."
+      },
+      "dccf6ca0-50cf-585d-9ba1-7298aaa04fa4": {
+        "verdict": "harness_issue+agent",
+        "note": "Pidió a la «Dra. Quintero», que no existe en el cuadro médico. El agente nunca lo dijo, ofreció a la Dra. Peral y, al rechazar el paciente, envió NO_ACTION no_availability. Lo esperable es NO_ACTION provider_not_found."
+      },
+      "562da7e9-60ab-558e-90d9-7e4105c60c73": {
+        "verdict": "failed",
+        "note": "ÚNICO FALLO REAL (agent_issue, record_mismatch): REGISTER Sarah Smith Johnson, DNI 95379210G, nac. 1990-05-20, tel 645911489, cigna. El DNI pasó la validación de letra, así que el desajuste está en otro campo; sospecha: second_surname «Johnson» (¿inventado?) o el nombre. El log pegado no incluye el inicio de la llamada: falta ver qué dijo el paciente."
+      },
+      "d80683c9-5d69-5c0e-8329-9276481a3776": {
+        "verdict": "passed",
+        "note": "REGISTER Mercedes Ortega Ramirez. El primer envío falló con 422 (letra de control Z9442399S inválida) y se recuperó pidiendo al paciente que la revisara (Z9442399F). Ojo: la S no la dijo el paciente."
+      },
+      "c964655a-6070-5fa8-9584-5eabc85d48ef": {
+        "verdict": "passed",
+        "note": "Dermatología requiere derivación (referral_required) → NO_ACTION correcto, 3 pts."
+      },
+      "49c33202-427f-5c07-ad4f-30d8ec9a21e3": {
+        "verdict": "passed",
+        "note": "Fisioterapia Asisa: location_not_covered → NO_ACTION, 3 pts."
+      },
+      "29e0ec81-0758-5581-ba11-709a42e5441d": {
+        "verdict": "passed",
+        "note": "GP el jueves 24: agente filtró bien por día, BOOK PR03 sur 09:15 adeslas."
+      },
+      "6ae62a48-6655-597d-9125-4e5b514405f7": {
+        "verdict": "passed",
+        "note": "«Pasado mañana» = domingo 20 → clínica cerrada; ofreció el lunes 21 y reservó."
+      }
+    }
+  }
+}

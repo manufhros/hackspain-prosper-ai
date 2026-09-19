@@ -92,7 +92,9 @@ export function mergeRuntimeConfig(
     ),
     preCallEndpoint: orgConfig.preCallEndpoint ?? "",
     postCallEndpoint: orgConfig.postCallEndpoint ?? "",
-    faq: Array.isArray(config.faq) ? config.faq : [],
+    faq: Array.isArray(orgConfig.faq) && orgConfig.faq.length
+      ? orgConfig.faq
+      : Array.isArray(config.faq) ? config.faq : [],
     metaPrompt: meta || "None.",
     extraInstructions: extra || "None.",
     firstMessage: String(orgConfig.firstMessage ?? config.firstMessage ?? DEFAULT_RUNTIME_CONFIG.firstMessage),

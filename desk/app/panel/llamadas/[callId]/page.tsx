@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { CallRefresh } from "@/components/CallRefresh";
 import { Badge, ButtonLink, Card, Note, OutcomeBadge, PageHeader } from "@/components/ui/primitives";
 import { canOpen, homeFor } from "@/lib/auth";
-import { clinicCall } from "@/lib/call-data";
+import { adminCall, clinicCall } from "@/lib/call-data";
 import { CLINIC, siteOf } from "@/lib/clinic";
 import { num, slotLabel } from "@/lib/format";
 import { reasonLabel, TOOL_LABEL } from "@/lib/labels";
@@ -24,7 +24,10 @@ export default async function CallPage({ params, searchParams }: {
   if (!canOpen(session.role, "/llamadas")) redirect(homeFor(session));
   const { callId } = await params;
   const { turnPage } = await searchParams;
-  const detail = await clinicCall(callId, typeof turnPage === "string" ? Number(turnPage) : 1);
+  const pageNumber = typeof turnPage === "string" ? Number(turnPage) : 1;
+  const detail = session.role === "admin"
+    ? await adminCall(callId, pageNumber)
+    : await clinicCall(callId, pageNumber);
   if (!detail) notFound();
   const directory = await clinicDirectory();
   const { call, transcript, transcriptTotal, page, pages } = detail;

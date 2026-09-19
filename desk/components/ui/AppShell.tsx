@@ -10,7 +10,7 @@ import styles from "./AppShell.module.css";
 
 export type AppShellProps = {
   brandHref: string;
-  workspace: { name: string; meta: string; initials: string; tint: string };
+  workspace?: { name: string; meta: string; initials: string; tint: string };
   groups: NavGroup[];
   user: { email: string; roleLabel: string };
   children: React.ReactNode;
@@ -80,15 +80,17 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
           <strong>turno</strong>
         </Link>
 
-        <div className={styles.workspace}>
-          <span className={styles.wsMark} style={{ background: workspace.tint }}>
-            {workspace.initials}
-          </span>
-          <span className={styles.wsText}>
-            <strong>{workspace.name}</strong>
-            <small>{workspace.meta}</small>
-          </span>
-        </div>
+        {workspace ? (
+          <div className={styles.workspace}>
+            <span className={styles.wsMark} style={{ background: workspace.tint }}>
+              {workspace.initials}
+            </span>
+            <span className={styles.wsText}>
+              <strong>{workspace.name}</strong>
+              <small>{workspace.meta}</small>
+            </span>
+          </div>
+        ) : null}
 
         <nav className={styles.nav} aria-label="Secciones">
           {groups.map((group) => (
@@ -133,7 +135,7 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
       </aside>
 
       <main className={styles.main}>
-        <div className={`${styles.content} ${path === "/panel/operaciones" ? styles.operationsContent : ""}`}>{children}</div>
+        <div className={`${styles.content} ${path === "/panel/operaciones" || path === "/panel/pruebas" ? styles.operationsContent : ""}`}>{children}</div>
       </main>
     </div>
   );

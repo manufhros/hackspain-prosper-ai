@@ -20,3 +20,10 @@ export async function readStoredCalls(db: CallDatabase, org: string, range?: { f
     .all<{ call_id: string; started_at: string; summary: string | null; simulator: number }>();
   return result.results.map(callFromRow);
 }
+
+export async function listStoredOrgSlugs(db: CallDatabase): Promise<string[]> {
+  const result = await db.prepare("SELECT DISTINCT org_slug FROM voice_calls ORDER BY org_slug")
+    .bind()
+    .all<{ org_slug: string }>();
+  return result.results.map((row) => row.org_slug);
+}

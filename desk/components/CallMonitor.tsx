@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useRef } from "react";
-import { ChevronLeft, ChevronRight, Clock, Download, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, Download, Radio, Search, X } from "lucide-react";
 import { ORIGIN_LABEL } from "@/lib/reporting";
 import { siteOf, type Site } from "@/lib/clinic";
 import { num, pct, timeOf } from "@/lib/format";
 import { reasonLabel } from "@/lib/labels";
 import type { LoggedCall } from "@/lib/types";
-import { Badge, Button, Card, type Crumb, Note, OutcomeBadge, PageHeader, StatCard, StatGrid, outcomeMeta } from "./ui/primitives";
+import { Badge, Button, ButtonLink, Card, type Crumb, Note, OutcomeBadge, PageHeader, StatCard, StatGrid, outcomeMeta } from "./ui/primitives";
 import ui from "./ui/ui.module.css";
 import styles from "./CallMonitor.module.css";
 import { CallRefresh } from "./CallRefresh";
@@ -45,6 +45,7 @@ export function CallMonitor({
   crumbs,
   refreshMs = 8_000,
   sites = [],
+  liveHref,
 }: {
   calls: LoggedCall[];
   sites?: Site[];
@@ -52,6 +53,7 @@ export function CallMonitor({
   description?: string;
   crumbs?: Crumb[];
   refreshMs?: number;
+  liveHref?: string;
 }) {
   const { tab, setTab, query, setQuery, page, setPage } = useCallListState();
   const searchInput = useRef<HTMLInputElement>(null);
@@ -123,8 +125,13 @@ export function CallMonitor({
         actions={
           <>
             <Badge tone="success" dot>
-              Actualización · {refreshMs / 1000} s
+              Live
             </Badge>
+            {liveHref ? (
+              <ButtonLink href={liveHref} variant="secondary" size="sm" icon={Radio}>
+                Ver en tiempo real
+              </ButtonLink>
+            ) : null}
             <Button variant="secondary" size="sm" icon={Download} onClick={exportJson}>
               JSON
             </Button>

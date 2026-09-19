@@ -23,8 +23,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
             en una pantalla.
           </h1>
           <p className={styles.lead}>
-            Llamadas, citas y escalados de Clínica Arenal en directo. Un panel para el centro, otro para quien opera el agente y un
-            entorno para probarlo por voz.
+            Llamadas, citas y escalados en directo. Un panel para el centro y otro para quien opera el agente.
           </p>
           <div className={styles.preview} aria-hidden="true">
             <div>
@@ -53,7 +52,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
         <section className={styles.loginCard}>
           <div className={styles.lock}>Acceso seguro</div>
           <h2>Entrar</h2>
-          <p>Escribe tu correo o elige una de las tres cuentas de la demo.</p>
+          <p>Escribe tu correo o entra como clínica o como operador.</p>
           <LoginForm failed={query.e === "1"} autofocus />
         </section>
       </main>

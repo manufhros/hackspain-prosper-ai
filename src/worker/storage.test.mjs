@@ -25,7 +25,7 @@ function database() {
   return { sqlite, db };
 }
 
-test("Workers share global FAQ and behavior while isolating hospital endpoints", async () => {
+test("Workers use hospital FAQ and isolate endpoints while sharing behavior", async () => {
   const { sqlite, db } = database();
   try {
     const insert = sqlite.prepare("INSERT INTO desk_settings (key, value) VALUES (?, ?)");
@@ -38,10 +38,11 @@ test("Workers share global FAQ and behavior while isolating hospital endpoints",
     assert.equal(arenal.frustrationThreshold, 80);
     assert.equal(arenal.preCallEndpoint, "https://arenal.example/context");
     assert.equal(arenal.faq.length, 1);
+    assert.equal(arenal.faq[0].question, "When?");
     assert.equal(sanitas.frustrationThreshold, 80);
     assert.equal(sanitas.preCallEndpoint, "");
     assert.deepEqual(sanitas.faq, [{ question: "Global?", answer: "Yes" }]);
-    assert.deepEqual(arenal.faq, sanitas.faq);
+    assert.notDeepEqual(arenal.faq, sanitas.faq);
   } finally { sqlite.close(); }
 });
 

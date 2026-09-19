@@ -1,5 +1,5 @@
 /**
- * Two fixed accounts, no passwords: this is a demo panel behind a cookie.
+ * Three fixed accounts, no passwords: this is a demo panel behind a cookie.
  * The role decides which sections of /panel are reachable.
  */
 export type Role = "admin" | "clinic" | "tester";
@@ -10,21 +10,24 @@ export type Account = { email: string; role: Role; label: string; note: string }
 
 export const ACCOUNTS: Account[] = [
   { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen y llamadas del centro" },
-  { email: "admin@turno.app", role: "admin", label: "Admin", note: "Agente, llamadas y pruebas" },
+  { email: "admin@turno.app", role: "admin", label: "Admin", note: "Hospitales, llamadas y agente" },
+  { email: "voz@turno.app", role: "tester", label: "Tiempo real", note: "Monitor de llamadas en curso" },
 ];
+
+export const LOGIN_ACCOUNTS = ACCOUNTS.filter((account) => account.role !== "tester");
 
 export const COOKIE = "admision";
 
 export const ROLE_LABEL: Record<Role, string> = {
   admin: "Admin",
   clinic: "Admisión",
-  tester: "Pruebas de voz",
+  tester: "Tiempo real",
 };
 
 /** Sections under /panel each role may open ("" is the overview). */
 const SECTIONS: Record<Role, string[]> = {
   admin: ["", "/llamadas", "/agente", "/pruebas", "/operaciones"],
-  clinic: ["", "/llamadas"],
+  clinic: ["", "/llamadas", "/pruebas"],
   tester: ["/pruebas", "/llamadas", "/operaciones"],
 };
 
@@ -66,7 +69,7 @@ export function sessionFromCookie(raw: string): Session | undefined {
 }
 
 export function homeFor(session: Session): string {
-  return session.role === "tester" ? "/panel/pruebas" : "/panel";
+  return session.role === "tester" ? "/panel/llamadas" : "/panel";
 }
 
 /** `section` is the first segment under /panel, e.g. "" or "/llamadas". */

@@ -1,21 +1,24 @@
 "use client";
 
 import { checkOrgEndpoints, saveOrgIntegrationConfig } from "@/app/panel/agente/actions";
+import type { FaqSuggestion } from "@/lib/faq-suggestion";
 import type { OrgAgentConfig } from "@/lib/org-agent-config";
-import { voiceNameFor } from "@/lib/voices";
 import { Button } from "@/components/ui/primitives";
 import { useState, useTransition } from "react";
 import styles from "./DeveloperPortal.module.css";
 
 export function DeveloperPortal({
   initialConfig,
+  suggestion = null,
 }: {
   initialConfig: OrgAgentConfig;
+  suggestion?: FaqSuggestion | null;
 }) {
   const [config, setConfig] = useState(initialConfig);
   const [notice, setNotice] = useState<string | null>(null);
   const [editingEndpoint, setEditingEndpoint] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
 
   function patch(next: Partial<OrgAgentConfig>) {
     setConfig((current) => ({ ...current, ...next }));
@@ -30,80 +33,29 @@ export function DeveloperPortal({
     });
   }
 
+  function addSuggestion() {
+    if (!suggestion) return;
+    patch({
+      faq: [
+        ...config.faq,
+        { id: crypto.randomUUID(), question: suggestion.question, answer: "" },
+      ],
+    });
+    setDismissedSuggestion(true);
+  }
+
   const endpoints = [
     ["preCallEndpoint", "Contexto previo", "Paciente, póliza y contexto antes de contestar", "preCall"],
     ["actionEndpoint", "Acciones clínicas", "Agenda, CRM o middleware propio", "actions"],
     ["postCallEndpoint", "Postllamada", "Resultado, resumen y trazabilidad", "postCall"],
   ] as const;
+  const visibleSuggestion = suggestion && !dismissedSuggestion
+    && !config.faq.some((item) => item.question === suggestion.question)
+    ? suggestion
+    : null;
 
   return (
     <div className={styles.portal}>
-      <section className={styles.character}>
-        <header>
-          <div>
-            <p>ElevenLabs</p>
-            <h2>Tono y carácter</h2>
-          </div>
-        </header>
-        <div className={styles.characterBody}>
-          <label>
-            <span>
-              <strong>Meta prompt</strong>
-              <small>Acento, registro y muletillas. Se aplica en cada turno. El timbre lo marca la voz TTS.</small>
-            </span>
-            <textarea
-              rows={5}
-              placeholder={'Ej. Eres de Sevilla, más andaluza que el salmorejo. Cada vez que pidas un dato di "mi arma".'}
-              value={config.metaPrompt ?? ""}
-              onChange={(event) => patch({ metaPrompt: event.target.value })}
-            />
-          </label>
-          <label>
-            <span>
-              <strong>Saludo</strong>
-              <small>Primera frase al descolgar.</small>
-            </span>
-            <input
-              value={config.firstMessage ?? ""}
-              onChange={(event) => patch({ firstMessage: event.target.value })}
-            />
-          </label>
-          <div className={styles.characterRow}>
-            <label>
-              <span>
-                <strong>Voz publicada</strong>
-                <small>El timbre se cambia arriba, en Comportamiento, y hay que Publicar.</small>
-              </span>
-              <input readOnly value={voiceNameFor(config.voiceId)} />
-            </label>
-            <label>
-              <span>
-                <strong>Idioma</strong>
-                <small>ASR y TTS por defecto.</small>
-              </span>
-              <select value={config.language} onChange={(event) => patch({ language: event.target.value })}>
-                <option value="es">Español</option>
-                <option value="en">English</option>
-                <option value="ca">Català</option>
-                <option value="gl">Galego</option>
-                <option value="eu">Euskera</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            <span>
-              <strong>Reglas de este hospital</strong>
-              <small>Política local. No sustituye las reglas clínicas de seguridad.</small>
-            </span>
-            <textarea
-              rows={4}
-              placeholder="Ej. Si no dicen sede, ofrecer primero Pozuelo."
-              value={config.extraInstructions ?? ""}
-              onChange={(event) => patch({ extraInstructions: event.target.value })}
-            />
-          </label>
-        </div>
-      </section>
       <section className={styles.endpoints}>
         <header>
           <div>
@@ -157,8 +109,125 @@ export function DeveloperPortal({
           );
         })}
       </section>
+
+      <section className={styles.character}>
+        <header>
+          <div>
+            <p>Hospital</p>
+            <h2>Prompt y reglas</h2>
+          </div>
+        </header>
+        <div className={styles.characterBody}>
+          <label>
+            <span>
+              <strong>Meta prompt</strong>
+              <small>Acento, registro y muletillas. Se aplica en cada turno.</small>
+            </span>
+            <textarea
+              rows={5}
+              value={config.metaPrompt ?? ""}
+              onChange={(event) => patch({ metaPrompt: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>
+              <strong>Saludo</strong>
+              <small>Primera frase al descolgar.</small>
+            </span>
+            <input
+              value={config.firstMessage ?? ""}
+              onChange={(event) => patch({ firstMessage: event.target.value })}
+            />
+          </label>
+          <label>
+            <span>
+              <strong>Reglas de este hospital</strong>
+              <small>Política local. No sustituye las reglas clínicas de seguridad.</small>
+            </span>
+            <textarea
+              rows={4}
+              value={config.extraInstructions ?? ""}
+              onChange={(event) => patch({ extraInstructions: event.target.value })}
+            />
+          </label>
+        </div>
+      </section>
+
+      <section>
+        <div className={styles.faqHead}>
+          <div>
+            <p>Conocimiento</p>
+            <h2>FAQ del hospital</h2>
+            <p>Una sola colección para este hospital. El runtime usa estas respuestas.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => patch({
+              faq: [...config.faq, { id: crypto.randomUUID(), question: "", answer: "" }],
+            })}
+          >
+            Añadir FAQ
+          </button>
+        </div>
+        <div className={styles.suggestions}>
+          <div className={styles.suggestionHead}>
+            <strong>Sugerencia desde llamadas</strong>
+            <small>{visibleSuggestion ? visibleSuggestion.evidence : "Un motivo frecuente de las conversaciones, si no está ya en la FAQ."}</small>
+          </div>
+          {visibleSuggestion ? (
+            <article>
+              <div>
+                <span>{visibleSuggestion.count} veces</span>
+                <strong>{visibleSuggestion.question}</strong>
+                <small>Motivo frecuente no cubierto por las FAQ actuales.</small>
+              </div>
+              <nav>
+                <button type="button" onClick={addSuggestion}>Añadir</button>
+                <button type="button" onClick={() => setDismissedSuggestion(true)}>Descartar</button>
+              </nav>
+            </article>
+          ) : (
+            <article>
+              <div>
+                <strong>Sin sugerencia todavía</strong>
+                <small>Hace falta el mismo tipo de pregunta al menos dos veces, y que no esté ya respondida arriba.</small>
+              </div>
+            </article>
+          )}
+        </div>
+        <div className={styles.faqList}>
+          {config.faq.length ? config.faq.map((item, index) => (
+            <article key={item.id}>
+              <input
+                aria-label="Pregunta"
+                placeholder="¿Cuál es el horario?"
+                value={item.question}
+                onChange={(event) => {
+                  const faq = [...config.faq];
+                  faq[index] = { ...item, question: event.target.value };
+                  patch({ faq });
+                }}
+              />
+              <textarea
+                aria-label="Respuesta"
+                placeholder="Respuesta aprobada…"
+                value={item.answer}
+                onChange={(event) => {
+                  const faq = [...config.faq];
+                  faq[index] = { ...item, answer: event.target.value };
+                  patch({ faq });
+                }}
+              />
+              <button type="button" onClick={() => patch({ faq: config.faq.filter((entry) => entry.id !== item.id) })}>
+                Eliminar
+              </button>
+            </article>
+          )) : <p className={styles.empty}>Todavía no hay preguntas frecuentes en este hospital.</p>}
+        </div>
+      </section>
+
       <footer>
-        <span>{notice ?? "Los cambios de tono valen para las próximas llamadas de este grupo."}</span>
+        <span>{notice ?? "Los cambios de este hospital valen para las próximas llamadas del grupo."}</span>
         <Button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>
           {pending ? "Guardando…" : "Guardar"}
         </Button>

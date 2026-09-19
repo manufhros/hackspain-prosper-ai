@@ -1,4 +1,4 @@
-import { ArrowRight, Calendar } from "lucide-react";
+import { ArrowRight, Calendar, Radio } from "lucide-react";
 import { AgentFleet } from "@/components/AgentFleet";
 import { DataTable } from "@/components/ui/DataTable";
 import {
@@ -21,6 +21,8 @@ import { num, pct, todayLabel } from "@/lib/format";
 import { byConsultation, byOutcome, filterSite, lineMinutes } from "@/lib/metrics";
 import { callCounts, ORIGIN_LABEL, type OriginFilter } from "@/lib/reporting";
 import type { ClinicDirectory } from "@/lib/clinic-catalog";
+import type { Organisation } from "@/lib/orgs";
+import { ORGANISATIONS } from "@/lib/orgs";
 import type { LoggedCall } from "@/lib/types";
 
 const TONE_COLOR: Record<string, string> = {
@@ -32,10 +34,36 @@ const TONE_COLOR: Record<string, string> = {
   neutral: "var(--faint)",
 };
 
-export function Overview({ calls: allCalls, role, directory, origin, now }: {
-  calls: LoggedCall[]; role: Role; directory: ClinicDirectory; origin: OriginFilter; now: Date;
+function originHref(origin: OriginFilter, org?: string | null) {
+  const params = new URLSearchParams({ origin });
+  if (org) params.set("org", org);
+  return `/panel?${params.toString()}`;
+}
+
+export function Overview({
+  calls: allCalls,
+  role,
+  directory,
+  origin,
+  now,
+  organisations,
+  selectedOrg = null,
+}: {
+  calls: LoggedCall[];
+  role: Role;
+  directory: ClinicDirectory;
+  origin: OriginFilter;
+  now: Date;
+  organisations?: Array<{ organisation: Organisation; calls: LoggedCall[] }>;
+  selectedOrg?: string | null;
 }) {
-  const calls = origin === "all" ? allCalls : allCalls.filter(call => (call.origin ?? "unknown") === origin);
+  if (role === "admin" && organisations) {
+    return (
+      <OrganisationOverview organisations={organisations} origin={origin} now={now} />
+    );
+  }
+
+  const calls = origin === "all" ? allCalls : allCalls.filter((call) => (call.origin ?? "unknown") === origin);
   const p = callCounts(calls);
   const minutes = lineMinutes(calls);
 
@@ -47,13 +75,19 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
     .slice(0, 6)
     .map((item) => ({ label: item.name, value: item.count, pct: `${pct(item.count, p.calls)} %` }));
 
-  const siteRows = [...new Set(calls.map(call => call.site || null))]
+  const siteRows = [...new Set(calls.map((call) => call.site || null))]
     .map((id) => {
       const site = siteOf(id, directory.sites);
       const siteCalls = filterSite(calls, id);
       const metrics = callCounts(siteCalls);
-      return { site, calls: siteCalls.length, citas: metrics.citas, esc: metrics.esc,
-        minutes: metrics.measured ? lineMinutes(siteCalls) : null, measured: metrics.measured };
+      return {
+        site,
+        calls: siteCalls.length,
+        citas: metrics.citas,
+        esc: metrics.esc,
+        minutes: metrics.measured ? lineMinutes(siteCalls) : null,
+        measured: metrics.measured,
+      };
     })
     .filter((row) => row.calls > 0)
     .sort((a, b) => b.calls - a.calls);
@@ -62,6 +96,7 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
   return (
     <>
       <PageHeader
+        crumbs={role === "admin" ? [{ label: "Resumen", href: "/panel" }, { label: directory.name }] : undefined}
         eyebrow="Resumen de hoy"
         title={directory.name}
         description="Llamadas iniciadas hoy, de 00:00 a 24:00 en Madrid. Se actualiza automáticamente."
@@ -71,21 +106,54 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
               <Calendar size={12} aria-hidden="true" />
               Hoy · {todayLabel(now)}
             </Badge>
-            <ButtonLink href="/panel/llamadas" variant="secondary" size="sm" icon={ArrowRight}>
+            <ButtonLink
+              href={selectedOrg ? `/panel/llamadas?org=${selectedOrg}` : "/panel/llamadas"}
+              variant="secondary"
+              size="sm"
+              icon={ArrowRight}
+            >
               Ver llamadas
             </ButtonLink>
+            {role === "clinic" || role === "admin" ? (
+              <ButtonLink href="/panel/pruebas" variant="secondary" size="sm" icon={Radio}>
+                Ver en tiempo real
+              </ButtonLink>
+            ) : null}
           </>
         }
       />
 
+      {role === "admin" ? (
+        <nav aria-label="Hospital" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {ORGANISATIONS.map((organisation) => (
+            <ButtonLink
+              key={organisation.slug}
+              href={originHref(origin, organisation.slug)}
+              current={selectedOrg === organisation.slug}
+              size="sm"
+              variant={selectedOrg === organisation.slug ? "primary" : "secondary"}
+            >
+              {organisation.name}
+            </ButtonLink>
+          ))}
+        </nav>
+      ) : null}
+
       <nav aria-label="Origen de las llamadas" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {(Object.keys(ORIGIN_LABEL) as OriginFilter[]).map(key => (
-          <ButtonLink key={key} href={`/panel?origin=${key}`} current={origin === key} size="sm" variant={origin === key ? "primary" : "secondary"}>
-            {ORIGIN_LABEL[key]} · {num(key === "all" ? allCalls.length : allCalls.filter(call => (call.origin ?? "unknown") === key).length)}
+        {(Object.keys(ORIGIN_LABEL) as OriginFilter[]).map((key) => (
+          <ButtonLink
+            key={key}
+            href={originHref(key, selectedOrg)}
+            current={origin === key}
+            size="sm"
+            variant={origin === key ? "primary" : "secondary"}
+          >
+            {ORIGIN_LABEL[key]} · {num(key === "all" ? allCalls.length : allCalls.filter((call) => (call.origin ?? "unknown") === key).length)}
           </ButtonLink>
         ))}
       </nav>
-      <Note>{origin === "all" ? "Este resumen incluye telefonía, pruebas y llamadas sin origen registrado." : `Origen seleccionado: ${ORIGIN_LABEL[origin]}.`}
+      <Note>
+        {origin === "all" ? "Este resumen incluye telefonía, pruebas y llamadas sin origen registrado." : `Origen seleccionado: ${ORIGIN_LABEL[origin]}.`}
         {" "}Los registros antiguos sin origen no se consideran telefonía confirmada.
       </Note>
       {!directory.available ? <Note>No se pudo consultar el directorio de centros. Las sedes se muestran por su identificador.</Note> : null}
@@ -175,8 +243,8 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
       <Grid2>
         <Card title="Actividad registrada" description="Resultados y mediciones del periodo seleccionado">
           <KeyValues items={[
-            ["Citas canceladas", num(calls.filter(call => call.outcome === "cancelacion").length)],
-            ["Citas modificadas", num(calls.filter(call => call.outcome === "cambio").length)],
+            ["Citas canceladas", num(calls.filter((call) => call.outcome === "cancelacion").length)],
+            ["Citas modificadas", num(calls.filter((call) => call.outcome === "cambio").length)],
             ["Pendientes de resultado final", num(p.active)],
             ["Llamadas sin cierre registrado", num(p.unresolved)],
           ]} />
@@ -184,13 +252,111 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
         <Card title="Cobertura de los datos" description="Lo que consta en el registro de estas llamadas">
           <KeyValues items={[
             ["Con duración medida", `${p.measured} / ${p.calls}`],
-            ["Con motivo clasificado", `${calls.filter(call => call.intent).length} / ${p.calls}`],
-            ["Con sede registrada", `${calls.filter(call => call.site).length} / ${p.calls}`],
-            ["Con origen registrado", `${calls.filter(call => call.origin && call.origin !== "unknown").length} / ${p.calls}`],
+            ["Con motivo clasificado", `${calls.filter((call) => call.intent).length} / ${p.calls}`],
+            ["Con sede registrada", `${calls.filter((call) => call.site).length} / ${p.calls}`],
+            ["Con origen registrado", `${calls.filter((call) => call.origin && call.origin !== "unknown").length} / ${p.calls}`],
           ]} />
           <Note>Ingresos, costes y ahorro no disponibles: no hay precios, facturación ni una base histórica de personal y llamadas perdidas conectados.</Note>
         </Card>
       </Grid2>
+    </>
+  );
+}
+
+function OrganisationOverview({
+  organisations,
+  origin,
+  now,
+}: {
+  organisations: Array<{ organisation: Organisation; calls: LoggedCall[] }>;
+  origin: OriginFilter;
+  now: Date;
+}) {
+  const rows = organisations.map(({ organisation, calls: allCalls }) => {
+    const calls = origin === "all" ? allCalls : allCalls.filter((call) => (call.origin ?? "unknown") === origin);
+    return { organisation, calls, metrics: callCounts(calls) };
+  });
+  const total = callCounts(rows.flatMap((row) => row.calls));
+
+  return (
+    <>
+      <PageHeader
+        eyebrow="Resumen de hoy"
+        title="Resumen"
+        description="Llamadas de hoy. Elige un hospital para ver el desglose por sedes."
+        actions={
+          <>
+            <Badge tone="neutral">
+              <Calendar size={12} aria-hidden="true" />
+              Hoy · {todayLabel(now)}
+            </Badge>
+            <ButtonLink href="/panel/pruebas" variant="secondary" size="sm" icon={Radio}>
+              Ver en tiempo real
+            </ButtonLink>
+          </>
+        }
+      />
+
+      <nav aria-label="Origen de las llamadas" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {(Object.keys(ORIGIN_LABEL) as OriginFilter[]).map((key) => (
+          <ButtonLink
+            key={key}
+            href={originHref(key)}
+            current={origin === key}
+            size="sm"
+            variant={origin === key ? "primary" : "secondary"}
+          >
+            {ORIGIN_LABEL[key]}
+          </ButtonLink>
+        ))}
+      </nav>
+      <Note>
+        {origin === "all" ? "Este resumen incluye telefonía, pruebas y llamadas sin origen registrado." : `Origen seleccionado: ${ORIGIN_LABEL[origin]}.`}
+      </Note>
+
+      <StatGrid>
+        <StatCard label="Hospitales" value={num(rows.length)} icon="dashboard" hint="con actividad o dados de alta" />
+        <StatCard label="Llamadas registradas" value={num(total.calls)} icon="phone" hint={ORIGIN_LABEL[origin]} />
+        <StatCard label="Citas reservadas" value={num(total.citas)} icon="dashboard" hint={`${pct(total.citas, total.calls)} %`} />
+        <StatCard label="Escalados" value={num(total.esc)} icon="phone" hint={`${pct(total.esc, total.calls)} %`} />
+      </StatGrid>
+
+      <Card
+        flush
+        title="Hospitales"
+        description="Selecciona un hospital para ver centros, resultados y motivos."
+        actions={<Badge tone="neutral">{num(rows.length)} organizaciones</Badge>}
+      >
+        <DataTable
+          unit="hospitales"
+          columns={[
+            { key: "hospital", header: "Hospital", width: "40%" },
+            { key: "llamadas", header: "Llamadas", align: "right" },
+            { key: "citas", header: "Citas", align: "right" },
+            { key: "esc", header: "A persona", align: "right" },
+            { key: "abrir", header: "", align: "right" },
+          ]}
+          rows={rows.map(({ organisation, metrics }) => ({
+            id: organisation.slug,
+            cells: [
+              <Entity
+                key="e"
+                name={organisation.name}
+                meta={organisation.sites.length ? `${organisation.sites.length} centros` : "Sin sedes en directorio"}
+                initials={organisation.initials}
+                tint={organisation.tint}
+                square
+              />,
+              num(metrics.calls),
+              num(metrics.citas),
+              num(metrics.esc),
+              <ButtonLink key="open" href={originHref(origin, organisation.slug)} size="sm" variant="secondary" icon={ArrowRight}>
+                Ver sedes
+              </ButtonLink>,
+            ],
+          }))}
+        />
+      </Card>
     </>
   );
 }

@@ -18,7 +18,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
         <section className={styles.loginCard}>
           <div className={styles.lock}>Acceso seguro</div>
           <h2>Entrar</h2>
-          <p>Escribe tu correo o elige una de las cuentas de la demo.</p>
+          <p>Escribe tu correo o entra como clínica o como admin.</p>
           <LoginForm failed={query.e === "1"} autofocus />
         </section>
       </main>

@@ -1,7 +1,7 @@
 "use server";
 
 import { checkEndpointHealth, safeEndpoint } from "@/lib/endpoint-health";
-import { CLINIC } from "@/lib/clinic";
+import { isKnownOrganisation } from "@/lib/orgs";
 import { getSession } from "@/lib/session";
 import {
   readOrgAgentConfig,
@@ -11,7 +11,7 @@ import {
 
 async function requireAdmin(orgSlug: string) {
   const session = await getSession();
-  if (session?.role !== "admin" || orgSlug !== CLINIC.slug) {
+  if (session?.role !== "admin" || !isKnownOrganisation(orgSlug)) {
     throw new Error("No autorizado.");
   }
   return session;

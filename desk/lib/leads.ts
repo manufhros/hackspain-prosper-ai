@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { appendEvent, usesCloudflareStorage } from "./cloudflare-storage";
 
 export type Lead = {
   name: string;
@@ -36,6 +37,7 @@ export function leadFromForm(form: FormData): Lead | undefined {
 }
 
 export async function saveLead(lead: Lead) {
+  if (usesCloudflareStorage()) return appendEvent("lead", lead);
   await mkdir(path.dirname(FILE), { recursive: true });
   let list: Lead[] = [];
   try {

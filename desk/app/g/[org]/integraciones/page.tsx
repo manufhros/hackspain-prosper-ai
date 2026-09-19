@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 import { checkOrgEndpoints } from "./actions";
 import { getOrg } from "@/lib/orgs";
-import { callsFor } from "@/lib/metrics";
+import { callsForOrg } from "@/lib/call-data";
 import { suggestFaqs } from "@/lib/faq-suggestions";
 
 export default async function Integraciones({ params }: { params: Promise<{ org: string }> }) {
@@ -19,7 +19,7 @@ export default async function Integraciones({ params }: { params: Promise<{ org:
     // Keep the last known health state if Prosper is temporarily unreachable.
   }
   const orgData = getOrg(org);
-  const suggestions = suggestFaqs(orgData ? callsFor(orgData) : []);
+  const suggestions = suggestFaqs(orgData ? await callsForOrg(orgData) : []);
   return (
     <div className={styles.page}>
       <header><p>Portal técnico</p><h1>Conecta vuestro hospital</h1><span>Endpoints, salud y contenido que el agente puede utilizar.</span></header>

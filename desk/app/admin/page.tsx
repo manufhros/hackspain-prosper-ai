@@ -6,7 +6,8 @@ import { ROLE_LABEL, mailboxExamples, orgDomain } from "@/lib/auth";
 import { euro, num } from "@/lib/format";
 import { HOSPITALS } from "@/lib/hospitals";
 import { ORGS, getOrg } from "@/lib/orgs";
-import { callsFor, filterSite, lineMinutes } from "@/lib/metrics";
+import { filterSite, lineMinutes } from "@/lib/metrics";
+import { callsForOrg } from "@/lib/call-data";
 import { pitch, SALES } from "@/lib/sales";
 import { getSession } from "@/lib/session";
 import { readAgentConfigState } from "@/lib/agent-config";
@@ -23,10 +24,10 @@ export default async function Admin() {
   const session = await getSession();
   if (session?.kind !== "hash") redirect("/");
   const agentConfig = await readAgentConfigState();
-  const groups = ORGS.map((org) => {
-    const calls = callsFor(org);
+  const groups = await Promise.all(ORGS.map(async (org) => {
+    const calls = await callsForOrg(org);
     return { org, calls, metrics: pitch(calls) };
-  });
+  }));
   const totalCalls = groups.reduce((sum, group) => sum + group.calls.length, 0);
   const totalCitas = groups.reduce((sum, group) => sum + group.metrics.citas, 0);
   const agentCost = groups.reduce(
@@ -106,7 +107,7 @@ export default async function Admin() {
             <div className={styles.tableHead}><span>Centro</span><span>Origen</span><span>Llamadas</span><span>Citas</span><span>Coste anual</span></div>
             {HOSPITALS.map((hospital) => {
               const org = getOrg(hospital.orgSlug);
-              const calls = org ? filterSite(callsFor(org), hospital.siteId) : [];
+              const calls = filterSite(groups.find((group) => group.org.slug === hospital.orgSlug)?.calls ?? [], hospital.siteId);
               const metrics = pitch(calls);
               const cost = lineMinutes(calls) * SALES.agentMinute * SALES.days;
               return (

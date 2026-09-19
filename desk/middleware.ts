@@ -19,10 +19,12 @@ export function middleware(req: NextRequest) {
   }
 
   if (pathname.startsWith("/api/logout")) return NextResponse.next();
+  // Provider webhooks authenticate with their signature, not a browser cookie.
+  if (pathname === "/api/integrations/elevenlabs/post-call") return NextResponse.next();
 
   if (!session) return NextResponse.redirect(originUrl(req, "/"));
 
-  if (pathname.startsWith("/api/agent-status")) {
+  if (pathname.startsWith("/api/agent-status") || pathname === "/api/agent-trace") {
     if (session.kind !== "hash") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     return NextResponse.next();
   }

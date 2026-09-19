@@ -1,6 +1,6 @@
 "use server";
 
-import { lookup } from "node:dns/promises";
+import { resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
 import { getSession } from "@/lib/session";
 import {
@@ -39,8 +39,12 @@ async function safeEndpoint(raw: string): Promise<URL | null> {
   if (url.protocol !== "https:" || url.username || url.password) {
     throw new Error("Los endpoints deben usar HTTPS y no incluir credenciales.");
   }
-  const addresses = await lookup(url.hostname, { all: true });
-  if (!addresses.length || addresses.some((item) => privateAddress(item.address))) {
+  const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  const results = isIP(hostname) ? [] : await Promise.allSettled([resolve4(hostname), resolve6(hostname)]);
+  const addresses = isIP(hostname) ? [hostname] : results.flatMap((result) =>
+    result.status === "fulfilled" ? result.value : [],
+  );
+  if (!addresses.length || addresses.some(privateAddress)) {
     throw new Error("El endpoint resuelve a una red privada o no permitida.");
   }
   return url;

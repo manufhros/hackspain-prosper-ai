@@ -1,5 +1,6 @@
 import { getHospital } from "./hospitals";
-import { callsFor, filterSite } from "./metrics";
+import { filterSite } from "./metrics";
+import { callsForOrg } from "./call-data";
 import { getOrg } from "./orgs";
 import { notFound } from "next/navigation";
 
@@ -11,6 +12,6 @@ export async function hospitalScope(hid: string) {
   return {
     hospital,
     org,
-    calls: filterSite(callsFor(org), hospital.siteId),
+    calls: filterSite(await callsForOrg(org), hospital.siteId),
   };
 }

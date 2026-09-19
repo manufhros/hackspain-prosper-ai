@@ -8,6 +8,6 @@ export const dynamic = "force-dynamic";
 export default async function Monitorizacion({ params }: { params: Promise<{ org: string }> }) {
   const { org: slug } = await params;
   const { org } = await orgScope(slug);
-  const calls = org.source === "llamadas" ? await readLiveCalls() : callsFor(org);
+  const calls = org.source === "llamadas" ? await readLiveCalls(org.slug) : callsFor(org);
   return <CallMonitor calls={calls} title={`Llamadas de ${org.name}`} source={org.source} />;
 }

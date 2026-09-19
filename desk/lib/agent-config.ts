@@ -2,6 +2,7 @@ import "server-only";
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { readSetting, usesCloudflareStorage, writeSetting } from "./cloudflare-storage";
 
 export type AgentConfig = {
   voiceId: string;
@@ -101,8 +102,13 @@ export function validateAgentConfig(config: AgentConfig): string[] {
 }
 
 export async function readAgentConfigState(): Promise<AgentConfigState> {
+  const stored = usesCloudflareStorage()
+    ? await readSetting<Partial<AgentConfigState>>("agent-config")
+    : undefined;
   try {
-    const parsed = JSON.parse(await readFile(DATA_FILE, "utf8")) as Partial<AgentConfigState>;
+    const parsed = stored === undefined
+      ? JSON.parse(await readFile(DATA_FILE, "utf8")) as Partial<AgentConfigState>
+      : stored ?? {};
     return {
       draft: normalizeAgentConfig(parsed.draft ?? {}),
       active: parsed.active
@@ -121,6 +127,7 @@ export async function readAgentConfigState(): Promise<AgentConfigState> {
 }
 
 export async function writeAgentConfigState(state: AgentConfigState): Promise<void> {
+  if (usesCloudflareStorage()) return writeSetting("agent-config", state);
   await mkdir(path.dirname(DATA_FILE), { recursive: true });
   const temp = `${DATA_FILE}.${process.pid}.tmp`;
   await writeFile(temp, JSON.stringify(state, null, 2), { mode: 0o600 });
@@ -138,6 +145,9 @@ function parseEnv(text: string): Record<string, string> {
 }
 
 async function rootSecrets() {
+  if (usesCloudflareStorage()) {
+    return { apiKey: process.env.ELEVENLABS_API_KEY, agentId: process.env.ELEVENLABS_AGENT_ID };
+  }
   let file: Record<string, string> = {};
   try {
     file = parseEnv(await readFile(path.resolve(process.cwd(), "..", ".env"), "utf8"));

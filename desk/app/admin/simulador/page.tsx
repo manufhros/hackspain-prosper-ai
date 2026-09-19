@@ -38,7 +38,7 @@ export default async function Simulador() {
       orgSlug: HOSPITALS.find((hospital) => hospital.siteId === call.site)?.orgSlug ?? "arenal",
       actions: call.actions ?? [],
     }))];
-  const endpoint = voiceAgentWsUrl();
+  const endpoint = await voiceAgentWsUrl();
   return (
     <div className={styles.admin}>
       <aside className={styles.sidebar}>

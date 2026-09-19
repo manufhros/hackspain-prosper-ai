@@ -1,5 +1,5 @@
 import { VoiceSimulator } from "@/components/VoiceSimulator";
-import { callsFor } from "@/lib/metrics";
+import { callsForOrg } from "@/lib/call-data";
 import { getOrg } from "@/lib/orgs";
 import { voiceAgentWsUrl } from "@/lib/voice-endpoint";
 import { getSession } from "@/lib/session";
@@ -13,7 +13,7 @@ export default async function Pruebas({ params }: { params: Promise<{ org: strin
   if (session?.kind !== "org" || session.orgSlug !== slug || session.role !== "dev") redirect("/");
   const org = getOrg(slug);
   if (!org) notFound();
-  const calls = callsFor(org);
+  const calls = await callsForOrg(org);
   const scenarios = [{
     id: `human-handoff-${slug}`,
     title: "00 · Pedir una persona",
@@ -39,6 +39,6 @@ export default async function Pruebas({ params }: { params: Promise<{ org: strin
       orgSlug: slug,
       actions: call.actions ?? [],
     }))];
-  const endpoint = voiceAgentWsUrl();
+  const endpoint = await voiceAgentWsUrl();
   return <VoiceSimulator scenarios={scenarios} endpoint={endpoint} orgSlug={slug} />;
 }

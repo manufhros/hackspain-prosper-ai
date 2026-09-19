@@ -10,14 +10,14 @@ export type Account = { email: string; role: Role; label: string; note: string }
 
 export const ACCOUNTS: Account[] = [
   { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen y llamadas del centro" },
-  { email: "admin@hash.app", role: "admin", label: "Operador hash", note: "Agente, llamadas y pruebas" },
-  { email: "voz@hash.app", role: "tester", label: "Pruebas de voz", note: "Simulador de llamadas" },
+  { email: "admin@turno.app", role: "admin", label: "Operador turno", note: "Agente, llamadas y pruebas" },
+  { email: "voz@turno.app", role: "tester", label: "Pruebas de voz", note: "Simulador de llamadas" },
 ];
 
 export const COOKIE = "admision";
 
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: "Operador hash",
+  admin: "Operador turno",
   clinic: "Admisión",
   tester: "Pruebas de voz",
 };

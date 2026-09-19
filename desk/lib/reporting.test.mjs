@@ -45,6 +45,7 @@ test("missing, invalid and incomplete durations stay unknown; measured zero stay
   assert.equal(map({ durationMs: 0 }).minutes, 0);
   assert.equal(map({ durationMs: 900000 }).minutes, 15);
   assert.equal(map({ origin: "phone" }).origin, "phone");
+  assert.equal(map({ outcome: "sin_cierre" }).resolution, "unknown");
   assert.equal(originFilter("simulator"), "simulator");
   assert.equal(originFilter("constructor"), "all");
 });

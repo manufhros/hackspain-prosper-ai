@@ -47,7 +47,7 @@ export function Overview({ calls: allCalls, role, directory, origin, now }: {
     .slice(0, 6)
     .map((item) => ({ label: item.name, value: item.count, pct: `${pct(item.count, p.calls)} %` }));
 
-  const siteRows = [...new Set(calls.map(call => call.site))]
+  const siteRows = [...new Set(calls.map(call => call.site || null))]
     .map((id) => {
       const site = siteOf(id, directory.sites);
       const siteCalls = filterSite(calls, id);

@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "dev": "node --env-file=.env --import tsx src/agent/server.ts",
     "desk": "npm --prefix desk run dev",
-    "desk:extract": "node desk/scripts/extract-logs.mjs",
+    "desk:extract": "node --import tsx desk/scripts/extract-logs.mjs",
     "agent:configure": "node --env-file=.env --import tsx src/scripts/configure-agent.ts",
     "clinic:fetch": "node --env-file=.env --import tsx src/scripts/fetch-clinic.ts",
     "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",
@@ -29,6 +29,7 @@
     "calls:repair": "node --import tsx src/scripts/repair-call-identities.mjs",
     "test:identities": "node --import tsx --test src/scripts/repair-call-identities.test.mjs desk/lib/call-records.test.mjs",
     "calls:import": "node --import tsx src/scripts/import-call-logs.mjs",
+    "test:reporting": "node --import tsx --test desk/lib/reporting.test.mjs desk/lib/call-records.test.mjs src/scripts/import-call-logs.test.mjs src/worker/storage.test.mjs",
     "test:import": "node --import tsx --test src/scripts/import-call-logs.test.mjs"
   },
   "devDependencies": {

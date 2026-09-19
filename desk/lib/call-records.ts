@@ -23,8 +23,8 @@ export function callFromRow(row: CallRow): LoggedCall {
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
     outcome, reason: summary.reason ?? null, motive: summary.motive ?? summary.intent ?? "",
     slot: null, providerId: null, source: "llamadas", sourceFile: null,
-    resolution: outcome === "en_curso" ? "unknown" : outcome === "sin_cierre" ? "abandoned"
-      : outcome === "escalado" ? "escalated" : "resolved",
+    resolution: outcome === "escalado" ? "escalated"
+      : ["cita", "alta", "sin_cita", "cancelacion", "cambio"].includes(outcome) ? "resolved" : "unknown",
     route: summary.route ?? null, intent: summary.intent ?? null,
     toolCalls: summary.toolCalls, toolErrors: summary.toolErrors,
     frustrationScore: summary.frustrationScore, configVersion: summary.configVersion ?? null,

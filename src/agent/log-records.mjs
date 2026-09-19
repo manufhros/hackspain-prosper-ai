@@ -127,6 +127,7 @@ export function buildImport(files, { org, includeAll = false } = {}) {
       const toolResult = message.match(/^tool result (\w+) (.*)$/);
       if (toolResult) {
         const result = json(toolResult[2]);
+        if (result?.simulated === true) call.origin = "simulator";
         addTool(call, at, "tool.completed", toolResult[1], result
           ? { result, ok: !result.error } : { truncated: true });
       }
@@ -238,8 +239,9 @@ export function buildImport(files, { org, includeAll = false } = {}) {
       toolCalls: Math.max(number(end.toolCalls), call.toolCalls, events.filter((e) => e.type === "tool.called").length),
       toolErrors: Math.max(number(end.toolErrors), call.toolErrors, events.filter((e) => e.type === "tool.failed").length),
       userTurns: Math.max(number(end.userTurns), [...call.turns.values()].filter((t) => t.speaker === "caller").length),
+      motive: caller.find(turn => substantive(turn.text))?.text.slice(0, 160) ?? "",
       intent: end.intent ?? route.intent ?? null, route: end.route ?? route.route ?? null,
-      frustrationScore: number(end.frustrationScore ?? route.frustrationScore), zeroRetention: true,
+      frustrationScore: Number.isFinite(end.frustrationScore ?? route.frustrationScore) ? (end.frustrationScore ?? route.frustrationScore) : undefined, zeroRetention: true,
       importSource: IMPORT_SOURCE, importIncomplete: !endedAt, sourceFiles: [...call.sources].sort(),
     };
     rows.push({ id: call.id, org: call.org, startedAt: call.start, endedAt, summary, events,

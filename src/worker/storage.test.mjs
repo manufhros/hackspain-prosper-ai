@@ -133,3 +133,16 @@ test("a newly registered identity does not inherit another patient's directory I
     assert.equal(summary.patientId, undefined);
   } finally { sqlite.close(); }
 });
+
+test("origin is available during a call and final provenance survives a late start", async () => {
+  const { sqlite, db } = database();
+  try {
+    const event = { eventId: "origin-start", schemaVersion: 1, callId: "origin", configVersion: "v1",
+      type: "call.started", occurredAt: "2026-09-19T12:00:00Z", payload: { orgSlug: "arenal", origin: "simulator" } };
+    await storeCallEvent(db, event);
+    assert.equal(JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary).origin, "simulator");
+    await storeCallEvent(db, { ...event, eventId: "origin-end", type: "call.ended", payload: { ...event.payload, durationMs: 1000 } });
+    await storeCallEvent(db, { ...event, eventId: "late-start", payload: { orgSlug: "arenal" } });
+    assert.equal(JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary).origin, "simulator");
+  } finally { sqlite.close(); }
+});

@@ -3,7 +3,9 @@ import { readdir, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig, saveLocal, stateDir } from "../storage";
 import { clinicClient } from "../voice/platform";
-import { LocalRuntime } from "../voice/runtime";
+import { LocalRuntime, voiceDir } from "../voice/runtime";
+import { vadAsset } from "../voice/assets";
+import { loadSilero } from "../telephony/silero";
 import { modelConfig } from "../voice/model";
 import { localSettings } from "../voice/settings";
 import { transcriptionConfig } from "../voice/transcription";
@@ -120,6 +122,7 @@ export async function simulate(argv: string[]) {
   process.once("SIGINT", interrupt); process.once("SIGTERM", interrupt);
   let runtime: LocalRuntime | undefined;
   let playback: LivePlayback | undefined;
+  let silero: Awaited<ReturnType<typeof loadSilero>> | undefined;
   try {
     if (!values["prepare-only"] && endpoint.health) {
       let health: Response;
@@ -155,6 +158,9 @@ export async function simulate(argv: string[]) {
       console.log(`Starting ${runtime.settings.ttsWorkers} caller-only Piper worker(s); OpenRouter chat/listening incurs API usage. Receptionist must already be running.`);
       await runtime.start();
       controller.signal.throwIfAborted();
+      console.log("Loading caller speech detector (Silero) for turn-taking with background audio.");
+      silero = await loadSilero(join(voiceDir, vadAsset.path));
+      controller.signal.throwIfAborted();
       if (!muted) {
         playback = new LivePlayback(message => console.log(`[speakers] ${message}`));
         await playback.start();
@@ -169,6 +175,7 @@ export async function simulate(argv: string[]) {
         const started = performance.now();
         const call = await runSimulatedCall({ endpoint: endpoint.socket, token: endpoint.token, callId,
           item: scenario.case, inference, signal: controller.signal, monitor: playback?.push, progress: log,
+          speechDetector: silero!.create(),
           update: event => log(`${event.role === "caller" ? "Caller" : "Heard receptionist"}: ${event.text || "[unintelligible]"}`),
           saveAudio: async (role, audio) => {
             const paths: string[] = [];
@@ -187,7 +194,7 @@ export async function simulate(argv: string[]) {
           limitations: ["Adult existing-patient BOOK/CANCEL/RESCHEDULE only; public personas are lookup seeds, not full database sampling.",
             "Clean synthetic Piper voices; no background-noise, third-party privacy or barge-in assessment.",
             "Concurrent calls share bounded caller speech/ASR resources; caller-side queues affect observed load and timing.",
-            "Caller uses playback marks or an audio-idle fallback for turn boundaries. Caller chat/ASR latency contributes to call duration.",
+            "Caller uses playback marks or Silero speech boundaries. Background speech or music can still confuse detection; caller chat/ASR latency contributes to call duration.",
             "Seed repeats selection only against the same data/date; LLM wording and inference are nondeterministic."] };
         // Save before waiting for the server so an interrupted report lookup preserves the conversation.
         await saveLocal(`simulation-${id}.json`, partial);
@@ -220,6 +227,7 @@ export async function simulate(argv: string[]) {
   } finally {
     await playback?.stop();
     runtime?.stop(); process.removeListener("SIGINT", interrupt); process.removeListener("SIGTERM", interrupt);
+    await silero?.close();
   }
 }
 

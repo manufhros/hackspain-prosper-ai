@@ -1,6 +1,7 @@
 import { decodeAudio, wireMessages } from "../protocol";
 import { isObject } from "../validation";
-import { delay } from "../telephony/audio";
+import { delay, frameEnergy, defaultVad } from "../telephony/audio";
+import type { SpeechDetector } from "../telephony/silero";
 import type { Inference } from "../voice/runtime";
 import type { PublicCase } from "../data";
 import { simulatedCallerMessages } from "./scenario";
@@ -44,6 +45,11 @@ export class CallerWire {
     const audio = Buffer.concat(this.received); this.received = []; this.receivedBytes = 0;
     return audio.length ? audio : undefined;
   }
+  retainAudio(bytes: number) {
+    if (this.receivedBytes <= bytes) return;
+    const tail = Buffer.concat(this.received).subarray(-bytes);
+    this.received = [Buffer.from(tail)]; this.receivedBytes = tail.length;
+  }
   start(phone?: string) {
     const messages = wireMessages(this.callId, this.streamSid);
     this.send(JSON.stringify(messages.connected));
@@ -65,7 +71,12 @@ export class CallerWire {
     this.monitor?.("caller", frame);
     this.frames++;
   }
-  receive(raw: unknown): Buffer | undefined {
+  acknowledgeMark(raw: unknown) {
+    if (!isObject(raw) || raw.streamSid !== this.streamSid || raw.event !== "mark"
+      || !isObject(raw.mark) || typeof raw.mark.name !== "string") throw new Error("Invalid receptionist mark");
+    this.message("mark", { mark: { name: raw.mark.name } });
+  }
+  receive(raw: unknown, acknowledgeMark = true): Buffer | undefined {
     if (!isObject(raw) || raw.streamSid !== this.streamSid) throw new Error("Malformed or cross-call response from receptionist");
     if (raw.event === "media") {
       const audio = decodeAudio(isObject(raw.media) ? raw.media.payload : undefined);
@@ -74,7 +85,7 @@ export class CallerWire {
       this.monitor?.("agent", audio);
     } else if (raw.event === "mark") {
       if (!isObject(raw.mark) || typeof raw.mark.name !== "string") throw new Error("Invalid receptionist mark");
-      this.message("mark", { mark: { name: raw.mark.name } });
+      if (acknowledgeMark) this.acknowledgeMark(raw);
       return this.takeAudio();
     } else if (raw.event !== "clear") throw new Error("Unknown receptionist wire event");
     // Like the published harness, clear does not discard audio already received.
@@ -85,7 +96,7 @@ export class CallerWire {
 export interface CallerEvent { role: "caller" | "heard_agent"; text: string; at_ms: number; processing_ms: number; audio_files?: string[] }
 export interface CallResult {
   call_id: string; elapsed_ms: number; close_code?: number; events: CallerEvent[]; errors: string[];
-  wire_stats?: { received_audio_bytes: number; received_marks: number; turns_without_marks: number };
+  wire_stats?: { received_audio_bytes: number; received_marks: number; turns_without_marks: number; speech_frames?: number };
 }
 const responseSchema = { type: "object", properties: { speech: { type: "string" }, wait: { type: "boolean" } }, required: ["speech", "wait"] };
 export function callerResponse(content: string): { speech: string; wait: boolean } {
@@ -103,6 +114,7 @@ export async function runSimulatedCall(options: {
   monitor?: (role: AudioLane, audio: Buffer) => void;
   progress?: (message: string) => void;
   timing?: { greetingMs?: number; turnSilenceMs?: number };
+  speechDetector?: SpeechDetector;
   connect?: (url: string, options: Bun.WebSocketOptions) => WebSocket;
 }): Promise<CallResult> {
   const { inference, item } = options;
@@ -110,9 +122,10 @@ export async function runSimulatedCall(options: {
   const signal = AbortSignal.any([options.signal, lifetime.signal, AbortSignal.timeout(180000)]);
   const started = performance.now(), events: CallerEvent[] = [], errors: string[] = [];
   const progress = (message: string) => options.progress?.(`${Math.round(performance.now() - started)}ms: ${message}`);
-  const stats = { received_audio_bytes: 0, received_marks: 0, turns_without_marks: 0 };
+  const stats = { received_audio_bytes: 0, received_marks: 0, turns_without_marks: 0, speech_frames: 0 };
   let greeting: ReturnType<typeof setTimeout> | undefined, turnEnd: ReturnType<typeof setTimeout> | undefined;
-  let playbackUntil = 0;
+  let playbackUntil = 0, speechDeadline = 0, bufferHasSpeech = false;
+  let vadRemainder: Buffer = Buffer.alloc(0), receiving = Promise.resolve(), pendingMessages = 0;
   let closed = false, closeCode: number | undefined, turns = 0, processing = Promise.resolve(), pump = Promise.resolve();
   let finish!: () => void;
   const done = new Promise<void>(resolve => { finish = resolve; });
@@ -153,15 +166,15 @@ export async function runSimulatedCall(options: {
       return;
     }
     // A delayed greeting may arrive while the opening request is being generated.
-    if (opening && stats.received_audio_bytes) return;
+    if (opening && stats.speech_frames) return;
     if (++turns > 24) throw new Error("Caller exceeded 24 spoken turns");
     progress("Synthesizing caller speech");
     const speech = await inference.audio("speak", { text: response.speech, language: item.language, wire: true }, signal);
-    if (closed || (opening && stats.received_audio_bytes)) return;
+    if (closed || (opening && stats.speech_frames)) return;
     const raw = decodeAudio(speech.payload);
     if (!raw) throw new Error("Caller TTS returned invalid audio");
     const files = await options.saveAudio("caller", raw);
-    if (closed || (opening && stats.received_audio_bytes)) return;
+    if (closed || (opening && stats.speech_frames)) return;
     history.push({ role: "assistant", content: reply.message.content });
     emit({ role: "caller", text: response.speech, at_ms: Math.round(performance.now() - started),
       processing_ms: Math.round(performance.now() - beginning), audio_files: files });
@@ -193,11 +206,27 @@ export async function runSimulatedCall(options: {
   function flushUnmarkedAudio() {
     clearTimeout(turnEnd);
     const audio = wire.takeAudio();
-    if (!audio) return;
+    const speech = bufferHasSpeech; bufferHasSpeech = false;
+    if (!audio || !speech) return;
     stats.turns_without_marks++;
     progress("Receptionist audio ended without a mark; processing buffered turn");
     enqueueAudio(audio);
   }
+  function scheduleTurnEnd() {
+    clearTimeout(turnEnd);
+    if (!bufferHasSpeech || closed) return;
+    turnEnd = setTimeout(() => {
+      // Finish inspecting frames already received before deciding that speech ended.
+      receiving = receiving.then(() => {
+        if (closed || !bufferHasSpeech) return;
+        if (performance.now() < speechDeadline) scheduleTurnEnd();
+        else flushUnmarkedAudio();
+      }).catch(fail);
+    }, Math.max(0, speechDeadline - performance.now()));
+  }
+  const diagnostics = setInterval(() => {
+    if (!closed) progress(`Received ${(stats.received_audio_bytes / 8000).toFixed(1)}s audio; detected ${(stats.speech_frames * 0.02).toFixed(1)}s speech; ${stats.received_marks} marks; ${(wire.pendingAudioBytes / 8000).toFixed(1)}s buffered`);
+  }, 5000);
   socket.onopen = () => {
     clearTimeout(handshake);
     if (signal.aborted) { onAbort(); return; }
@@ -205,10 +234,10 @@ export async function runSimulatedCall(options: {
     const digits = String(item.persona.data.phone ?? "").replace(/\D/g, "");
     wire.start(digits.length === 9 ? `+34${digits}` : digits.length === 11 && digits.startsWith("34") ? `+${digits}` : undefined);
     greeting = setTimeout(() => {
-      if (closed || stats.received_audio_bytes) return;
+      if (closed || stats.speech_frames) return;
       progress("No receptionist greeting; caller will speak first");
       processing = processing.then(async () => {
-        if (closed || stats.received_audio_bytes) return;
+        if (closed || stats.speech_frames) return;
         history.push({ role: "user", content: "[The phone is connected, but the receptionist has not spoken. Start the call now with a brief greeting and your request. Do not wait silently.]" });
         await speakReply(performance.now(), true);
       }).catch(fail);
@@ -219,24 +248,45 @@ export async function runSimulatedCall(options: {
     try {
       if (closed) return;
       const raw = JSON.parse(String(message.data));
-      const before = wire.pendingAudioBytes;
-      const audio = wire.receive(raw);
-      if (raw.event === "media") {
-        clearTimeout(greeting); clearTimeout(turnEnd);
-        const bytes = wire.pendingAudioBytes - before;
-        if (!stats.received_audio_bytes) progress("Receiving receptionist audio");
-        stats.received_audio_bytes += bytes;
-        // A server may send a whole utterance in one burst. Allow its actual audio
-        // duration to elapse before treating the transport gap as end of speech.
-        const now = performance.now();
-        playbackUntil = Math.max(now, playbackUntil) + bytes / 8;
-        turnEnd = setTimeout(flushUnmarkedAudio, Math.max(0, playbackUntil - now) + (options.timing?.turnSilenceMs ?? 1200));
-      } else if (raw.event === "mark") {
-        stats.received_marks++;
-        playbackUntil = 0;
-        clearTimeout(turnEnd);
-      }
-      enqueueAudio(audio);
+      // Do not delay the protocol acknowledgement behind neural audio analysis.
+      if (isObject(raw) && raw.event === "mark") wire.acknowledgeMark(raw);
+      const arrived = performance.now();
+      if (++pendingMessages > 3000) throw new Error("Receptionist audio analysis queue is full");
+      receiving = receiving.then(async () => {
+        if (signal.aborted) return;
+        const audio = wire.receive(raw, false);
+        if (raw.event === "media") {
+          const bytes = decodeAudio(raw.media.payload)!;
+          if (!stats.received_audio_bytes) progress("Receiving receptionist audio");
+          stats.received_audio_bytes += bytes.length;
+          const startAt = Math.max(arrived, playbackUntil);
+          playbackUntil = startAt + bytes.length / 8;
+          const prior = vadRemainder.length, frames = Buffer.concat([vadRemainder, bytes]);
+          let offset = 0, lastSpeechEnd = -1;
+          for (; offset + 160 <= frames.length; offset += 160) {
+            const frame = frames.subarray(offset, offset + 160);
+            const speech = options.speechDetector ? await options.speechDetector.push(frame) : frameEnergy(frame) >= defaultVad.threshold;
+            if (speech) { stats.speech_frames++; lastSpeechEnd = offset + 160 - prior; }
+          }
+          vadRemainder = Buffer.from(frames.subarray(offset));
+          if (lastSpeechEnd >= 0) {
+            clearTimeout(greeting);
+            if (!bufferHasSpeech) progress("Detected receptionist speech");
+            bufferHasSpeech = true;
+            speechDeadline = startAt + lastSpeechEnd / 8 + (options.timing?.turnSilenceMs ?? 1200);
+            scheduleTurnEnd();
+          } else if (!bufferHasSpeech) {
+            // Keep a 200 ms lead-in, but never accumulate an endless background track.
+            wire.retainAudio(1600);
+          }
+        } else if (raw.event === "mark") {
+          stats.received_marks++;
+          playbackUntil = 0;
+          clearTimeout(turnEnd);
+          if (bufferHasSpeech) enqueueAudio(audio);
+          bufferHasSpeech = false;
+        }
+      }).catch(fail).finally(() => { pendingMessages--; });
     } catch (error) { fail(error); }
   };
   socket.onerror = () => fail(new Error("WebSocket connection failed; check the endpoint and its authentication"));
@@ -245,16 +295,20 @@ export async function runSimulatedCall(options: {
     closeCode = event.code; closed = true;
     clearTimeout(greeting); clearTimeout(turnEnd);
     progress(`WebSocket closed (code ${event.code})`);
-    if (!stopped && !signal.aborted) flushUnmarkedAudio();
-    finish();
+    void receiving.then(() => {
+      if (!stopped && !signal.aborted) flushUnmarkedAudio();
+      finish();
+    });
   };
   try {
     if (signal.aborted) onAbort();
     await done;
     clearTimeout(handshake);
+    await receiving;
     await processing;
   } finally {
-    signal.removeEventListener("abort", onAbort); clearTimeout(handshake); clearTimeout(greeting); clearTimeout(turnEnd);
+    signal.removeEventListener("abort", onAbort); clearTimeout(handshake); clearTimeout(greeting); clearTimeout(turnEnd); clearInterval(diagnostics);
+    options.speechDetector?.reset();
     closed = true; lifetime.abort(); socket.close(); await pump;
   }
   return { call_id: options.callId, elapsed_ms: Math.round(performance.now() - started), close_code: closeCode, events, errors, wire_stats: stats };

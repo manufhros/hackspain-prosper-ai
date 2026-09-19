@@ -8,6 +8,7 @@ import type {
   Insurer,
   OutcomeReason,
 } from "../platform/types.ts";
+import { nodeLiveBridge, type LiveBridge } from "./live-bridge.ts";
 import { transferTwilioCall } from "./twilio-transfer.ts";
 
 const INSURERS = new Set<Insurer>([
@@ -512,6 +513,9 @@ export type CallContext = {
   zeroRetention?: boolean;
   simulationMode?: boolean;
   twilioCallSid?: string;
+  orgSlug?: string;
+  handoffUrl?: string | undefined;
+  liveBridge?: LiveBridge;
   patientName?: string;
   patientId?: string;
   insurer?: string;
@@ -803,13 +807,14 @@ export async function runClinicTool(
       const result = ctx.simulationMode
         ? { accepted: true, action: "ESCALATE" as const, reason, simulated: true }
         : await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
-      const summary = [
-        ctx.patientName ? `Paciente ${ctx.patientName}.` : null,
-        `Motivo ${reason.replaceAll("_", " ")}.`,
-      ]
-        .filter(Boolean)
-        .join(" ");
-      const transfer = await transferTwilioCall(ctx.simulationMode ? undefined : ctx.twilioCallSid, summary, ctx.audit);
+      const transfer = (ctx.liveBridge ?? nodeLiveBridge).alreadyRungHuman(ctx.callId)
+        ? { configured: true as const, transferred: true, originated: false }
+        : await transferTwilioCall(
+            ctx.simulationMode ? undefined : ctx.twilioCallSid,
+            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}), handoffUrl: ctx.handoffUrl },
+            ctx.audit,
+          );
+      if (transfer.configured && transfer.transferred) (ctx.liveBridge ?? nodeLiveBridge).markHumanRung(ctx.callId);
       ctx.draftBook = undefined;
       ctx.submitted = true;
       ctx.outcome = "escalado";

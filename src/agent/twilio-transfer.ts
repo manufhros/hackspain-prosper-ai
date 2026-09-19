@@ -1,7 +1,7 @@
 import type { AuditAction } from "./audit.ts";
 
 function xml(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
 }
 
 export type TransferResult =
@@ -36,28 +36,62 @@ function credentials() {
   return { accountSid, auth, humanNumber, callerId };
 }
 
-function spokenHandoff(summary?: string) {
-  const extra = summary?.trim().replace(/\s+/g, " ").slice(0, 160);
-  return extra
-    ? `Le transfiere recepción. ${extra}`
-    : "Le transfiere recepción. El paciente ha pedido hablar con una persona.";
+function spokenHandoff() {
+  return "Le transfiere recepción. Un compañero se pone al teléfono.";
 }
 
-export function handoffTwiml(summary?: string) {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff(summary))}</Say><Pause length="3"/></Response>`;
+export function handoffTwiml(_summary?: string) {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff())}</Say><Pause length="3"/></Response>`;
+}
+
+export function liveStreamTwiml(
+  wsUrl: string,
+  joinCallId: string,
+  orgSlug = "arenal",
+  statusCallback?: string,
+) {
+  const status = statusCallback
+    ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
 }
 
 /** Trial accounts reject inline `Twiml`. Use a short HTTPS message URL Twilio can fetch. */
-export function handoffVoiceUrl(summary?: string) {
+export function handoffVoiceUrl(_summary?: string) {
   const configured = process.env.TWILIO_HANDOFF_URL?.trim();
   if (configured) return configured;
-  return `https://twimlets.com/message?Message=${encodeURIComponent(spokenHandoff(summary))}`;
+  return `https://twimlets.com/message?Message=${encodeURIComponent(spokenHandoff())}`;
 }
 
 export function dialHumanUrl(humanNumber: string) {
   const configured = process.env.TWILIO_DIAL_URL?.trim();
   if (configured) return configured;
   return `https://twimlets.com/forward?PhoneNumber=${encodeURIComponent(humanNumber)}`;
+}
+
+export async function publicHttpOrigin(): Promise<string | null> {
+  const configured = process.env.VOICE_AGENT_PUBLIC_URL?.trim() || process.env.TWILIO_HANDOFF_URL?.trim();
+  if (configured) {
+    return configured
+      .replace(/^wss:/, "https:")
+      .replace(/^ws:/, "http:")
+      .replace(/\/ws\/?$/, "")
+      .replace(/\/twiml\/.*$/, "");
+  }
+  if (process.env.VOICE_STORAGE === "d1") return null;
+  try {
+    const response = await fetch("http://127.0.0.1:4040/api/tunnels", {
+      signal: AbortSignal.timeout(1500),
+    });
+    const data = (await response.json()) as { tunnels?: Array<{ public_url?: string }> };
+    return data.tunnels?.find((tunnel) => tunnel.public_url?.startsWith("https://"))?.public_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function wsUrlFromOrigin(origin: string) {
+  return `${origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/ws`;
 }
 
 async function twilioPost(path: string, body: URLSearchParams, audit?: AuditAction) {
@@ -99,18 +133,39 @@ async function twilioPost(path: string, body: URLSearchParams, audit?: AuditActi
   };
 }
 
-export async function originateHandoffCall(summary?: string, audit?: AuditAction): Promise<TransferResult> {
+export async function originateHandoffCall(join?: {
+  callId: string;
+  orgSlug?: string;
+  handoffUrl?: string | undefined;
+}, audit?: AuditAction): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
     await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
+  }
+  let url = handoffVoiceUrl();
+  if (join) {
+    const origin = join.handoffUrl ? null : await publicHttpOrigin();
+    if (!join.handoffUrl && !origin) {
+      await audit?.("handoff.skipped", { reason: "missing_public_url" });
+      return {
+        configured: true,
+        transferred: false,
+        originated: false,
+        error: "No hay URL pública para unir el móvil a la llamada.",
+      };
+    }
+    const target = new URL(join.handoffUrl ?? `${origin}/twiml/live`);
+    target.searchParams.set("join", join.callId);
+    target.searchParams.set("org", join.orgSlug ?? "arenal");
+    url = target.toString();
   }
   const posted = await twilioPost(
     "/Calls.json",
     new URLSearchParams({
       To: creds.humanNumber,
       From: creds.callerId,
-      Url: handoffVoiceUrl(summary),
+      Url: url,
     }),
     audit,
   );
@@ -127,7 +182,7 @@ export async function originateHandoffCall(summary?: string, audit?: AuditAction
 
 export async function transferTwilioCall(
   callSid?: string,
-  summary?: string,
+  join?: { callId: string; orgSlug?: string; handoffUrl?: string | undefined },
   audit?: AuditAction,
 ): Promise<TransferResult> {
   const creds = credentials();
@@ -135,6 +190,7 @@ export async function transferTwilioCall(
     await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
+  if (join) return originateHandoffCall(join, audit);
   if (callSid && !callSid.includes("-")) {
     const updated = await twilioPost(
       `/Calls/${encodeURIComponent(callSid)}.json`,
@@ -145,5 +201,7 @@ export async function transferTwilioCall(
       return { configured: true, transferred: true, status: updated.status, callSid };
     }
   }
-  return originateHandoffCall(summary, audit);
+  return originateHandoffCall(undefined, audit);
 }
+
+export { wsUrlFromOrigin };

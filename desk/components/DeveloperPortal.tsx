@@ -2,20 +2,16 @@
 
 import { checkOrgEndpoints, saveOrgIntegrationConfig } from "@/app/g/[org]/integraciones/actions";
 import type { OrgAgentConfig } from "@/lib/org-agent-config";
-import type { FaqSuggestion } from "@/lib/faq-suggestions";
 import { useState, useTransition } from "react";
 import styles from "./DeveloperPortal.module.css";
 
 export function DeveloperPortal({
   initialConfig,
-  initialSuggestions,
 }: {
   initialConfig: OrgAgentConfig;
-  initialSuggestions: FaqSuggestion[];
 }) {
   const [config, setConfig] = useState(initialConfig);
   const [notice, setNotice] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState(initialSuggestions);
   const [editingEndpoint, setEditingEndpoint] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -68,73 +64,7 @@ export function DeveloperPortal({
           );
         })}
       </section>
-
-      <section className={styles.behaviour}>
-        <header><div><p>Comportamiento permitido</p><h2>Atención del agente</h2></div></header>
-        <label className={styles.threshold}>
-          <span><strong>Umbral de frustración</strong><small>Al alcanzarlo, el agente ofrece pasar al equipo humano.</small></span>
-          <input type="range" min="50" max="100" value={config.frustrationThreshold} onChange={(event) => setConfig({ ...config, frustrationThreshold: Number(event.target.value) })} />
-          <b>{config.frustrationThreshold}/100</b>
-        </label>
-        {suggestions.length ? (
-          <div className={styles.suggestions}>
-            <div className={styles.suggestionHead}>
-              <span><strong>Sugerencias del agente</strong><small>Detectadas en preguntas repetidas de las llamadas.</small></span>
-            </div>
-            {suggestions.map((suggestion) => (
-              <article key={suggestion.id}>
-                <div>
-                  <span>{suggestion.count} llamadas relacionadas</span>
-                  <strong>{suggestion.question}</strong>
-                  <small>{suggestion.answer}</small>
-                </div>
-                <nav>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!config.faq.some((item) => item.question === suggestion.question)) {
-                        setConfig({
-                          ...config,
-                          faq: [
-                            ...config.faq,
-                            {
-                              id: `suggested-${suggestion.id}`,
-                              question: suggestion.question,
-                              answer: suggestion.answer,
-                            },
-                          ],
-                        });
-                      }
-                      setSuggestions((current) => current.filter((item) => item.id !== suggestion.id));
-                      setNotice("Sugerencia añadida al borrador de FAQ.");
-                    }}
-                  >
-                    Añadir a FAQ
-                  </button>
-                  <button type="button" onClick={() => setSuggestions((current) => current.filter((item) => item.id !== suggestion.id))}>
-                    Descartar
-                  </button>
-                </nav>
-              </article>
-            ))}
-          </div>
-        ) : null}
-        <div className={styles.faqHead}><div><h3>Preguntas frecuentes</h3><p>Contenido aprobado que el agente puede responder.</p></div><button type="button" onClick={() => setConfig({ ...config, faq: [...config.faq, { id: crypto.randomUUID(), question: "", answer: "" }] })}>Añadir FAQ</button></div>
-        <div className={styles.faqList}>
-          {config.faq.length ? config.faq.map((item, index) => (
-            <article key={item.id}>
-              <input aria-label="Pregunta" placeholder="¿Cuál es el horario de radiología?" value={item.question} onChange={(event) => {
-                const faq = [...config.faq]; faq[index] = { ...item, question: event.target.value }; setConfig({ ...config, faq });
-              }} />
-              <textarea aria-label="Respuesta" placeholder="Radiología atiende de lunes a viernes…" value={item.answer} onChange={(event) => {
-                const faq = [...config.faq]; faq[index] = { ...item, answer: event.target.value }; setConfig({ ...config, faq });
-              }} />
-              <button type="button" onClick={() => setConfig({ ...config, faq: config.faq.filter((faq) => faq.id !== item.id) })}>Eliminar</button>
-            </article>
-          )) : <p className={styles.empty}>Todavía no hay preguntas frecuentes publicadas.</p>}
-        </div>
-      </section>
-      <footer><span>Las reglas clínicas y las credenciales globales solo las gestiona hash.</span><button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>{pending ? "Guardando…" : "Guardar configuración"}</button></footer>
+      <footer><span>La voz, las FAQ y el comportamiento del agente se configuran en hash, no por hospital.</span><button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>{pending ? "Guardando…" : "Guardar endpoints"}</button></footer>
       {notice ? <p className={styles.notice}>{notice}</p> : null}
     </div>
   );

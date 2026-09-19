@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { agentAvatarUrl, patientAvatarUrl } from "@/lib/avatars";
 import styles from "./VoiceSimulator.module.css";
 
 type Scenario = {
@@ -141,24 +142,12 @@ function rms(samples: Float32Array) {
   return Math.sqrt(sum / samples.length);
 }
 
-function ulawIsAudible(bytes: Uint8Array) {
-  let loud = 0;
-  for (const value of bytes) {
-    if ((~value & 0x7f) > 8) loud += 1;
-  }
-  return loud > bytes.length * 0.04;
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("");
-}
-
 function fleetCases(): Scenario[] {
   return [
     {
       id: "live-talk-quiron",
       title: "1 · Transferencia",
-      prompt: "Caso de prueba: habla tú y pide una persona. El agente escala y Twilio te llama.",
+      prompt: "Caso de prueba: habla tú y pide una persona. El agente escala y Twilio te llama. Tras el mensaje en inglés, pulsa una tecla.",
       expected: "submit_escalate + llamada a tu móvil",
       patient: "Tú",
       phone: "+34687275510",
@@ -221,6 +210,8 @@ export function VoiceSimulator({
   const contextRef = useRef<AudioContext | null>(null);
   const playbackAt = useRef(0);
   const lastVoiceAt = useRef(0);
+  const micLiveRef = useRef(false);
+  const [micLive, setMicLive] = useState(false);
 
   const selected = scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
   const talkLine = lines.find((line) => line.id === talkId) ?? lines[0];
@@ -311,8 +302,11 @@ export function VoiceSimulator({
     streamRef.current = null;
     void contextRef.current?.close();
     contextRef.current = null;
+    playbackAt.current = 0;
     talkIdRef.current = "";
     lastVoiceAt.current = 0;
+    micLiveRef.current = false;
+    setMicLive(false);
     setTalkId("");
     setLines([]);
     setStatus("idle");
@@ -329,27 +323,46 @@ export function VoiceSimulator({
       setLogs(Object.fromEntries(cases.map((item) => [item.id, { turns: [], timeline: [], audit: [] }])));
       setStatus("connecting");
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       streamRef.current = stream;
       const context = new AudioContext();
       contextRef.current = context;
+      playbackAt.current = 0;
       await context.resume();
+      const unlock = context.createBufferSource();
+      unlock.buffer = context.createBuffer(1, 1, context.sampleRate);
+      unlock.connect(context.destination);
+      unlock.start();
       const source = context.createMediaStreamSource(stream);
-      const processor = context.createScriptProcessor(4096, 1, 1);
+      const processor = context.createScriptProcessor(2048, 1, 1);
       const silent = context.createGain();
       silent.gain.value = 0;
       processor.onaudioprocess = (event) => {
         const active = socketsRef.current[talkIdRef.current];
         if (!active || active.ws.readyState !== WebSocket.OPEN) return;
+        if (context.state === "suspended") void context.resume();
         const input = event.inputBuffer.getChannelData(0);
         const now = performance.now();
-        if (rms(input) >= 0.028) lastVoiceAt.current = now;
-        if (now - lastVoiceAt.current > 280) return;
+        const level = rms(input);
+        if (level >= 0.008) lastVoiceAt.current = now;
+        const open = now - lastVoiceAt.current <= 450;
+        if (open !== micLiveRef.current) {
+          micLiveRef.current = open;
+          setMicLive(open);
+        }
         const ratio = context.sampleRate / 8000;
         const length = Math.floor(input.length / ratio);
+        if (!length) return;
         const encoded = new Uint8Array(length);
-        for (let i = 0; i < length; i++) encoded[i] = linearToUlaw(input[Math.floor(i * ratio)] ?? 0);
+        for (let i = 0; i < length; i++) {
+          const start = Math.floor(i * ratio);
+          const end = Math.min(input.length, Math.floor((i + 1) * ratio) || start + 1);
+          let sum = 0;
+          for (let j = start; j < end; j++) sum += input[j] ?? 0;
+          const sample = open && end > start ? sum / (end - start) : 0;
+          encoded[i] = linearToUlaw(sample);
+        }
         active.ws.send(JSON.stringify({
           event: "media",
           streamSid: active.streamSid,
@@ -464,15 +477,23 @@ export function VoiceSimulator({
             return;
           }
           if (message.event === "media" && message.media?.payload && item.id === talkIdRef.current) {
+            if (context.state === "suspended") void context.resume();
             const bytes = base64ToBytes(message.media.payload);
-            if (!ulawIsAudible(bytes)) return;
-            const buffer = context.createBuffer(1, bytes.length, 8000);
+            const srcRate = 8000;
+            const dstRate = context.sampleRate || 48000;
+            const dstLen = Math.max(1, Math.round(bytes.length * dstRate / srcRate));
+            const buffer = context.createBuffer(1, dstLen, dstRate);
             const channel = buffer.getChannelData(0);
-            bytes.forEach((byte, index) => { channel[index] = ulawToLinear(byte); });
+            for (let i = 0; i < dstLen; i++) {
+              const srcIndex = Math.min(bytes.length - 1, Math.floor(i * srcRate / dstRate));
+              channel[i] = ulawToLinear(bytes[srcIndex] ?? 0xff);
+            }
             const playback = context.createBufferSource();
             playback.buffer = buffer;
             playback.connect(context.destination);
-            playbackAt.current = Math.max(context.currentTime, playbackAt.current);
+            const now = context.currentTime;
+            if (playbackAt.current < now - 0.25) playbackAt.current = now;
+            playbackAt.current = Math.max(now, playbackAt.current);
             playback.start(playbackAt.current);
             playbackAt.current += buffer.duration;
           }
@@ -489,12 +510,15 @@ export function VoiceSimulator({
     }
   }
 
+  const patientUrl = patientAvatarUrl(scenario?.patient ?? "paciente");
+  const agentUrl = agentAvatarUrl();
+
   return (
     <div className={styles.simulator}>
       <header className={styles.intro}>
         <div>
           <h1>Pruebas</h1>
-          <p>Tres llamadas a la vez: tú hablas en la primera, las otras dos siguen su caso solas. El micro está abierto; el silencio no se envía.</p>
+          <p>El caso habla por el micro contra el WebSocket. Si pides una persona, te llama Twilio; tras el mensaje en inglés, pulsa una tecla. Las otras dos líneas siguen su caso en pantalla.</p>
         </div>
         <div className={styles.introActions}>
           <div>
@@ -528,7 +552,7 @@ export function VoiceSimulator({
               data-status={line.status}
               onClick={() => selectTalk(line.id)}
             >
-              <b aria-hidden="true">{initials(line.scenario.patient)}</b>
+              <img src={patientAvatarUrl(line.scenario.patient)} alt="" />
               <strong>{line.scenario.title}</strong>
               <small>{line.scenario.patient} · {line.scenario.site}</small>
               <em>{line.id === talkId ? "Tú hablas aquí" : line.scenario.expected}</em>
@@ -541,22 +565,34 @@ export function VoiceSimulator({
       <div className={styles.testGrid}>
         <aside className={styles.callerColumn}>
           <section className={styles.caller}>
-            <div className={styles.avatar} aria-hidden="true">
-              {initials(scenario?.patient ?? "P")}
+            <div className={styles.avatarWrap}>
+              {status === "idle" || status === "connecting" ? (
+                <>
+                  <span className={styles.incomingRing} />
+                  <span className={styles.incomingRing} data-delay />
+                </>
+              ) : null}
+              <img className={styles.avatar} src={patientUrl} alt="" />
             </div>
             <h2>{scenario?.patient ?? "Paciente de prueba"}</h2>
             <p>{scenario?.phone ?? "Número oculto"}</p>
             <span data-status={status}>
-              {status === "idle" ? "Llamada entrante" : status === "connecting" ? "Conectando" : status === "live" ? `${liveCount} en línea` : "Error"}
+              {status === "idle"
+                ? "Llamada entrante"
+                : status === "connecting"
+                  ? "Conectando"
+                  : status === "live"
+                    ? (micLive ? "Te oigo" : `${liveCount} en línea · micro abierto`)
+                    : "Error"}
             </span>
             <div>
               {status === "idle" || status === "error" ? (
                 <>
-                  <button className={styles.answer} onClick={() => start("one")}><PhoneIcon />Contestar una</button>
+                  <button className={styles.answer} onClick={() => start("one")}><PhoneIcon />Descolgar</button>
                   <button className={styles.fleetStart} onClick={() => start("three")}>3 llamadas a la vez</button>
                 </>
               ) : (
-                <button className={styles.hangup} onClick={stop}><PhoneIcon hangup />Colgar todas</button>
+                <button className={styles.hangup} onClick={stop}><PhoneIcon hangup />Colgar</button>
               )}
             </div>
           </section>
@@ -570,7 +606,7 @@ export function VoiceSimulator({
         </aside>
 
         <section className={styles.conversation}>
-          <header><h2>Conversación</h2><p>{status === "live" ? (lines.length > 1 ? "Habla en la tarjeta seleccionada. Las otras dos siguen su guion." : "Transcripción en directo. Habla y aparecerá aquí.") : turns.length ? "Transcripción conservada tras la llamada." : "Contesta una línea o lanza las tres pruebas a la vez."}</p></header>
+          <header><h2>Conversación</h2><p>{status === "live" ? (lines.length > 1 ? "Habla por el micro en la línea seleccionada. Las otras dos siguen su guion." : "Habla por el micro. Oyes al agente en directo.") : turns.length ? "Transcripción conservada tras la llamada." : "Contesta para ver la conversación."}</p></header>
           <div className={styles.transcript} aria-live="polite">
             {timeline.length ? timeline.map((item) => item.kind === "tool" ? (
               <div className={styles.toolLine} key={item.id}>
@@ -580,18 +616,20 @@ export function VoiceSimulator({
               </div>
             ) : (
               <article key={item.id} data-speaker={item.speaker}>
-                <div className={styles.messageAvatar} aria-hidden="true">
-                  {item.speaker === "caller" ? initials(scenario?.patient ?? "P") : "h"}
-                </div>
+                <img
+                  className={styles.messageAvatar}
+                  src={item.speaker === "caller" ? patientUrl : agentUrl}
+                  alt=""
+                />
                 <div className={styles.messageContent}>
                   <span>
-                    {item.speaker === "caller" ? scenario?.patient : "Agente"}
+                    {item.speaker === "caller" ? scenario?.patient : "Marta"}
                     {item.language ? <em>{item.language.toUpperCase()}</em> : null}
                   </span>
                   <p>{item.text}</p>
                 </div>
               </article>
-            )) : <div className={styles.empty}>Aún no hay frases.</div>}
+            )) : <div className={styles.empty}>{status === "idle" ? "No hay llamada en curso." : "Aún no hay frases."}</div>}
           </div>
         </section>
 
@@ -603,12 +641,12 @@ export function VoiceSimulator({
                 <summary><span>{index + 1}</span><ToolIcon /><strong>{TOOL_LABELS[item.name] ?? item.name}</strong></summary>
                 <pre>{JSON.stringify({ consulta: item.params, resultado: parseResult(item.result) }, null, 2)}</pre>
               </details>
-            )) : <div className={styles.empty}>Todavía no ha consultado el sistema.</div>}
+            )) : <div className={styles.empty}>Aquí verás cada consulta al ERP cuando empiece la llamada.</div>}
           </div>
         </section>
       </div>
       <footer className={styles.callHint}>
-        Usa auriculares. El micro de la tarjeta seleccionada está abierto; no se manda el ruido de fondo.
+        Usa auriculares. El micro de la tarjeta seleccionada está abierto. Si te llama Twilio, pulsa una tecla después del anuncio en inglés.
       </footer>
     </div>
   );

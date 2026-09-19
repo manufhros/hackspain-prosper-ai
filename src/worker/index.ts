@@ -1,26 +1,53 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleCall } from "../agent/session.ts";
-import { handoffTwiml } from "../agent/twilio-transfer.ts";
+import { handoffTwiml, liveStreamTwiml } from "../agent/twilio-transfer.ts";
 import { WorkerSocket, connectWorkerSocket } from "./socket.ts";
 import { readRuntimeConfig, storeCallEvent } from "./storage.ts";
+import { LiveBridge } from "../agent/live-bridge.ts";
 
 const MAX_CALL_MS = 30 * 60 * 1_000;
 
 export class VoiceCall extends DurableObject<Env> {
   private connected = false;
   private sequence = 0;
+  private bridge = new LiveBridge();
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    const sessionId = this.ctx.id.toString();
+    if (url.pathname.startsWith("/twiml/live/")) {
+      const join = url.searchParams.get("join") ?? "";
+      if (!this.bridge.getLiveSession(join)) return new Response("Live call not found", { status: 404 });
+      const wsUrl = `${url.origin.replace(/^http/, "ws")}/ws/${sessionId}`;
+      const callback = new URL(`/twiml/stream-status/${sessionId}`, url.origin);
+      callback.searchParams.set("join", join);
+      return new Response(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal", callback.toString()), {
+        headers: { "content-type": "text/xml; charset=utf-8", "cache-control": "no-store" },
+      });
+    }
+    if (url.pathname.startsWith("/twiml/stream-status/")) {
+      const join = url.searchParams.get("join") ?? "";
+      const host = this.bridge.getLiveSession(join);
+      if (!host) return new Response(null, { status: 204 });
+      const body = new URLSearchParams(await request.text());
+      await host.audit?.("handoff.stream.status", {
+        provider: "twilio", event: body.get("StreamEvent"), streamSid: body.get("StreamSid"),
+      });
+      return new Response(null, { status: 204 });
+    }
     if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
-    if (this.connected) return new Response("Call already connected", { status: 409 });
-    this.connected = true;
+    const joining = url.pathname !== "/ws";
+    if (joining && (!this.connected || !this.bridge.liveSessionIds().length)) {
+      return new Response("Live call not found", { status: 404 });
+    }
+    if (!joining && this.connected) return new Response("Call already connected", { status: 409 });
+    if (!joining) this.connected = true;
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
-    const sessionId = this.ctx.id.toString();
-    await this.env.prosper_desk.batch([
+    if (!joining) await this.env.prosper_desk.batch([
       this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE expires_at <= ?").bind(Date.now()),
       this.env.prosper_desk.prepare("INSERT INTO voice_sessions (id, expires_at) VALUES (?, ?)")
         .bind(sessionId, Date.now() + MAX_CALL_MS),
@@ -30,10 +57,18 @@ export class VoiceCall extends DurableObject<Env> {
     const timer = setTimeout(() => socket.close(1000, "Maximum call duration reached"), MAX_CALL_MS);
     socket.once("close", () => {
       clearTimeout(timer);
-      this.ctx.waitUntil(this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE id = ?").bind(sessionId).run());
+      if (!joining && !this.bridge.liveSessionIds().length) {
+        this.ctx.waitUntil(this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE id = ?").bind(sessionId).run());
+      }
     });
     await handleCall(socket, {
       connect: connectWorkerSocket,
+      liveBridge: this.bridge,
+      joinOnly: joining,
+      handoffUrl: `${url.origin}/twiml/live/${sessionId}`,
+      onEnd: () => {
+        this.ctx.waitUntil(this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE id = ?").bind(sessionId).run());
+      },
       loadConfig: (orgSlug = "arenal") => readRuntimeConfig(this.env.prosper_desk, orgSlug),
       emitEvent: async (type, callId, configVersion, payload = {}) => {
         const event = {
@@ -54,6 +89,8 @@ export class VoiceCall extends DurableObject<Env> {
 export default {
   async fetch(request, env): Promise<Response> {
     const url = new URL(request.url);
+    const routed = url.pathname.match(/^\/(?:ws|twiml\/live|twiml\/stream-status)\/([a-f0-9]{64})$/);
+    if (routed) return env.CALLS.get(env.CALLS.idFromString(routed[1]!)).fetch(request);
     if (url.pathname === "/ws") {
       if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
       if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {

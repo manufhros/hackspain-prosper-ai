@@ -10,13 +10,7 @@ type Health = {
   checkedAt: string;
 };
 
-type Profile = {
-  slug: string;
-  name: string;
-  centers: number;
-};
-
-export function AgentFleet({ profiles }: { profiles: Profile[] }) {
+export function AgentFleet() {
   const [health, setHealth] = useState<Health | null>(null);
 
   useEffect(() => {
@@ -41,14 +35,14 @@ export function AgentFleet({ profiles }: { profiles: Profile[] }) {
   return (
     <section className={styles.fleet} id="agentes">
       <header>
-        <div><h2>Agentes en ejecución</h2><p>Estado real del runtime y perfiles hospitalarios cargados.</p></div>
+        <div><h2>Agente en ejecución</h2><p>Un runtime para toda la red. La configuración no se parte por hospital.</p></div>
         <span data-online={health?.ok ?? false}><i />{health?.ok ? "Runtime operativo" : "Runtime sin respuesta"}</span>
       </header>
       <div className={styles.runtime}>
         <article>
           <span>Proceso de voz</span>
-          <strong>{health?.ok ? "ElevenLabs conectado" : "No disponible"}</strong>
-          <small>Actualiza cada 5 segundos</small>
+          <strong>{health?.ok ? "Agente único conectado" : "No disponible"}</strong>
+          <small>El mismo perfil atiende todos los centros</small>
         </article>
         <article>
           <span>Llamadas activas</span>
@@ -60,15 +54,6 @@ export function AgentFleet({ profiles }: { profiles: Profile[] }) {
           <strong>{health ? `${Math.floor(health.uptimeSeconds / 60)} min` : "—"}</strong>
           <small>{health?.checkedAt ? `Comprobado ${new Date(health.checkedAt).toLocaleTimeString("es-ES")}` : "Comprobando…"}</small>
         </article>
-      </div>
-      <div className={styles.profiles}>
-        {profiles.map((profile) => (
-          <article key={profile.slug}>
-            <i />
-            <div><strong>{profile.name}</strong><small>{profile.centers} centros · perfil de configuración</small></div>
-            <span>Configurado</span>
-          </article>
-        ))}
       </div>
     </section>
   );

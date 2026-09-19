@@ -146,6 +146,58 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
           <option value="enforce">Activo</option>
         </select>
       </label>
+      <label className={styles.selectRow}>
+        <span><strong>Umbral de frustración</strong><small>Al alcanzarlo, ofrece pasar al equipo humano.</small></span>
+        <b className={styles.threshold}>{draft.frustrationThreshold}/100</b>
+        <input
+          type="range"
+          min="50"
+          max="100"
+          value={draft.frustrationThreshold}
+          onChange={(event) => update({ frustrationThreshold: Number(event.target.value) })}
+        />
+      </label>
+      <div className={styles.faq}>
+        <div>
+          <h3>Preguntas frecuentes</h3>
+          <p>Contenido aprobado para toda la red. No se configura por hospital.</p>
+          <button
+            type="button"
+            onClick={() => update({
+              faq: [...draft.faq, { id: crypto.randomUUID(), question: "", answer: "" }],
+            })}
+          >
+            Añadir FAQ
+          </button>
+        </div>
+        {draft.faq.length ? draft.faq.map((item, index) => (
+          <article key={item.id}>
+            <input
+              aria-label="Pregunta"
+              placeholder="¿Cuál es el horario?"
+              value={item.question}
+              onChange={(event) => {
+                const faq = [...draft.faq];
+                faq[index] = { ...item, question: event.target.value };
+                update({ faq });
+              }}
+            />
+            <textarea
+              aria-label="Respuesta"
+              placeholder="Centro abre de lunes a sábado…"
+              value={item.answer}
+              onChange={(event) => {
+                const faq = [...draft.faq];
+                faq[index] = { ...item, answer: event.target.value };
+                update({ faq });
+              }}
+            />
+            <button type="button" onClick={() => update({ faq: draft.faq.filter((entry) => entry.id !== item.id) })}>
+              Eliminar
+            </button>
+          </article>
+        )) : <p className={styles.note}>Todavía no hay preguntas frecuentes publicadas.</p>}
+      </div>
       <div className={styles.actions}>
         <button type="button" disabled={isPending} onClick={() => run(() => saveAgentDraft(draft))}>
           Guardar borrador

@@ -4,9 +4,6 @@ import { readOrgAgentConfig } from "@/lib/org-agent-config";
 import { redirect } from "next/navigation";
 import styles from "./page.module.css";
 import { checkOrgEndpoints } from "./actions";
-import { getOrg } from "@/lib/orgs";
-import { callsForOrg } from "@/lib/call-data";
-import { suggestFaqs } from "@/lib/faq-suggestions";
 
 export default async function Integraciones({ params }: { params: Promise<{ org: string }> }) {
   const { org } = await params;
@@ -18,15 +15,10 @@ export default async function Integraciones({ params }: { params: Promise<{ org:
   } catch {
     // Keep the last known health state if Prosper is temporarily unreachable.
   }
-  const orgData = getOrg(org);
-  const suggestions = suggestFaqs(orgData ? await callsForOrg(orgData) : []);
   return (
     <div className={styles.page}>
-      <header><p>Portal técnico</p><h1>Conecta vuestro hospital</h1><span>Endpoints, salud y contenido que el agente puede utilizar.</span></header>
-      <DeveloperPortal
-        initialConfig={config}
-        initialSuggestions={suggestions}
-      />
+      <header><p>Portal técnico</p><h1>Conecta vuestro hospital</h1><span>Solo endpoints. La voz, las FAQ y el comportamiento del agente los publica hash.</span></header>
+      <DeveloperPortal initialConfig={config} />
     </div>
   );
 }

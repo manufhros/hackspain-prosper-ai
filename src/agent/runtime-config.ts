@@ -35,7 +35,9 @@ export async function loadRuntimeConfig(orgSlug = "arenal"): Promise<RuntimeConf
   let parsed: {
     active?: {
       id?: string;
-      config?: Partial<Omit<RuntimeConfig, "version">>;
+      config?: Partial<Omit<RuntimeConfig, "version">> & {
+        faq?: Array<{ question: string; answer: string }>;
+      };
     };
   } = {};
   try {
@@ -72,14 +74,6 @@ export function mergeRuntimeConfig(
   },
 ): RuntimeConfig {
   const config = parsed.active?.config ?? {};
-  const externalPreCall =
-    orgConfig.preCallEndpoint?.includes("hackspain.getprosperapp.com")
-      ? ""
-      : (orgConfig.preCallEndpoint ?? "");
-  const externalPostCall =
-    orgConfig.postCallEndpoint?.includes("hackspain.getprosperapp.com")
-      ? ""
-      : (orgConfig.postCallEndpoint ?? "");
   return {
     ...DEFAULT_RUNTIME_CONFIG,
     ...config,
@@ -87,10 +81,10 @@ export function mergeRuntimeConfig(
     escalationFails: Math.min(5, Math.max(1, Number(config.escalationFails ?? 3))),
     frustrationThreshold: Math.min(
       100,
-      Math.max(50, Number(orgConfig.frustrationThreshold ?? config.frustrationThreshold ?? 75)),
+      Math.max(50, Number(config.frustrationThreshold ?? 75)),
     ),
-    preCallEndpoint: externalPreCall,
-    postCallEndpoint: externalPostCall,
-    faq: orgConfig.faq ?? [],
+    preCallEndpoint: orgConfig.preCallEndpoint ?? "",
+    postCallEndpoint: orgConfig.postCallEndpoint ?? "",
+    faq: Array.isArray(config.faq) ? config.faq : [],
   };
 }

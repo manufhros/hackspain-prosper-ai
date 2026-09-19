@@ -90,3 +90,89 @@ test("disconnect during upstream connection closes the late socket", async (t) =
   assert.equal(eleven.readyState, 3);
   assert.deepEqual(eleven.sent, []);
 });
+
+async function liveCall(t) {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  process.env.VOICE_STORAGE = "d1";
+  process.env.PLATFORM_API_KEY = "test";
+  process.env.ELEVENLABS_API_KEY = "test";
+  process.env.ELEVENLABS_AGENT_ID = "test";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  const { LiveBridge } = await import("../agent/live-bridge.ts");
+  const bridge = new LiveBridge();
+  const caller = new Socket();
+  const eleven = new Socket();
+  const events = [];
+  const tasks = [];
+  const options = {
+    liveBridge: bridge,
+    connect: async () => eleven,
+    loadConfig: async () => DEFAULT_RUNTIME_CONFIG,
+    emitEvent: (type, callId, version, payload) => { events.push({ type, callId, payload }); return {}; },
+    waitUntil: (task) => tasks.push(task),
+  };
+  await handleCall(caller, options);
+  caller.message({ event: "start", start: { streamSid: "original", callSid: "live" } });
+  await settle();
+  return { bridge, caller, eleven, events, tasks, options };
+}
+
+test("phone joins the existing agent and survives caller disconnect with a single final summary", async (t) => {
+  const { bridge, caller, eleven, events, tasks, options } = await liveCall(t);
+  bridge.markHumanRung("live");
+  const phone = new Socket();
+  await handleCall(phone, { ...options, joinOnly: true });
+  const start = { event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters: { join: "live" } } };
+  phone.message(start);
+  phone.message(start);
+  phone.message({ event: "media", media: { payload: "human-audio" } });
+  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "human-audio"));
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "reply" } });
+  assert.equal(phone.sent.filter((message) => message.media?.payload === "reply").length, 1);
+  assert.ok(caller.sent.some((message) => message.media?.payload === "reply"));
+  caller.close();
+  await settle();
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 0);
+  t.mock.timers.tick(181_000);
+  phone.close();
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+  assert.equal(events.filter((event) => event.type === "handoff.phone.joined").length, 1);
+  assert.equal(events.filter((event) => event.type === "handoff.phone.left").length, 1);
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
+  assert.equal(bridge.getLiveSession("live"), undefined);
+  assert.equal(bridge.alreadyRungHuman("live"), false);
+  assert.equal(eleven.readyState, 3);
+});
+
+test("an unanswered handoff expires after the caller disconnects", async (t) => {
+  const { bridge, caller, eleven, events, tasks } = await liveCall(t);
+  bridge.markHumanRung("live");
+  caller.close();
+  await settle();
+  t.mock.timers.tick(180_001);
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+  assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
+  assert.equal(bridge.getLiveSession("live"), undefined);
+  assert.equal(eleven.readyState, 3);
+});
+
+test("missing joins and joins into another Durable Object never start a new agent", async (t) => {
+  const { LiveBridge } = await import("../agent/live-bridge.ts");
+  const { bridge, caller, tasks, options } = await liveCall(t);
+  const isolated = new LiveBridge();
+  for (const customParameters of [{ join: "live" }, {}]) {
+    const phone = new Socket();
+    await handleCall(phone, { ...options, liveBridge: isolated, joinOnly: true, connect: async () => { assert.fail("must not connect"); } });
+    phone.message({ event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters } });
+    assert.equal(phone.readyState, 3);
+  }
+  assert.ok(bridge.getLiveSession("live"));
+  caller.close();
+  await settle();
+  t.mock.timers.tick(8_000);
+  await Promise.all(tasks);
+});

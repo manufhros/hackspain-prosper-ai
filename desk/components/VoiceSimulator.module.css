@@ -294,17 +294,17 @@
   box-shadow: 0 0 0 1px var(--mint);
 }
 
-.lineCard[data-status="live"] b {
+.lineCard[data-status="live"] img {
   background: var(--success-soft);
   color: var(--success);
 }
 
-.lineCard[data-status="error"] b {
+.lineCard[data-status="error"] img {
   background: var(--danger-soft);
   color: var(--danger);
 }
 
-.lineCard b {
+.lineCard img {
   display: grid;
   width: 28px;
   height: 28px;
@@ -628,3 +628,13 @@
     min-height: 320px;
   }
 }
+
+/* Incoming-call indicators use the shared redesign tokens. */
+.avatarWrap { position: relative; display: grid; place-items: center; width: 96px; height: 96px; margin: 0 auto; }
+.avatarWrap .avatar { position: relative; z-index: 1; object-fit: cover; }
+.incomingRing { position: absolute; inset: 0; border: 1px solid var(--mint); border-radius: 50%; animation: ring-pulse 2s ease-out infinite; }
+.incomingRing[data-delay] { animation-delay: 1s; }
+.lineCard > img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+.messageAvatar { object-fit: cover; }
+@keyframes ring-pulse { from { transform: scale(1); opacity: 0.55; } to { transform: scale(1.35); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .incomingRing { animation: none; } }

@@ -1,15 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Clock, Download, Search } from "lucide-react";
+import Link from "next/link";
+import { useMemo, useRef } from "react";
+import { ChevronLeft, ChevronRight, Clock, Download, Search, X } from "lucide-react";
 import { siteOf } from "@/lib/clinic";
 import { num, pct, timeOf } from "@/lib/format";
-import { reasonLabel, TOOL_LABEL } from "@/lib/labels";
+import { reasonLabel } from "@/lib/labels";
 import type { LoggedCall } from "@/lib/types";
 import { Badge, Button, Card, type Crumb, Note, OutcomeBadge, PageHeader, StatCard, StatGrid, outcomeMeta } from "./ui/primitives";
 import ui from "./ui/ui.module.css";
 import styles from "./CallMonitor.module.css";
+import { CallRefresh } from "./CallRefresh";
+import { useCallListState } from "./CallListState";
 
 const TABS = [
   { value: "cita", label: "Citas" },
@@ -48,16 +50,8 @@ export function CallMonitor({
   crumbs?: Crumb[];
   refreshMs?: number;
 }) {
-  const router = useRouter();
-  const [tab, setTab] = useState("__all");
-  const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
-
-  useEffect(() => {
-    if (!refreshMs) return;
-    const timer = window.setInterval(() => router.refresh(), refreshMs);
-    return () => window.clearInterval(timer);
-  }, [router, refreshMs]);
+  const { tab, setTab, query, setQuery, page, setPage } = useCallListState();
+  const searchInput = useRef<HTMLInputElement>(null);
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -117,6 +111,7 @@ export function CallMonitor({
 
   return (
     <>
+      <CallRefresh interval={refreshMs} />
       <PageHeader
         crumbs={crumbs}
         title={title}
@@ -137,7 +132,7 @@ export function CallMonitor({
       />
 
       <StatGrid>
-        <StatCard label="Llamadas registradas" value={num(calls.length)} icon="phone" hint="hoy, todas las sedes" />
+        <StatCard label="Llamadas registradas" value={num(calls.length)} icon="phone" hint="últimas 500, todas las sedes" />
         <StatCard
           label="Citas reservadas"
           value={num(counts.get("cita") ?? 0)}
@@ -194,9 +189,10 @@ export function CallMonitor({
               </button>
             ))}
           </div>
-          <label className={ui.search}>
+          <div className={ui.search}>
             <Search size={14} aria-hidden="true" />
             <input
+              ref={searchInput}
               type="search"
               value={query}
               placeholder="Buscar paciente, centro o motivo…"
@@ -206,7 +202,11 @@ export function CallMonitor({
                 setPage(0);
               }}
             />
-          </label>
+            {query ? <button type="button" aria-label="Borrar búsqueda" className={styles.clearSearch}
+              onClick={() => { setQuery(""); setPage(0); searchInput.current?.focus(); }}>
+              <X size={14} aria-hidden="true" />
+            </button> : null}
+          </div>
         </div>
 
         {visible.length ? (
@@ -216,8 +216,9 @@ export function CallMonitor({
               const reason = reasonLabel(call.reason);
               const site = siteOf(call.site);
               return (
-                <details key={call.id} className={styles.row}>
-                  <summary>
+                <Link key={call.id} href={`/panel/llamadas/${encodeURIComponent(call.id)}`}
+                  prefetch={false} className={styles.row}
+                  aria-label={`Ver llamada de ${call.patient || "paciente sin identificar"}, ${timeOf(call.started)}`}>
                     <i className={styles.dot} data-tone={meta.tone} aria-hidden="true" />
                     <span className={styles.who}>
                       <strong data-anon={!call.patient}>{call.patient || "Paciente sin identificar"}</strong>
@@ -239,38 +240,8 @@ export function CallMonitor({
                     <span className={styles.actions} title="Acciones del agente">
                       {call.actions?.length ?? call.toolCalls ?? 0}
                     </span>
-                    <ChevronDown size={15} className={styles.chevron} aria-hidden="true" />
-                  </summary>
-                  <div className={styles.trace}>
-                    <header>
-                      <strong>Registro de decisiones</strong>
-                      <span>
-                        {reason ? `${reason} · ` : ""}
-                        {call.slot ? `hueco ${call.slot.replace("T", " ").slice(0, 16)} · ` : ""}
-                        config {call.configVersion?.slice(0, 8) || "legacy"}
-                      </span>
-                    </header>
-                    {call.actions?.length ? (
-                      <ol>
-                        {call.actions.map((action, index) => (
-                          <li key={`${action.name}-${index}`}>
-                            <span className={styles.stepIndex}>{String(index + 1).padStart(2, "0")}</span>
-                            <div>
-                              <code>{TOOL_LABEL[action.name] ?? action.name}</code>
-                              <strong>{action.summary}</strong>
-                              <small>
-                                {action.at ? timeOf(action.at) : "Hora no disponible"}
-                                {action.reason ? ` · ${reasonLabel(action.reason) ?? action.reason}` : ""}
-                              </small>
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      <p className={styles.traceEmpty}>Esta llamada no ejecutó acciones estructuradas.</p>
-                    )}
-                  </div>
-                </details>
+                    <ChevronRight size={15} className={styles.chevron} aria-hidden="true" />
+                </Link>
               );
             })}
           </div>

@@ -8,12 +8,13 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "dev": "node --env-file=.env --import tsx src/agent/server.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx src/agent/server.ts",
     "agent:configure": "node --env-file=.env --import tsx src/scripts/configure-agent.ts",
     "clinic:fetch": "node --env-file=.env --import tsx src/scripts/fetch-clinic.ts",
     "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",
-    "test": "node --env-file=.env --import tsx --test src/agent/*.test.ts",
-    "test:live": "node --env-file=.env --import tsx src/scripts/check.ts"
+    "test": "node --env-file-if-exists=.env --import tsx --test src/agent/*.test.ts src/console/*.test.ts src/console/*.test.js",
+    "test:live": "node --env-file=.env --import tsx src/scripts/check.ts",
+    "check:ui": "node --check public/app.js && node --check public/model.js && node --check public/demo.js && node --check public/theme.js"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",
@@ -22,6 +23,9 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@fontsource/dm-sans": "^5.3.0",
+    "@fontsource/instrument-serif": "^5.3.0",
+    "@phosphor-icons/web": "^2.1.2",
     "ws": "^8.21.3"
   }
 }

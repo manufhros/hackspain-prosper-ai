@@ -68,15 +68,23 @@ def transcribe(path, language):
 
 
 def transcribe_audio(audio, language):
-    if len(audio) < 1600 or float(np.sqrt(np.mean(audio ** 2))) < 0.002:
-        return {"text": "", "language": language or "unknown"}
+    if not np.isfinite(audio).all():
+        raise ValueError("Recognition audio must contain finite samples")
+    rms = float(np.sqrt(np.mean(audio ** 2))) if len(audio) else 0.0
+    # Quiet speech is still speech. Leave speech/no-speech decisions to Whisper;
+    # only bypass decoding for too-short input or exact digital silence.
+    skip = "too_short" if len(audio) < 1600 else "digital_silence" if not np.any(audio) else None
+    if skip:
+        return {"text": "", "language": language or "unknown", "decoder": "skipped",
+                "skip_reason": skip, "input_rms": rms}
     if os.environ.get("LOCAL_ASR_DECODER", "transcribe") == "segment":
         from recognition import transcribe_segment
-        return transcribe_segment(audio, str(ASR_ROOT), language)
+        return {**transcribe_segment(audio, str(ASR_ROOT), language), "input_rms": rms}
     result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(ASR_ROOT),
                                     language=language or None, verbose=None,
                                     condition_on_previous_text=False, temperature=0.0)
-    return {"text": result["text"].strip(), "language": result.get("language", language), "decoder": "transcribe"}
+    return {"text": result["text"].strip(), "language": result.get("language", language),
+            "decoder": "transcribe", "input_rms": rms}
 
 
 def handle(request):

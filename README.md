@@ -18,6 +18,8 @@ data/                    # cache local (gitignored)
 
 ## Setup
 
+Requiere Node.js 22.13 o posterior (SQLite integrado).
+
 ```bash
 cp .env.example .env
 npm install
@@ -64,6 +66,38 @@ El historial queda en `data/calls.json` (ignorado por Git, permisos 0600), hasta
 llamadas y 400 mensajes/ejecuciones por llamada. No se guardan grabaciones de audio.
 Los eventos del proveedor actualizan la UI al recibirse; las interrupciones corrigen
 el mensaje anterior. Las llamadas que estaban activas al reiniciar se marcan interrumpidas.
+
+### Resumen y métricas duraderas
+
+Abre **Resumen** en la cabecera o `/?view=overview`. Incluye llamadas recibidas,
+atendidas, derivadas, reservas, cancelaciones, cambios de cita, altas de paciente,
+estados, duración media y errores de herramientas. Los periodos Hoy / 7 días /
+30 días / Todo usan Europe/Madrid y la fecha de inicio de cada llamada. El gráfico
+de Todo muestra los últimos 30 días; sus totales incluyen todo el histórico.
+
+`data/metrics.sqlite` conserva las métricas entre reinicios, independientemente del
+límite de 200 llamadas del historial. Se crea al iniciar el servidor; no requiere
+un servicio de base de datos adicional. El historial disponible en `data/calls.json`
+se incorpora automáticamente sin duplicados. No puede reconstruir llamadas que
+ya se eliminaron de ese historial antes de añadir SQLite.
+
+- Una llamada se cuenta una vez por identificador. Derivadas cuenta llamadas con
+  una acción `ESCALATE` registrada; no confirma una transferencia telefónica.
+- Las gestiones cuentan acciones únicas recibidas con éxito en `record.actions`.
+  Respuestas acumulativas y reintentos idénticos no duplican el resultado. Una reserva
+  cancelada sigue contando como reserva y suma una cancelación independiente.
+- Las herramientas fallidas o sin respuesta no generan gestiones confirmadas.
+  La duración media solo usa llamadas conectadas que ya terminaron.
+- La base conserva identificadores, estados, tiempos y huellas de acciones; no
+  copia nombres, teléfonos, transcripciones ni payloads de pacientes. SQLite y sus
+  archivos WAL están ignorados por Git; la base se crea con permisos 0600.
+- La demostración nunca escribe métricas. Un fallo de almacenamiento se muestra
+  explícitamente en vez de presentar totales incompletos como válidos.
+
+API local: `GET /api/overview?period=today|7d|30d|all`. El resumen se actualiza al
+recibir eventos y permite actualización manual. Para copiar la base mientras el
+servidor está activo, usa una copia de seguridad SQLite que incluya el WAL, no una
+copia aislada del archivo principal ([documentación SQLite](https://www.sqlite.org/wal.html)).
 
 ### Verificación sin arrancar servicios
 

@@ -22,6 +22,14 @@
         >Lucía<span class="brand-dot">.</span></a
       >
       <span class="clinic-name">Clínica Arenal</span>
+      <nav class="view-navigation" aria-label="Secciones de Lucía">
+        <button id="open-overview" aria-pressed="false">
+          <i class="ph ph-chart-bar" aria-hidden="true"></i>Resumen
+        </button>
+        <button id="open-calls" aria-pressed="true">
+          <i class="ph ph-phone" aria-hidden="true"></i>Llamadas
+        </button>
+      </nav>
       <div class="header-actions">
         <time id="today" class="today"></time>
         <span id="connection" class="connection" role="status"
@@ -38,7 +46,7 @@
           <i class="ph ph-moon" aria-hidden="true"></i>
         </button>
         <span class="header-divider"></span>
-        <button id="open-settings" class="button quiet">
+        <button id="open-settings" class="button quiet" aria-label="Ajustes">
           <i class="ph ph-gear-six" aria-hidden="true"></i><span>Ajustes</span>
         </button>
       </div>
@@ -49,6 +57,41 @@
       role="status"
       hidden
     ></div>
+    <main
+      id="overview"
+      class="overview"
+      aria-labelledby="overview-title"
+      hidden
+    >
+      <div class="overview-inner">
+        <header class="overview-header">
+          <div>
+            <p class="eyebrow">TU RECEPCIÓN, EN PERSPECTIVA</p>
+            <h1 id="overview-title" tabindex="-1">Cada llamada cuenta.</h1>
+            <p>Una mirada a la atención y las gestiones de Lucía.</p>
+          </div>
+          <button id="refresh-overview" class="button secondary">
+            <i class="ph ph-arrow-clockwise" aria-hidden="true"></i>Actualizar
+          </button>
+        </header>
+        <div class="overview-toolbar">
+          <div
+            id="overview-periods"
+            class="period-switch"
+            role="group"
+            aria-label="Periodo del resumen"
+          >
+            <button data-period="today" aria-pressed="false">Hoy</button
+            ><button data-period="7d" aria-pressed="false">7 días</button
+            ><button data-period="30d" aria-pressed="true">30 días</button
+            ><button data-period="all" aria-pressed="false">Todo</button>
+          </div>
+          <span id="overview-updated"></span>
+        </div>
+        <p id="overview-feedback" class="call-error" role="status" hidden></p>
+        <div id="overview-content" aria-busy="false"></div>
+      </div>
+    </main>
     <main class="workspace" id="workspace" data-mobile-view="history">
       <aside class="history-panel" aria-labelledby="history-title">
         <div class="history-heading">

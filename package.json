@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.13"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -14,7 +14,7 @@
     "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",
     "test": "node --env-file-if-exists=.env --import tsx --test src/agent/*.test.ts src/console/*.test.ts src/console/*.test.js",
     "test:live": "node --env-file=.env --import tsx src/scripts/check.ts",
-    "check:ui": "node --check public/app.js && node --check public/model.js && node --check public/demo.js && node --check public/theme.js && node --check public/tool-presentation.js"
+    "check:ui": "node --check public/app.js && node --check public/model.js && node --check public/demo.js && node --check public/theme.js && node --check public/tool-presentation.js && node --check public/overview.js"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",

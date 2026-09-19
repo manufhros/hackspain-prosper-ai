@@ -363,7 +363,7 @@ function outputPresentation(tool, output, refs) {
     let html = section(
       summary,
       output.slots.length
-        ? cards(output.slots, refs, slotTitle)
+        ? cards(output.slots, refs, slotTitle, ["start_time"])
         : message("No hay horarios disponibles para esta búsqueda."),
     );
     if (output.soonest)
@@ -372,7 +372,7 @@ function outputPresentation(tool, output, refs) {
     if (Array.isArray(output.saturday) && output.saturday.length)
       html += section(
         "Opciones en sábado",
-        cards(output.saturday, refs, slotTitle),
+        cards(output.saturday, refs, slotTitle, ["start_time"]),
       );
     if (Array.isArray(output.blocked) && output.blocked.length)
       html += section(

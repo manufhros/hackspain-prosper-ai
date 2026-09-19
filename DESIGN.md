@@ -105,6 +105,13 @@ Patient messages sit on the left in neutral bubbles; Lucía sits on the right in
 bubbles, with mirrored avatar placement. Both retain speaker names and timestamps.
 Text stays left-aligned inside bubbles; source order remains chronological.
 
+The header also links to a full-width Resumen view. Use a restrained row of four
+headline counts, separated by hairlines; daily activity and supporting totals sit
+on the existing neutral surfaces. Keep the serif headings and forest/sage palette
+in both themes. The summary scrolls independently; on narrow screens counts form
+two columns and supporting sections stack. The chart has an accessible exact-value
+table and a textual legend. Header navigation wraps into a second row on mobile.
+
 ### Forms and overlays
 
 Native modal dialog owns focus trapping and Escape; dirty provider changes require explicit

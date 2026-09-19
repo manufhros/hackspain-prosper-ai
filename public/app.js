@@ -11,6 +11,7 @@ import {
 } from "./model.js";
 import { createDemo, demoAvailability } from "./demo.js";
 import { presentTool } from "./tool-presentation.js";
+import { createOverview } from "./overview.js";
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -31,6 +32,7 @@ const preferences = {
     }
   },
 };
+const overview = createOverview($("#overview"), api);
 let calls = [];
 let selectedId;
 let currentCall;
@@ -143,6 +145,37 @@ async function api(path, options = {}) {
   return result;
 }
 
+function setView(view, navigate = true, focus = true) {
+  const isOverview = view === "overview";
+  $("#overview").hidden = !isOverview;
+  $("#workspace").hidden = isOverview;
+  $("#open-overview").setAttribute("aria-pressed", String(isOverview));
+  $("#open-calls").setAttribute("aria-pressed", String(!isOverview));
+  $(".skip-link").href = isOverview ? "#overview-title" : "#conversation-title";
+  $(".skip-link").textContent = isOverview
+    ? "Ir al resumen"
+    : "Ir a la conversación";
+  if (navigate) {
+    const url = new URL(location.href);
+    if (isOverview) url.searchParams.set("view", "overview");
+    else url.searchParams.delete("view");
+    history.pushState({}, "", url);
+  }
+  if (isOverview) {
+    document.title = "Resumen · Lucía";
+    overview.show(demo);
+    if (focus) $("#overview-title").focus({ preventScroll: true });
+  } else {
+    overview.hide();
+    document.title = currentCall
+      ? `${currentCall.name} · Lucía`
+      : "Lucía · Llamadas";
+    if (focus) $("#open-calls").focus({ preventScroll: true });
+  }
+}
+$("#open-overview").addEventListener("click", () => setView("overview"));
+$("#open-calls").addEventListener("click", () => setView("calls"));
+
 function showConnection() {
   const badge = $("#connection");
   const banner = $("#connection-banner");
@@ -159,7 +192,7 @@ function showConnection() {
   banner.textContent = disconnected
     ? "Se ha perdido la conexión. Mostramos la última información recibida; volveremos a conectar automáticamente."
     : storageError
-      ? "No se ha podido guardar o recuperar el historial. Las llamadas actuales siguen visibles; revisa los permisos de data/calls.json."
+      ? "No se ha podido guardar o recuperar el historial. Las llamadas actuales siguen visibles; revisa el almacenamiento local de la aplicación."
       : "";
   $("#live-indicator").hidden =
     demo || connection !== "connected" || currentCall?.status !== "active";
@@ -181,6 +214,7 @@ function connect() {
   };
   events.addEventListener("snapshot", (event) => {
     const snapshot = JSON.parse(event.data);
+    overview.invalidate();
     calls = snapshot.calls;
     storageError = snapshot.storageError;
     renderHistory();
@@ -198,6 +232,7 @@ function connect() {
   });
   events.addEventListener("call", (event) => {
     const call = JSON.parse(event.data);
+    overview.invalidate();
     calls = [call, ...calls.filter((item) => item.id !== call.id)].sort(
       (a, b) => b.startedAt.localeCompare(a.startedAt),
     );
@@ -212,6 +247,7 @@ function connect() {
   });
   events.addEventListener("heartbeat", (event) => {
     storageError = JSON.parse(event.data).storageError;
+    overview.invalidate();
     showConnection();
   });
 }
@@ -340,7 +376,7 @@ function renderDetail(first = false) {
     70;
   const previousScroll = transcript.scrollTop;
   $("#conversation-title").textContent = call.name;
-  document.title = `${call.name} · Lucía`;
+  if ($("#overview").hidden) document.title = `${call.name} · Lucía`;
   $("#call-meta").innerHTML =
     `${statusMarkup(call.status)}<span class="meta-separator"></span><time id="selected-duration">${duration(call.startedAt, call.endedAt)}</time><span class="meta-separator"></span><span>${esc(time(call.startedAt))}</span>`;
   $("#transcript-caption").textContent = demo
@@ -494,7 +530,7 @@ $("#transcript").addEventListener("click", (event) => {
     void loadDetail(selectedId, true);
 });
 function renderEmpty() {
-  document.title = "Lucía · Llamadas";
+  if ($("#overview").hidden) document.title = "Lucía · Llamadas";
   $("#conversation-title").textContent = "Tu recepción, al día.";
   $("#call-meta").textContent =
     "Selecciona una llamada para ver su conversación.";
@@ -521,6 +557,7 @@ $("#hide-tools").addEventListener("click", () => {
   $("#show-tools").focus();
 });
 window.addEventListener("popstate", () => {
+  setView(new URL(location.href).searchParams.get("view"), false, false);
   const id = new URL(location.href).searchParams.get("call");
   if (id && calls.some((call) => call.id === id)) selectCall(id, false);
   else {
@@ -541,6 +578,7 @@ document.addEventListener("keydown", (event) => {
     !$("#settings-dialog").open
   ) {
     event.preventDefault();
+    setView("calls");
     $("#workspace").dataset.mobileView = "history";
     $("#call-search").focus();
   }
@@ -584,6 +622,7 @@ function startDemo() {
   ++requestVersion;
   clearInterval(demoTimer);
   demo = true;
+  if (!$("#overview").hidden) overview.show(true);
   demoStage = 0;
   storageError = false;
   demoCalls = createDemo();
@@ -636,6 +675,7 @@ function endDemo() {
   clearInterval(demoTimer);
   lastToolsSignature = "";
   demo = false;
+  if (!$("#overview").hidden) overview.show(false);
   demoCalls = [];
   calls = [];
   selectedId = undefined;
@@ -827,6 +867,7 @@ window.addEventListener("beforeunload", (event) => {
 });
 window.addEventListener("pagehide", () => {
   events?.close();
+  overview.hide();
   clearInterval(demoTimer);
 });
 window.addEventListener("pageshow", (event) => {
@@ -835,3 +876,5 @@ window.addEventListener("pageshow", (event) => {
 
 if (new URL(location.href).searchParams.get("demo") === "1") startDemo();
 else connect();
+
+setView(new URL(location.href).searchParams.get("view"), false, false);

@@ -79,6 +79,7 @@ test("console serves the actual UI and locally packaged assets without a listeni
     "/styles.css",
     "/app.js",
     "/tool-presentation.js",
+    "/overview.js",
     "/assets/lucia-orb.png",
     "/vendor/icons/Phosphor.woff2",
     "/vendor/dm-sans/dm-sans-latin-400-normal.woff2",
@@ -121,6 +122,25 @@ test("provider settings return only public metadata and reject non-console mutat
   assert.equal(saved.statusCode, 200);
   assert.equal(JSON.parse(saved.body).agentId, "agent_other");
   assert.ok(!saved.body.includes("private-test-key"));
+});
+
+test("overview reports observed metrics, rejects invalid periods and retains localhost protection", async () => {
+  const { handler, calls } = fixture();
+  calls.start("metric-call");
+  const response = await invoke(handler, "/api/overview?period=all");
+  assert.equal(response.statusCode, 200);
+  assert.equal(JSON.parse(response.body).totals.calls, 1);
+  assert.equal(
+    (await invoke(handler, "/api/overview?period=bad")).statusCode,
+    400,
+  );
+  assert.equal(
+    (await invoke(handler, "/api/overview", { host: "public.ngrok.app" }))
+      .statusCode,
+    403,
+  );
+  calls.metrics.storageError = true;
+  assert.equal((await invoke(handler, "/api/overview")).statusCode, 503);
 });
 
 test("event stream supplies an initial snapshot, updates and releases subscriptions", async () => {

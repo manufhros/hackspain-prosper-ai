@@ -99,7 +99,18 @@ The eight-slot run (`benchmark-1789819610709.json`, small/segment) regressed at 
 
 The two-slot run (`benchmark-1789819783968.json`, small/segment) completed all 108 intents without fallback. At ten turns, p50/p95 were 3.54/5.32 s versus four slots' 4.18/5.40 s. At twenty they were 6.34/10.32 s versus 6.86/10.24 s. Median latency improved while the twenty-turn tail was effectively unchanged. Catalan WER changed to 60%, despite unchanged ASR configuration. Earlier runs generated fresh Piper audio each time and did not save audio hashes, so their recognition differences cannot be attributed to slot counts, and their latency comparisons are provisional. These are also repeated measurements of only three phrases, not a broad quality evaluation.
 
-The benchmark now fixes the input recordings across runs. Compare two and four slots on those identical inputs; both reports should have the same `input_audio.sha256`. This starts the two stacks sequentially and stops if a run fails:
+The controlled pair (`benchmark-1789820021198.json`, two slots; `benchmark-1789820084857.json`, four slots) shares input hash `8e1ae762c85da8154b339e503b74b52a7ad0e35c4dc1f06da267ef285ea6eb79`:
+
+| Simultaneous synthetic turns | Two slots p50 / p95 | Four slots p50 / p95 |
+| --- | --- | --- |
+| 1 | 0.89 / 0.92 s | 0.92 / 1.32 s |
+| 5 | 2.18 / 2.83 s | 2.49 / 3.17 s |
+| 10 | 3.45 / 5.25 s | 4.18 / 5.38 s |
+| 20 | 6.12 / 10.22 s | 6.83 / 10.24 s |
+
+Both completed all 108 intents and detected languages correctly, with identical recognized text, no decoder fallback and no execution failures. The Catalan fixture scored 60% WER in both. Two slots are the preferred measured candidate because of lower median latency without a material tail penalty. This is one sequential pair, not a guarantee of optimal settings or twenty-call readiness. The twenty-turn tail remains about ten seconds. Keep segment decoding opt-in until broader speech, real receptionist tools and consent flows are exercised. No production defaults or private `.env` were changed. The immediate quality check is listening to the actual Catalan fixture before attributing its errors to ASR; decoded inspection copies are `.workbench/benchmark-input-{en,es,ca}.wav`.
+
+Reproduce the paired comparison with identical cached inputs when needed (there is no need to repeat it unchanged now). This starts the two stacks sequentially and stops if a run fails:
 
 ```sh
 for benchmark_slots in 2 4; do

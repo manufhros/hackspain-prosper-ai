@@ -35,7 +35,9 @@ export async function openRouterKey(
   return key;
 }
 
-export function runtimeExecutables(config: ModelConfig, backend: "llama" | "ollama" = "llama"): string[] { return config.provider === "local" ? ["uv", backend === "llama" ? "llama-server" : "ollama"] : ["uv"]; }
+export function runtimeExecutables(config: ModelConfig, backend: "llama" | "ollama" = "llama", recognitionOnly = false): string[] {
+  return config.provider === "local" && !recognitionOnly ? ["uv", backend === "llama" ? "llama-server" : "ollama"] : ["uv"];
+}
 
 export function childEnvironment(env: Record<string, string | undefined>): Record<string, string | undefined> {
   const { PLATFORM_API_KEY: _clinic, VOICE_SERVER_TOKEN: _server, OPENROUTER_API_KEY: _router, ...safe } = env;

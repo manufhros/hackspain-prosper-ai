@@ -8,7 +8,7 @@ import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from
 import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
 import { LlamaChat, llamaArguments, llamaCapacity } from "./llama";
-import { localSettings } from "./settings";
+import { localSettings, type LocalSettings } from "./settings";
 
 type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; role: "asr" | "tts"; pending: number };
 
@@ -64,19 +64,23 @@ export class LocalRuntime implements Inference {
   private children = new Set<ReturnType<typeof Bun.spawn>>();
   private stopSignal = new AbortController();
   private workers: Worker[] = [];
-  readonly settings = localSettings();
+  readonly settings: LocalSettings;
   private local?: OllamaChat | LlamaChat;
   modelRuntime?: { backend: string; slots: number; context_per_slot: number; build?: string; model_asset?: string; model_sha256?: string };
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
   get modelLabel() {
+    if (this.options.recognitionOnly) return `Whisper ${this.settings.asrModel}/${this.settings.asrDecoder} (recognition only)`;
     try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
     catch { return "Model configuration incomplete; check LLM_PROVIDER / OPENROUTER_MODEL"; }
   }
   private starting?: Promise<void>;
   private pending = new Map<string, { resolve: (reply: AudioReply) => void; reject: (error: Error) => void }>();
-  constructor(private readonly update: (message: string) => void = () => {}) {}
+  constructor(private readonly update: (message: string) => void = () => {},
+    private readonly options: { recognitionOnly?: boolean; settings?: LocalSettings } = {}) {
+    this.settings = options.settings ?? localSettings();
+  }
   private environment(extra: Record<string, string> = {}) {
     return { ...childEnvironment(process.env), PYTHONUNBUFFERED: "1", HF_HUB_DISABLE_TELEMETRY: "1", HOMEBREW_NO_AUTO_UPDATE: "1", ...extra };
   }
@@ -132,13 +136,13 @@ export class LocalRuntime implements Inference {
   private async prepare() {
     if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Local voice requires Apple Silicon macOS. Use bun start --offline on other systems.");
     this.state = "installing"; this.error = "";
-    const config = modelConfig();
+    const config = this.options.recognitionOnly ? { provider: "local" as const, model: MODEL } : modelConfig();
     this.remote = config.provider === "openrouter" ? new OpenRouterChat(config, await openRouterKey()) : undefined;
     this.update(`Model: ${this.modelLabel}`);
     await mkdir(join(voiceDir, "audio"), { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700); await chmod(voiceDir, 0o700);
     const brew = Bun.which("brew") ?? (await Bun.file("/opt/homebrew/bin/brew").exists() ? "/opt/homebrew/bin/brew" : null);
-    const executables = runtimeExecutables(config, this.settings.backend);
+    const executables = runtimeExecutables(config, this.settings.backend, this.options.recognitionOnly);
     const missing = executables.filter(name => !Bun.which(name));
     if (missing.length) {
       if (!brew) throw new Error("Install Homebrew first (brew.sh), then rerun bun start. No sudo installer is run by the workbench.");
@@ -156,20 +160,21 @@ export class LocalRuntime implements Inference {
       for (const command of installationCommands(executable("uv"), python, voiceDir)) await this.command(command);
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
-    for (const asset of [...speechAssets(this.settings.asrModel), vadAsset]) await this.download(asset);
-    if (config.provider === "local") {
+    const assets = speechAssets(this.settings.asrModel);
+    for (const asset of this.options.recognitionOnly ? assets.filter(asset => asset.path.startsWith("whisper")) : [...assets, vadAsset]) await this.download(asset);
+    if (config.provider === "local" && !this.options.recognitionOnly) {
       if (this.settings.backend === "llama") await this.startLlama(executable("llama-server"));
       else await this.startOllama(executable("ollama"));
     }
     this.startWorker(python, "asr");
-    for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");
-    this.update("Warming recognition, speech workers and the language model…");
+    if (!this.options.recognitionOnly) for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");
+    this.update(this.options.recognitionOnly ? "Warming recognition…" : "Warming recognition, speech workers and the language model…");
     // Warm every worker explicitly; a pool request could otherwise reuse the first worker.
     for (const worker of this.workers) await this.workerRequest(worker, "warmup", {}, this.stopSignal.signal);
-    await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
+    if (!this.options.recognitionOnly) await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
     if (this.workers.some(worker => worker.process.exitCode !== null) || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
     this.state = "ready";
-    this.update(`Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+    this.update(this.options.recognitionOnly ? `${this.modelLabel} ready.` : `Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
   }
   private async startLlama(executable: string) {
     const modelPath = join(voiceDir, qwenAsset.path);

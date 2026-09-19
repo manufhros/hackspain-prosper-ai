@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { installationCommands, killOwned, LocalRuntime, streamLines } from "../src/voice/runtime";
 import { clinicClient, DEFAULT_PLATFORM, environmentPlatform } from "../src/voice/platform";
+import { modelConfig, runtimeExecutables } from "../src/voice/model";
+import { localSettings } from "../src/voice/settings";
 import { assets } from "../src/voice/assets";
 
 test("installation plan uses isolated Python 3.12 and the locked dependency file", () => {
@@ -40,4 +42,13 @@ test(".env credentials choose their own Prosper origin instead of an unrelated s
   const configured = await clinicClient({ origin: "https://unrelated.test", endpoint: "" }, { PLATFORM_API_KEY: "synthetic-key", PLATFORM_API_BASE_URL: "https://clinic.test" });
   expect(configured.origin).toBe("https://clinic.test");
   expect(() => environmentPlatform({ PLATFORM_API_BASE_URL: "https://clinic.test/api/redoc" })).toThrow("origin");
+});
+
+test("recognition-only construction and executable selection need no language-model provider", () => {
+  const settings = localSettings({});
+  expect(runtimeExecutables(modelConfig({}), "llama", true)).toEqual(["uv"]);
+  expect(runtimeExecutables(modelConfig({}), "ollama", true)).toEqual(["uv"]);
+  const runtime = new LocalRuntime(() => {}, { recognitionOnly: true, settings });
+  expect(runtime.state).toBe("idle"); expect(runtime.modelLabel).toContain("recognition only");
+  expect(runtime.settings).toEqual(settings); runtime.stop();
 });

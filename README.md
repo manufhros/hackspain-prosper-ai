@@ -346,7 +346,7 @@ Wait for **Ready**, then in terminal 2, from this same checkout:
 bun run simulate:call
 ```
 
-The existing `PLATFORM_API_KEY` and `OPENROUTER_API_KEY` are enough. The caller uses OpenRouter `openai/gpt-4.1-mini` for conversation, hosted Whisper Turbo to hear the receptionist, and its own single Piper worker to speak. It does not launch another Qwen server or change the receptionist's model/ASR settings. Caller chat and listening incur OpenRouter usage; the normal local runtime may prepare missing Piper dependencies/assets on first use. Override only the caller model with `SIM_CALLER_MODEL` if desired. `VOICE_SERVER_TOKEN` is reused for the socket handshake.
+The existing `PLATFORM_API_KEY` and `OPENROUTER_API_KEY` are enough. For conversation the caller selects `SIM_CALLER_MODEL`, then your existing `OPENROUTER_MODEL`, then `openai/gpt-4.1-mini` if neither is configured. It inherits the `OPENROUTER_MAX_TOKENS`, timeout, reasoning and provider-sort settings, even when `LLM_PROVIDER=local`. It uses hosted Whisper Turbo to hear the receptionist and its own single Piper worker to speak. It does not launch another Qwen server or change the receptionist's model/ASR settings. Caller chat and listening incur OpenRouter usage; the normal local runtime may prepare missing Piper dependencies/assets on first use. Override only the caller model with `SIM_CALLER_MODEL` if desired. A 404 reporting no endpoints matching your account data policy means the selected model has no permitted route; choose a model allowed by your account. The simulator never relaxes privacy or parameter requirements or silently switches models after a failure. `VOICE_SERVER_TOKEN` is reused for the socket handshake.
 
 Choose a language/request or repeat a seeded selection:
 

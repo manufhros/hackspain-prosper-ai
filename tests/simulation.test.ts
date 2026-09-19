@@ -1,12 +1,24 @@
 import { expect, test } from "bun:test";
 import { CallerWire, callerResponse, localTarget, requireDryRun, runSimulatedCall, type CallResult } from "../src/simulation/call";
-import { gradeCall } from "../src/simulation/runner";
+import { callerModelConfig, gradeCall } from "../src/simulation/runner";
 import { WireInspector } from "../src/protocol";
 import { LocalRuntime, type Inference } from "../src/voice/runtime";
 import type { PlatformCallReport } from "../src/telephony/call";
 import type { ObjectValue } from "../src/data";
 
 import { now, scenario } from "./helpers/simulation";
+
+test("caller honors the configured hosted model and settings even with a local receptionist", () => {
+  const env = { LLM_PROVIDER: "local", OPENROUTER_MODEL: "deepseek/deepseek-v4.1-flash", OPENROUTER_MAX_TOKENS: "4096",
+    OPENROUTER_TIMEOUT_MS: "30000", OPENROUTER_PROVIDER_SORT: "price", OPENROUTER_REASONING_EFFORT: "low" };
+  expect(callerModelConfig(env)).toEqual({ provider: "openrouter", model: env.OPENROUTER_MODEL, maxTokens: 4096,
+    timeoutMs: 30000, sort: "price", reasoningEffort: "low" });
+  expect(callerModelConfig({ ...env, SIM_CALLER_MODEL: " another/model " }).model).toBe("another/model");
+  expect(callerModelConfig({ ...env, SIM_CALLER_MODEL: " " }).model).toBe(env.OPENROUTER_MODEL);
+  expect(callerModelConfig({ OPENROUTER_MODEL: " " }).model).toBe("openai/gpt-4.1-mini");
+  expect(env.LLM_PROVIDER).toBe("local");
+  expect(() => callerModelConfig({ ...env, SIM_CALLER_MODEL: "invalid model" })).toThrow("model ID");
+});
 
 test("preflight refuses live mode, unready and non-local endpoints", () => {
   expect(() => requireDryRun({ ready: true, mode: "platform" })).toThrow("--dry-run");

@@ -29,12 +29,20 @@ Options:
 
 Uses PLATFORM_API_KEY for read-only live clinic data, OPENROUTER_API_KEY for
 caller chat and listening, and local Piper for caller speech. Optional
-SIM_CALLER_MODEL defaults to openai/gpt-4.1-mini; receptionist settings are unchanged.
+Model selection: SIM_CALLER_MODEL, then OPENROUTER_MODEL, then openai/gpt-4.1-mini.
+The caller inherits OPENROUTER token, timeout, reasoning and routing settings.
 VOICE_SERVER_TOKEN is reused when set. Server and caller must use this checkout.
 Artifacts: .workbench/simulation-<id>.json, scenario snapshot and per-turn WAVs.
 This is one clean, cooperative adult-patient call, not a concurrency benchmark
 or the official Prosper caller/judge. All final actions stay in dry-run mode.
 `;
+
+export function callerModelConfig(env: Record<string, string | undefined> = process.env) {
+  // Reuse the user's chosen hosted model even when the receptionist runs locally.
+  // An explicit simulator override wins; never silently retry on a different model.
+  return modelConfig({ ...env, LLM_PROVIDER: "openrouter",
+    OPENROUTER_MODEL: env.SIM_CALLER_MODEL?.trim() || env.OPENROUTER_MODEL?.trim() || "openai/gpt-4.1-mini" });
+}
 
 export function gradeCall(scenario: Scenario, call: CallResult, report?: PlatformCallReport) {
   const evaluation = evaluate(scenario.case, report?.record, report?.transcript, report?.reference_time);
@@ -103,8 +111,7 @@ export async function simulate(argv: string[]) {
     const scenarioPath = await saveLocal(`simulation-${id}-scenario.json`, scenario);
     console.log(`${scenario.kind.toUpperCase()} / ${scenario.case.language}: ${scenario.case.summary}\nScenario: ${scenarioPath}`);
     if (values["prepare-only"]) return;
-    const model = modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: process.env.SIM_CALLER_MODEL || "openai/gpt-4.1-mini",
-      OPENROUTER_MAX_TOKENS: "512", OPENROUTER_TIMEOUT_MS: "20000" });
+    const model = callerModelConfig();
     runtime = new LocalRuntime(message => console.log(`[caller] ${message}`), {
       model, settings: { ...localSettings(), ttsWorkers: 1 },
       transcription: transcriptionConfig({ ASR_PROVIDER: "openrouter", OPENROUTER_ASR_CONCURRENCY: "1" }),

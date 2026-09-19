@@ -15,7 +15,8 @@
     "evaluate": "bun src/cli.ts evaluate",
     "doctor": "bun src/cli.ts doctor",
     "benchmark": "bun src/cli.ts benchmark",
-    "benchmark:asr": "bun src/cli.ts benchmark-asr"
+    "benchmark:asr": "bun src/cli.ts benchmark-asr",
+    "simulate:call": "bun src/simulation/runner.ts"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

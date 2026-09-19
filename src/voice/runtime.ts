@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
 import { speechAssets, vadAsset, qwenAsset, MODEL, type Asset } from "./assets";
-import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
+import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables, type ModelConfig } from "./model";
 import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
 import { LlamaChat, llamaArguments, llamaCapacity } from "./llama";
@@ -92,13 +92,13 @@ export class LocalRuntime implements Inference {
   private remote?: OpenRouterChat;
   get modelLabel() {
     if (this.options.recognitionOnly) return `${this.recognitionLabel} (recognition only)`;
-    try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
+    try { const config = this.options.model ?? modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
     catch { return "Model configuration incomplete; check LLM_PROVIDER / OPENROUTER_MODEL"; }
   }
   private starting?: Promise<void>;
   private pending = new Map<string, { resolve: (reply: AudioReply) => void; reject: (error: Error) => void }>();
   constructor(private readonly update: (message: string) => void = () => {},
-    private readonly options: { recognitionOnly?: boolean; settings?: LocalSettings; transcription?: TranscriptionConfig } = {}) {
+    private readonly options: { recognitionOnly?: boolean; model?: ModelConfig; settings?: LocalSettings; transcription?: TranscriptionConfig } = {}) {
     this.settings = options.settings ?? localSettings();
     this.transcription = options.transcription ?? transcriptionConfig();
   }
@@ -157,7 +157,7 @@ export class LocalRuntime implements Inference {
   private async prepare() {
     if (process.platform !== "darwin" || process.arch !== "arm64") throw new Error("Local voice requires Apple Silicon macOS. Use bun start --offline on other systems.");
     this.state = "installing"; this.error = "";
-    const config = this.options.recognitionOnly ? { provider: "local" as const, model: MODEL } : modelConfig();
+    const config = this.options.recognitionOnly ? { provider: "local" as const, model: MODEL } : this.options.model ?? modelConfig();
     const key = config.provider === "openrouter" || this.transcription.provider === "openrouter" ? await openRouterKey() : undefined;
     this.remote = config.provider === "openrouter" ? new OpenRouterChat(config, key!) : undefined;
     this.remoteRecognition = this.transcription.provider === "openrouter"

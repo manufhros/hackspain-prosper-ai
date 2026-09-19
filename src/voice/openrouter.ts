@@ -37,8 +37,17 @@ export class OpenRouterChat {
     }
     if (!response.ok) {
       const hint: Record<number, string> = { 401: "update OPENROUTER_API_KEY in .env or the key in Setup", 402: "check OpenRouter credits", 429: "rate limited; try again later", 400: "check model tool/structured-output support", 404: "no matching endpoint; check OPENROUTER_MODEL, required tool/structured-output support, and OpenRouter provider/privacy settings" };
-      // Never echo provider bodies: they can contain credentials, patient data or prompts.
-      throw new Error(`OpenRouter HTTP ${response.status}: ${hint[response.status] ?? "provider request failed"}`);
+      if (response.status === 404) {
+        // Classify a known routing error, but never echo upstream text or metadata:
+        // those can contain credentials, patient data or prompts.
+        try {
+          const body: unknown = await response.json();
+          if (isObject(body) && isObject(body.error) && typeof body.error.message === "string"
+            && /^No endpoints found matching your data policy\b/i.test(body.error.message))
+            hint[404] = "no endpoints match your account data policy; select an allowed model with SIM_CALLER_MODEL (simulator) or OPENROUTER_MODEL";
+        } catch { /* Keep the generic routing diagnostic for unknown/non-JSON bodies. */ }
+      }
+      throw new Error(`OpenRouter HTTP ${response.status}: ${hint[response.status] ?? "provider request failed"} (model: ${this.config.model})`);
     }
     let data: unknown;
     try { data = await response.json(); } catch { throw new Error("OpenRouter returned invalid JSON"); }

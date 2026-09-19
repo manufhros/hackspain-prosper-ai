@@ -115,6 +115,21 @@ test("HTTP, provider and malformed responses fail without leaking upstream bodie
   }
 });
 
+test("policy routing failures are classified without logging the upstream body or retrying", async () => {
+  let requests = 0;
+  const router = new OpenRouterChat(config, secret, async () => {
+    requests++;
+    return Response.json({ error: { message: `No endpoints found matching your data policy. ${secret}`, metadata: { secret } } }, { status: 404 });
+  });
+  let error: unknown;
+  try { await router.chat([], [], signal()); } catch (cause) { error = cause; }
+  expect(String(error)).toContain("account data policy");
+  expect(String(error)).toContain("SIM_CALLER_MODEL");
+  expect(String(error)).toContain("model: test/model");
+  expect(String(error)).not.toContain(secret);
+  expect(requests).toBe(1);
+});
+
 test("caller cancellation propagates to the pending remote request without retrying", async () => {
   const abort = new AbortController(); let requests = 0;
   const router = new OpenRouterChat(config, secret, async (_url, init) => {

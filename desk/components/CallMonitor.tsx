@@ -32,9 +32,9 @@ function download(name: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function durationLabel(minutes: number) {
-  if (!minutes) return "—";
-  return `${Math.max(1, Math.round(minutes))} min`;
+function durationLabel(minutes: number | null) {
+  if (minutes == null) return "—";
+  return `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(minutes)} min`;
 }
 
 export function CallMonitor({

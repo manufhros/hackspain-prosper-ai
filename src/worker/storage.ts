@@ -37,11 +37,13 @@ export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<
     .bind(event.eventId, event.schemaVersion, event.callId, event.configVersion,
       event.type, event.occurredAt, JSON.stringify(payload)).run();
   if (event.type === "call.started" && !event.payload.demo) {
-    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at)
-      VALUES (?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
-      started_at = min(voice_calls.started_at, excluded.started_at)
+    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, summary)
+      VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      started_at = min(voice_calls.started_at, excluded.started_at),
+      summary = json_patch(excluded.summary, COALESCE(voice_calls.summary, '{}'))
       WHERE voice_calls.org_slug = excluded.org_slug`)
-      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt).run();
+      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt,
+        JSON.stringify({ origin: event.payload.origin ?? "unknown" })).run();
   }
   if (event.type === "call.ended" && !event.payload.demo) {
     await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary)

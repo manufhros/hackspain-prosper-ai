@@ -1,7 +1,7 @@
 import type { CallDetail, LoggedCall, TranscriptEntry } from "./types";
 import { actionsFromEvents } from "./call-tools";
 
-type CallRow = { call_id: string; started_at: string; summary: string | null };
+type CallRow = { call_id: string; started_at: string; summary: string | null; simulator?: number };
 type CallDatabase = {
   prepare(sql: string): {
     bind(...values: unknown[]): {
@@ -17,7 +17,8 @@ export function callFromRow(row: CallRow): LoggedCall {
   const summary = row.summary ? JSON.parse(row.summary) : {};
   const outcome = String(summary.outcome ?? "en_curso");
   return {
-    id: row.call_id, started: row.started_at, minutes: Number(summary.durationMs ?? 0) / 60_000,
+    id: row.call_id, started: row.started_at, minutes: typeof summary.durationMs === "number" && Number.isFinite(summary.durationMs) && summary.durationMs >= 0 && !summary.importIncomplete ? summary.durationMs / 60_000 : null,
+    origin: row.simulator || summary.demo || summary.simulation || summary.origin === "simulator" ? "simulator" : summary.origin === "phone" ? "phone" : "unknown",
     phone: null, patient: summary.patientName || null, patientId: summary.patientId || null, insurer: summary.insurer || null,
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
     outcome, reason: summary.reason ?? null, motive: summary.intent ?? "",
@@ -25,8 +26,8 @@ export function callFromRow(row: CallRow): LoggedCall {
     resolution: outcome === "en_curso" ? "unknown" : outcome === "sin_cierre" ? "abandoned"
       : outcome === "escalado" ? "escalated" : "resolved",
     route: summary.route ?? null, intent: summary.intent ?? null,
-    toolCalls: summary.toolCalls ?? 0, toolErrors: summary.toolErrors ?? 0,
-    frustrationScore: summary.frustrationScore ?? 0, configVersion: summary.configVersion ?? null,
+    toolCalls: summary.toolCalls, toolErrors: summary.toolErrors,
+    frustrationScore: summary.frustrationScore, configVersion: summary.configVersion ?? null,
   };
 }
 

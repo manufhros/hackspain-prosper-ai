@@ -13,6 +13,7 @@ import { delay } from "../telephony/audio";
 import type { PlatformCallReport } from "../telephony/call";
 import { generateScenario, type Kind, type Language, type Scenario } from "./scenario";
 import { localTarget, requireDryRun, runSimulatedCall, type CallResult } from "./call";
+import { LivePlayback } from "./playback";
 
 export const simulationHelp = `Simulate one real audio call against your ALREADY RUNNING receptionist.
 
@@ -25,10 +26,11 @@ Options:
   --seed <text>            Repeat selection against the same live DB and date
   --endpoint <ws-url>      Default ws://127.0.0.1:7860/ws; loopback only
   --prepare-only          Fetch and save a scenario; no socket, caller or models
+  --mute                  Disable live speaker playback (on by default)
   --help                  Show this help without contacting any service
 
 Uses PLATFORM_API_KEY for read-only live clinic data, OPENROUTER_API_KEY for
-caller chat and listening, and local Piper for caller speech. Optional
+caller chat and listening, and local Piper for caller speech.
 Model selection: SIM_CALLER_MODEL, then OPENROUTER_MODEL, then openai/gpt-4.1-mini.
 The caller inherits OPENROUTER token, timeout, reasoning and routing settings.
 VOICE_SERVER_TOKEN is reused when set. Server and caller must use this checkout.
@@ -81,7 +83,7 @@ async function waitForReport(callId: string, before: Set<string>, signal: AbortS
 
 export async function simulate(argv: string[]) {
   const { values, positionals } = parseArgs({ args: argv, strict: true, allowPositionals: true, options: {
-    help: { type: "boolean" }, "prepare-only": { type: "boolean" }, seed: { type: "string" },
+    help: { type: "boolean" }, mute: { type: "boolean" }, "prepare-only": { type: "boolean" }, seed: { type: "string" },
     language: { type: "string" }, kind: { type: "string" }, endpoint: { type: "string" },
   } });
   if (values.help) { console.log(simulationHelp); return; }
@@ -95,6 +97,7 @@ export async function simulate(argv: string[]) {
   const interrupt = () => controller.abort(new Error("Simulator interrupted"));
   process.once("SIGINT", interrupt); process.once("SIGTERM", interrupt);
   let runtime: LocalRuntime | undefined;
+  let playback: LivePlayback | undefined;
   try {
     if (!values["prepare-only"]) {
       let health: Response;
@@ -122,12 +125,17 @@ export async function simulate(argv: string[]) {
       console.log("Starting caller-only Piper worker; OpenRouter chat/listening incurs API usage. Receptionist must already be running.");
       await runtime.start();
       controller.signal.throwIfAborted();
+      if (!values.mute) {
+        playback = new LivePlayback(message => console.log(`[speakers] ${message}`));
+        await playback.start();
+        controller.signal.throwIfAborted();
+      }
       const before = new Set(await reportFiles());
       const audioDir = join(stateDir, `simulation-${id}-audio`);
       await mkdir(audioDir, { mode: 0o700 });
       let audioIndex = 0;
       const call = await runSimulatedCall({ endpoint: endpoint.socket, token: process.env.VOICE_SERVER_TOKEN?.trim(), callId,
-        item: scenario.case, inference: runtime, signal: controller.signal,
+        item: scenario.case, inference: runtime, signal: controller.signal, monitor: playback?.push,
         update: event => console.log(`${event.role === "caller" ? "Caller" : "Heard receptionist"}: ${event.text || "[unintelligible]"}`),
         saveAudio: async (role, audio) => {
           const paths: string[] = [];
@@ -138,7 +146,9 @@ export async function simulate(argv: string[]) {
           return paths;
         },
       });
+      await playback?.stop();
       const partial = { scenario_path: scenarioPath, scenario, caller_model: model.model, call, platform_submission: false,
+        playback: { requested: !values.mute, warnings: playback?.warnings ?? [] },
         limitations: ["Adult existing-patient BOOK/CANCEL/RESCHEDULE only; public personas are lookup seeds, not full database sampling.",
           "Clean synthetic Piper voices; no background-noise, third-party privacy, barge-in or concurrency assessment.",
           "Caller waits for this receptionist's playback marks. Caller chat/ASR latency contributes to call duration.",
@@ -154,6 +164,7 @@ export async function simulate(argv: string[]) {
       if (evaluation.status !== "pass") process.exitCode = 1;
     } finally { controller.signal.removeEventListener("abort", stopRuntime); }
   } finally {
+    await playback?.stop();
     runtime?.stop(); process.removeListener("SIGINT", interrupt); process.removeListener("SIGTERM", interrupt);
   }
 }

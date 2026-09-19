@@ -1,0 +1,126 @@
+[2026-09-19T10:33:31,658 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T10:33:31,659 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_10-33-31_CEST.log
+[2026-09-19T10:42:21,281 CEST] socket open 1 live
+[2026-09-19T10:42:22,472 CEST] socket open 2 live
+[2026-09-19T10:42:23,957 CEST] socket open 3 live
+[2026-09-19T10:42:25,642 CEST] socket open 4 live
+[2026-09-19T10:42:25,709 CEST] call start eeb11b32-06d4-58ed-aa65-aa4220fc219f +34736900417
+[2026-09-19T10:42:25,775 CEST] directory hint eeb11b32-06d4-58ed-aa65-aa4220fc219f [{"patient_id":"P01403","name":"Diego Martín Gutiérrez","insurer":"adeslas","has_visited_before":false,"note":"Never been seen here; two first visits are already booked, the first of them with Dra. Ca
+[2026-09-19T10:42:26,624 CEST] eeb11b32 eleven conversation_initiation_metadata
+[2026-09-19T10:42:27,407 CEST] eeb11b32 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T10:42:27,408 CEST] eeb11b32 eleven agent_response
+[2026-09-19T10:42:27,490 CEST] socket open 5 live
+[2026-09-19T10:42:27,560 CEST] call start 53e48754-c34a-58cf-9364-9acea0d2de9d +34621836412
+[2026-09-19T10:42:27,626 CEST] directory hint 53e48754-c34a-58cf-9364-9acea0d2de9d [{"patient_id":"P01473","name":"Consuelo Blanco Martínez","insurer":"privado","has_visited_before":true,"note":"An old patient of the clinic; nothing since December 2024. Seen once, by Dra. Carmen Ort
+[2026-09-19T10:42:27,933 CEST] 53e48754 eleven conversation_initiation_metadata
+[2026-09-19T10:42:28,269 CEST] 53e48754 eleven agent_response
+[2026-09-19T10:42:28,270 CEST] 53e48754 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T10:42:29,409 CEST] socket open 6 live
+[2026-09-19T10:42:29,521 CEST] call start bac9eb0d-1a68-5a62-ae1f-d03547e362e3 +34791062312
+[2026-09-19T10:42:29,596 CEST] directory hint bac9eb0d-1a68-5a62-ae1f-d03547e362e3 [{"patient_id":"P00864","name":"Antonia Delgado Navarro","insurer":"mapfre","has_visited_before":false,"note":"New to the clinic -- the appointment on file is their first visit, with Dra. Carmen Ortiz
+[2026-09-19T10:42:29,898 CEST] bac9eb0d eleven conversation_initiation_metadata
+[2026-09-19T10:42:30,277 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:42:30,277 CEST] bac9eb0d agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T10:42:45,071 CEST] eeb11b32 user ...
+[2026-09-19T10:42:45,072 CEST] eeb11b32 eleven user_transcript
+[2026-09-19T10:42:45,172 CEST] eeb11b32 agent Hello, is anyone there? How can I help you today?
+[2026-09-19T10:42:45,173 CEST] eeb11b32 eleven agent_response
+[2026-09-19T10:42:46,443 CEST] eeb11b32 eleven interruption
+[2026-09-19T10:42:46,444 CEST] eeb11b32 eleven agent_response_correction
+[2026-09-19T10:42:47,036 CEST] bac9eb0d eleven user_transcript
+[2026-09-19T10:42:47,036 CEST] bac9eb0d user Hello?
+[2026-09-19T10:42:47,118 CEST] bac9eb0d agent Hello, how can I help you today?
+[2026-09-19T10:42:47,119 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:42:47,495 CEST] 53e48754 user Hello.
+[2026-09-19T10:42:47,496 CEST] 53e48754 eleven user_transcript
+[2026-09-19T10:42:47,567 CEST] 53e48754 eleven agent_response
+[2026-09-19T10:42:47,568 CEST] 53e48754 agent Hello, how can I help you today?
+[2026-09-19T10:42:48,200 CEST] eeb11b32 user Hello.
+[2026-09-19T10:42:48,201 CEST] eeb11b32 eleven user_transcript
+[2026-09-19T10:42:48,275 CEST] eeb11b32 agent Hello. How can I help you today?
+[2026-09-19T10:42:48,276 CEST] eeb11b32 eleven agent_response
+[2026-09-19T10:43:02,440 CEST] socket open 6 live
+[2026-09-19T10:43:02,503 CEST] call start 79a76939-a8f2-505e-aac6-19cdd6a40175 +34671154878
+[2026-09-19T10:43:02,769 CEST] directory hint 79a76939-a8f2-505e-aac6-19cdd6a40175 []
+[2026-09-19T10:43:03,031 CEST] 79a76939 eleven conversation_initiation_metadata
+[2026-09-19T10:43:03,507 CEST] 79a76939 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T10:43:03,507 CEST] 79a76939 eleven agent_response
+[2026-09-19T10:43:05,574 CEST] socket open 6 live
+[2026-09-19T10:43:14,832 CEST] socket open 6 live
+[2026-09-19T10:43:14,895 CEST] call start 1b301d11-ea7e-574e-aa86-56d577beaa34 +34755337133
+[2026-09-19T10:43:15,083 CEST] directory hint 1b301d11-ea7e-574e-aa86-56d577beaa34 []
+[2026-09-19T10:43:15,357 CEST] 1b301d11 eleven conversation_initiation_metadata
+[2026-09-19T10:43:15,678 CEST] 1b301d11 eleven agent_response
+[2026-09-19T10:43:15,679 CEST] 1b301d11 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T10:43:16,056 CEST] bac9eb0d user Yeah. So, I need an appointment with Dr. Sias to renew a repeat prescription.
+[2026-09-19T10:43:16,057 CEST] bac9eb0d tool search_directory {"phone":"+34791062312"}
+[2026-09-19T10:43:16,057 CEST] bac9eb0d eleven client_tool_call
+[2026-09-19T10:43:16,057 CEST] bac9eb0d eleven user_transcript
+[2026-09-19T10:43:16,795 CEST] 79a76939 user Hello. Hello.
+[2026-09-19T10:43:16,796 CEST] 79a76939 eleven user_transcript
+[2026-09-19T10:43:16,878 CEST] 79a76939 agent Hello, how can I help you today?
+[2026-09-19T10:43:16,879 CEST] 79a76939 eleven agent_response
+[2026-09-19T10:43:17,487 CEST] bac9eb0d tool result search_directory {"matches":[{"patient_id":"P00864","given_name":"Antonia","first_surname":"Delgado","second_surname":"Navarro","national_id":"45583514K","date_of_birth":"2004-09-13","phone":"791062312","sex":"F","has_visited_before":false,"insurer":"mapfre","referrals":["dermatology","orthopaedics","physiotherapy"],"note":"New to the clinic -- the appointment on file is their first visit, with Dra. Carmen Ortiz Vidal. Read the appointment back before ending the call; they check it and will not ask.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Antonia Delgado Navarro. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: New to the clinic -- the appointment on file is their first visit, with Dra. Carmen Ortiz Vidal. Rea
+[2026-09-19T10:43:17,592 CEST] bac9eb0d eleven agent_tool_response
+[2026-09-19T10:43:17,996 CEST] eeb11b32 eleven user_transcript
+[2026-09-19T10:43:17,997 CEST] eeb11b32 user Yeah. So, I need an orthopedics appointment, the soonest you have. My knee aches after long walks.
+[2026-09-19T10:43:18,002 CEST] eeb11b32 eleven agent_response
+[2026-09-19T10:43:18,003 CEST] eeb11b32 agent I can help you with that. May I have your full name, please?
+[2026-09-19T10:43:18,361 CEST] bac9eb0d agent Are you Antonia Delgado Navarro?
+[2026-09-19T10:43:18,362 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:43:21,566 CEST] 53e48754 user Yeah, so I need an orthopedics appointment, um, for a wrist that still twinges after a sprain.
+[2026-09-19T10:43:21,567 CEST] 53e48754 eleven user_transcript
+[2026-09-19T10:43:21,664 CEST] 53e48754 eleven agent_response
+[2026-09-19T10:43:21,665 CEST] 53e48754 agent I can help you with that. May I have your full name, please?
+[2026-09-19T10:43:24,327 CEST] 1b301d11 user Hello. Hello.
+[2026-09-19T10:43:24,327 CEST] 1b301d11 eleven user_transcript
+[2026-09-19T10:43:24,329 CEST] 1b301d11 eleven agent_response
+[2026-09-19T10:43:24,329 CEST] 1b301d11 agent Hello, how can I help you today?
+[2026-09-19T10:43:30,183 CEST] 53e48754 eleven user_transcript
+[2026-09-19T10:43:30,183 CEST] 53e48754 user Consuelo Blanco Martinez.
+[2026-09-19T10:43:30,184 CEST] 53e48754 eleven client_tool_call
+[2026-09-19T10:43:30,184 CEST] 53e48754 tool search_directory {"name":"Consuelo Blanco Martinez","phone":"+34621836412"}
+[2026-09-19T10:43:30,184 CEST] bac9eb0d eleven user_transcript
+[2026-09-19T10:43:30,184 CEST] bac9eb0d user No, um, Antonia Delgado.
+[2026-09-19T10:43:30,512 CEST] bac9eb0d agent Perfect, Antonia. I will look for the earliest available appointment with Doctor Saenz for your prescription renewal. Let me check the schedule.
+[2026-09-19T10:43:30,512 CEST] bac9eb0d eleven client_tool_call
+[2026-09-19T10:43:30,512 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:43:30,512 CEST] bac9eb0d tool search_availability {"date_from":"2026-09-20","date_to":"2026-10-04","patient_id":"P00864","specialty_id":"general_practice","insurer":"mapfre"}
+[2026-09-19T10:43:31,606 CEST] 53e48754 tool result search_directory {"matches":[{"patient_id":"P01473","given_name":"Consuelo","first_surname":"Blanco","second_surname":"Martínez","national_id":"95149061Q","date_of_birth":"1976-08-26","phone":"621836412","sex":"F","has_visited_before":true,"insurer":"privado","referrals":[],"note":"An old patient of the clinic; nothing since December 2024. Seen once, by Dra. Carmen Ortiz Vidal. Talks over the top of you; confirm each detail on its own.","match_score":2,"matched_fields":["name","phone"]}],"next_step":"This is Consuelo Blanco Martínez. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: An old patient of the clinic; nothing since December 2024. Seen once, by Dra. Carmen Ortiz Vidal. Talks over the top of you; confirm each detail on its own..
+[2026-09-19T10:43:34,246 CEST] 53e48754 eleven agent_tool_response
+[2026-09-19T10:43:34,279 CEST] 53e48754 eleven agent_response
+[2026-09-19T10:43:34,280 CEST] 53e48754 agent Are you Consuelo Blanco Martínez?
+[2026-09-19T10:43:34,386 CEST] socket open 7 live
+[2026-09-19T10:43:35,162 CEST] eeb11b32 user ...
+[2026-09-19T10:43:35,163 CEST] eeb11b32 eleven user_transcript
+[2026-09-19T10:43:35,406 CEST] eeb11b32 eleven agent_response
+[2026-09-19T10:43:35,406 CEST] eeb11b32 agent I am here when you are ready. Please let me know your name so we can find your file.
+[2026-09-19T10:43:35,406 CEST] bac9eb0d tool result search_availability {"soonest":{"start_time":"2026-09-21T09:00:00+02:00","provider_id":"PR03","provider_name":"Dr. Martín Sáez","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"first_visit"},"soonest_centro":{"start_time":"2026-09-21T11:45:00+02:00","provider_id":"PR07","provider_name":"Dra. Laura Benítez Roca","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"first_visit"},"soonest_norte":{"start_time":"2026-09-22T09:00:00+02:00","provider_id":"PR07","provider_name":"Dra. Laura Benítez Roca","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"first_visit"},"soonest_sur":{"start_time":"2026-09-21T09:00:00+02:00","provider_id":"PR03","provider_name":"Dr. Martín Sáez","location_id":"sur","location_name":"Arenal Sur","appointment_type_id"
+[2026-09-19T10:43:35,511 CEST] bac9eb0d eleven agent_tool_response
+[2026-09-19T10:43:36,280 CEST] 79a76939 eleven user_transcript
+[2026-09-19T10:43:36,281 CEST] 79a76939 user Yeah, so I'm new to the clinic and just need to get registered as a patient. My old clinic closed.
+[2026-09-19T10:43:36,370 CEST] 79a76939 eleven agent_response
+[2026-09-19T10:43:36,371 CEST] 79a76939 agent I can certainly help you register as a new patient. Could you please tell me your full name?
+[2026-09-19T10:43:36,706 CEST] socket open 8 live
+[2026-09-19T10:43:36,788 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:43:36,789 CEST] bac9eb0d agent I have an appointment available with Dr. Martín Sáez on Monday, September twenty-first at nine in the morning at Arenal Sur. Would that work for you?
+[2026-09-19T10:43:37,869 CEST] bac9eb0d eleven agent_response_correction
+[2026-09-19T10:43:37,870 CEST] bac9eb0d eleven interruption
+[2026-09-19T10:43:37,870 CEST] bac9eb0d eleven agent_response_correction
+[2026-09-19T10:43:39,038 CEST] bac9eb0d eleven user_transcript
+[2026-09-19T10:43:39,039 CEST] bac9eb0d user Sorry.
+[2026-09-19T10:43:39,384 CEST] bac9eb0d agent I have an appointment available with Doctor Martín Sáez on Monday, September twenty-first at nine o'clock in the morning at Arenal Sur. Would that work for you?
+[2026-09-19T10:43:39,385 CEST] bac9eb0d eleven agent_response
+[2026-09-19T10:43:40,603 CEST] socket open 9 live
+[2026-09-19T10:43:41,226 CEST] 1b301d11 eleven user_transcript
+[2026-09-19T10:43:41,227 CEST] 1b301d11 user Yeah. So, I'm new to the clinic and I need to register as a patient because my old clinic closed.
+[2026-09-19T10:43:41,522 CEST] 1b301d11 eleven agent_response
+[2026-09-19T10:43:41,523 CEST] 1b301d11 agent I can certainly help you register as a new patient. Could you please tell me your full name, date of birth, and national ID number?
+[2026-09-19T10:43:49,352 CEST] 53e48754 eleven user_transcript
+[2026-09-19T10:43:49,352 CEST] 53e48754 eleven client_tool_call
+[2026-09-19T10:43:49,352 CEST] 53e48754 user Yes, that's me.
+[2026-09-19T10:43:49,352 CEST] 53e48754 tool search_availability {"date_from":"2026-09-20","date_to":"2026-10-04","patient_id":"P01473","specialty_id":"orthopedics","insurer":"privado"}
+[2026-09-19T10:43:49,626 CEST] 53e48754 tool result search_availability {"soonest":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"orthopaedic_review"},"soonest_centro":{"start_time":"2026-09-22T08:45:00+02:00","provider_id":"PR06","provider_name":"Dr. Emilio Iglesia","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"orthopaedic_review"},"soonest_norte":{"start_time":"2026-09-25T10:45:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},"soonest_sur":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"sur","location_name":"Arenal Sur","appointme
+[2026-09-19T10:43:49,734 CEST] 53e48754 eleven agent_tool_response
+[2026-09-19T10:43:50,863 CEST] 53e48754 agent I have an appointment available on Monday, September twenty-first at nine thirty in the morning at Arenal Sur with Doctor Nuria Peral. Would that work for you?
+[2026-09-19T10:43:50,864 CEST] 53e48754 eleven agent_response

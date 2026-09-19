@@ -1,0 +1,91 @@
+[2026-09-19T17:45:50,751 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T17:45:50,751 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_17-45-50_CEST.log
+[2026-09-19T17:52:35,099 CEST] socket open 1 live
+[2026-09-19T17:52:35,170 CEST] call start 1bbc6271-e6bb-43b4-8cda-fd4c04cbb03c +34600000000
+[2026-09-19T17:52:35,382 CEST] directory hint 1bbc6271-e6bb-43b4-8cda-fd4c04cbb03c []
+[2026-09-19T17:52:35,828 CEST] 1bbc6271 eleven conversation_initiation_metadata
+[2026-09-19T17:52:36,151 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:52:36,152 CEST] 1bbc6271 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T17:52:43,667 CEST] 1bbc6271 user Hi, I don't know Spanish. Can you change to English, please?
+[2026-09-19T17:52:43,667 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:52:43,668 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:52:44,854 CEST] 1bbc6271 agent Hello, good morning. How can I help you today?
+[2026-09-19T17:52:44,855 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:52:51,922 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:52:51,923 CEST] 1bbc6271 user Hi, I want to make an appointment. My nameis Josefa.
+[2026-09-19T17:52:51,952 CEST] 1bbc6271 tool search_directory {"phone":"+34600000000"}
+[2026-09-19T17:52:51,952 CEST] 1bbc6271 eleven client_tool_call
+[2026-09-19T17:52:52,102 CEST] 1bbc6271 tool result search_directory {"matches":[],"next_step":"No match. Ask name. They may be booking for someone else."}
+[2026-09-19T17:52:52,208 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:52:54,217 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:52:54,217 CEST] 1bbc6271 agent Could you please give me your full name, and if you have it, your national identification number or date of birth so I can look you up in our system?
+[2026-09-19T17:52:54,634 CEST] 1bbc6271 eleven agent_response_correction
+[2026-09-19T17:52:58,027 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:52:58,027 CEST] 1bbc6271 user ¿Me puede confirmar si está en casa?
+[2026-09-19T17:52:58,028 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:53:00,495 CEST] 1bbc6271 user El que ha perdido Mateo Huidobro.
+[2026-09-19T17:53:00,495 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:00,498 CEST] 1bbc6271 eleven client_tool_call
+[2026-09-19T17:53:00,498 CEST] 1bbc6271 tool search_directory {"name":"Mateo Huidobro"}
+[2026-09-19T17:53:00,756 CEST] 1bbc6271 tool result search_directory {"matches":[],"next_step":"No match. Ask name. They may be booking for someone else."}
+[2026-09-19T17:53:00,859 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:53:05,393 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:05,394 CEST] 1bbc6271 user ¿Puedo confirmar si están?
+[2026-09-19T17:53:05,423 CEST] 1bbc6271 agent ...
+[2026-09-19T17:53:05,424 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:53:16,442 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:16,442 CEST] 1bbc6271 user Hola. ¿Sigues ahí?
+[2026-09-19T17:53:16,868 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:53:16,869 CEST] 1bbc6271 agent Hola, sí, aquí sigo. ¿Me podría decir el nombre completo de la persona para la que desea pedir la cita y su número de teléfono o DNI para poder buscarla en nuestro sistema?
+[2026-09-19T17:53:26,918 CEST] 1bbc6271 eleven agent_response_correction
+[2026-09-19T17:53:31,983 CEST] 1bbc6271 user Eh, sí, me llamo José F. Domínguez Navarro. ¿El DNI te lo tengo que dar?
+[2026-09-19T17:53:31,984 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:31,984 CEST] 1bbc6271 eleven client_tool_call
+[2026-09-19T17:53:31,985 CEST] 1bbc6271 tool search_directory {"name":"José F. Domínguez Navarro"}
+[2026-09-19T17:53:32,249 CEST] 1bbc6271 tool result search_directory {"matches":[{"patient_id":"P00440","given_name":"José","first_surname":"Vázquez","second_surname":"Domínguez","national_id":"65305136V","date_of_birth":"1990-07-03","phone":"703859288","sex":"M","has_visited_before":true,"insurer":"adeslas","referrals":["dermatology","orthopaedics"],"note":"An old patient of the clinic; nothing since April 2024. Seen once, by Dr. Pablo Requena. Their whole history is at Arenal Norte -- that is what they mean by there. Will ask which entrance and which floor.","match_score":0.6428571428571429,"matched_fields":["name"]},{"patient_id":"P01127","given_name":"José","first_surname":"Domínguez","second_surname":"Castro","national_id":"70612033D","date_of_birth":"1948-05-12","phone":"726768816","sex":"M","has_visited_before":true,"insurer":"sanitas","referrals":["
+[2026-09-19T17:53:32,353 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:53:33,558 CEST] 1bbc6271 agent Sí, por favor, ¿me podría facilitar su número de DNI o su fecha de nacimiento para confirmar su ficha?
+[2026-09-19T17:53:33,559 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:53:48,703 CEST] 1bbc6271 user Eh, sí, mi-- te doy mi fecha de nacimiento. Es el 19 del 9 del 2001.
+[2026-09-19T17:53:48,703 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:48,707 CEST] 1bbc6271 eleven client_tool_call
+[2026-09-19T17:53:48,707 CEST] 1bbc6271 tool search_directory {"name":"Josefa Domínguez Navarro","date_of_birth":"2001-09-19"}
+[2026-09-19T17:53:49,176 CEST] 1bbc6271 tool result search_directory {"matches":[{"patient_id":"P00001","given_name":"Josefa","first_surname":"Domínguez","second_surname":"Navarro","national_id":"48064716Y","date_of_birth":"2001-09-19","phone":"711330529","sex":"F","has_visited_before":true,"insurer":"mapfre","referrals":["dermatology"],"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.","match_score":2,"matched_fields":["name","date_of_birth"]},{"patient_id":"P02144","given_name":"Santiago","first_surname":"Sanz","second_surname":"Hernández","national_id":"35512922W","date_of_birth":"2001-09-19","phone":"752082373","sex":"M","has_visited_before":true,"insurer":"adeslas","referrals":["orthopaedics"],"note":"Has not been in since June 2025. Two visits, m
+[2026-09-19T17:53:49,281 CEST] 1bbc6271 eleven agent_tool_response
+[2026-09-19T17:53:50,421 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:53:50,422 CEST] 1bbc6271 agent ¿Es usted Josefa Domínguez Navarro?
+[2026-09-19T17:53:56,482 CEST] 1bbc6271 user Sí, ella es David Sánchez.
+[2026-09-19T17:53:56,483 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:53:56,495 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:53:56,496 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:07,169 CEST] 1bbc6271 user Mi hija tiene un teclado y el teléfono.
+[2026-09-19T17:54:07,170 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:07,180 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:07,180 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:11,858 CEST] 1bbc6271 user Eres muy bonita, Ángela.
+[2026-09-19T17:54:11,858 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:11,872 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:11,873 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:13,115 CEST] 1bbc6271 eleven agent_response_correction
+[2026-09-19T17:54:14,608 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:14,609 CEST] 1bbc6271 user Hola, sigues ahí?
+[2026-09-19T17:54:14,724 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:14,725 CEST] 1bbc6271 agent Sí, aquí sigo. ¿Para qué especialidad o médico desea solicitar la cita para Josefa?
+[2026-09-19T17:54:15,967 CEST] 1bbc6271 eleven agent_response_correction
+[2026-09-19T17:54:16,713 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:16,714 CEST] 1bbc6271 user Inmunología.
+[2026-09-19T17:54:16,724 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:16,724 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:20,702 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:20,703 CEST] 1bbc6271 user ¿Qué?
+[2026-09-19T17:54:20,706 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:20,706 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:35,980 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:35,980 CEST] 1bbc6271 user ¿A mucha gente le interesa, eh?Acabo.
+[2026-09-19T17:54:35,990 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:35,991 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:41,849 CEST] 1bbc6271 user Yo me llamo Lucía.
+[2026-09-19T17:54:41,850 CEST] 1bbc6271 eleven user_transcript
+[2026-09-19T17:54:41,860 CEST] 1bbc6271 eleven agent_response
+[2026-09-19T17:54:41,861 CEST] 1bbc6271 agent ...
+[2026-09-19T17:54:50,897 CEST] 1bbc6271 elevenlabs closed 1006 

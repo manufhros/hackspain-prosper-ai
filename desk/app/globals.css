@@ -1,0 +1,281 @@
+@import "tailwindcss";
+
+/* shadcn tokens, scoped by Operations.module.css; existing desk palette is unchanged. */
+@theme inline {
+  --color-background: var(--background, #fff);
+  --color-foreground: var(--foreground, #12303a);
+  --color-primary: var(--primary, #168c82);
+  --color-primary-foreground: var(--primary-foreground, #fff);
+  --color-secondary: var(--secondary, #e2f4f0);
+  --color-secondary-foreground: var(--secondary-foreground, #387263);
+  --color-muted: var(--muted, #f0f6f3);
+  --color-muted-foreground: var(--muted-foreground, #77878a);
+  --color-accent: var(--accent, #edf5f1);
+  --color-accent-foreground: var(--accent-foreground, #27705e);
+  --color-destructive: var(--destructive, #b91c1c);
+  --color-destructive-foreground: var(--destructive-foreground, #fff);
+  --color-border: var(--border, #e5ebeb);
+  --color-input: var(--input, #dae4e3);
+  --color-ring: var(--ring, #16816c);
+}
+
+/* ---------------------------------------------------------------------------
+   turno desk · design tokens
+   Single source of truth for colour, type, radius and elevation. Every module
+   stylesheet references these variables; no hard-coded palette elsewhere.
+--------------------------------------------------------------------------- */
+:root {
+  --bg: #f3f7f8;
+  --surface: #ffffff;
+  --surface-2: #f7fafb;
+  --border: #dde7e9;
+  --border-strong: #c4d4d8;
+
+  --ink: #12303a;
+  --ink-2: #3e5a63;
+  --muted: #6b8189;
+  --faint: #93a6ac;
+
+  --brand: #0b3b49;
+  --brand-2: #167d91;
+  --brand-2-hover: #126a7b;
+  --mint: #168c82;
+  --mint-soft: #e2f4f0;
+
+  --success: #178a64;
+  --success-soft: #e3f5ec;
+  --warning: #b6731a;
+  --warning-soft: #fbeedb;
+  --danger: #b43f3f;
+  --danger-soft: #fbe7e7;
+  --info: #2b6fb3;
+  --info-soft: #e6f0fb;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --shadow-sm: 0 1px 2px rgba(18, 48, 58, 0.06);
+  --shadow-md: 0 12px 32px rgba(18, 48, 58, 0.08);
+  --focus: 0 0 0 3px rgba(22, 125, 145, 0.22);
+
+  --font: var(--font-brand), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sidebar-w: 248px;
+
+  /* Legacy aliases still referenced by the landing page. */
+  --line: var(--border);
+  --card: var(--surface);
+  --hover: var(--surface-2);
+  --accent: var(--mint);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--brand);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: var(--r-sm);
+}
+
+/* ---------------------------------------------------------------------------
+   Shared form primitives (login, lead form, simulator, portal)
+--------------------------------------------------------------------------- */
+.login {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.login label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.login input,
+.login select {
+  height: 44px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: var(--surface);
+  font-weight: 500;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.login input:focus,
+.login select:focus {
+  border-color: var(--brand-2);
+  box-shadow: var(--focus);
+  outline: none;
+}
+
+.login button {
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--brand-2);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.login button:hover {
+  background: var(--brand-2-hover);
+}
+
+.login button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.login-err {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.desk-ok {
+  margin: 8px 0 0;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 9px;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.logout {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Inline distribution bar used inside table cells. */
+.bar-inline {
+  display: block;
+  overflow: hidden;
+  width: 100%;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+}
+
+.bar-inline i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-2);
+  opacity: 0.8;
+}
+
+/* Demo account shortcuts on the login form. */
+.login-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.login-accounts > span {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.login .login-account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  height: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.login .login-account:hover {
+  border-color: var(--brand-2);
+  background: var(--surface);
+}
+
+.login .login-account strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login .login-account small {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}

@@ -1,0 +1,60 @@
+export type Source = "llamadas" | "demo";
+
+export type CallAction = {
+  id?: string;
+  name: string;
+  at: string | null;
+  reason: string | null;
+  summary: string;
+  status?: "pending" | "completed" | "failed" | "blocked" | "unknown";
+  parameters?: unknown;
+  result?: unknown;
+  latencyMs?: number;
+};
+
+export type TranscriptEntry = {
+  id: string;
+  at: string;
+  speaker: "caller" | "agent";
+  text: string;
+};
+
+export type CallDetail = {
+  call: LoggedCall;
+  transcript: TranscriptEntry[];
+  transcriptTotal: number;
+  page: number;
+  pages: number;
+};
+
+export type LoggedCall = {
+  id: string;
+  phone: string | null;
+  started: string | null;
+  minutes: number | null;
+  origin?: "phone" | "simulator" | "unknown";
+  patient: string | null;
+  patientId: string | null;
+  insurer: string | null;
+  site: string | null;
+  siteName: string;
+  outcome: string;
+  reason: string | null;
+  motive: string;
+  slot: string | null;
+  providerId: string | null;
+  source: Source;
+  sourceFile: string | null;
+  resolution?: "resolved" | "abandoned" | "escalated" | "unknown";
+  route?: "general" | "actions" | "human" | null;
+  intent?: string | null;
+  toolCalls?: number;
+  toolErrors?: number;
+  avgToolLatencyMs?: number | null;
+  frustrationScore?: number;
+  sentiment?: "positive" | "neutral" | "negative" | null;
+  patientRating?: number | null;
+  escalationAppropriate?: boolean | null;
+  configVersion?: string | null;
+  actions?: CallAction[];
+};

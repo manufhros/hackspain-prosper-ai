@@ -1,0 +1,22 @@
+[2026-09-19T21:55:46,344 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_21-55-46_CEST.log
+[2026-09-19T21:55:46,343 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T21:57:42,676 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T21:57:42,676 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T21:57:42,676 CEST] call start c1372481-283a-4e44-86a4-d10b196b8b1c +34600000000
+[2026-09-19T21:57:42,676 CEST] stream start c1372481-283a-4e44-86a4-d10b196b8b1c {"call_id":"c1372481-283a-4e44-86a4-d10b196b8b1c","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T21:57:43,828 CEST] c1372481 eleven conversation_initiation_metadata
+[2026-09-19T21:57:44,227 CEST] c1372481 eleven agent_response
+[2026-09-19T21:57:44,227 CEST] c1372481 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T21:57:51,058 CEST] c1372481 user Hola, buenos días. ¿Me puedes pasar con una agente, por favor?
+[2026-09-19T21:57:51,059 CEST] c1372481 eleven user_transcript
+[2026-09-19T21:57:51,059 CEST] c1372481 eleven client_tool_call
+[2026-09-19T21:57:51,059 CEST] c1372481 tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T21:57:53,440 CEST] c1372481 tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true},"next_step":"A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable."}
+[2026-09-19T21:57:53,544 CEST] c1372481 eleven agent_tool_response
+[2026-09-19T21:57:54,775 CEST] c1372481 agent Le paso de inmediato con un compañero para que le atienda. Por favor, no cuelgue.
+[2026-09-19T21:57:54,775 CEST] c1372481 eleven agent_response
+[2026-09-19T21:57:55,169 CEST] twiml live c1372481 wss://b5f4-86-127-225-103.ngrok-free.app/ws
+[2026-09-19T21:57:55,335 CEST] rest stream CAeee711b6 fail 400 CallSid not owned by this account
+[2026-09-19T21:57:58,291 CEST] c1372481 eleven agent_response_correction
+[2026-09-19T21:58:36,290 CEST] c1372481 simulator stop, keeping live session
+[2026-09-19T21:58:36,292 CEST] c1372481 simulator closed, keeping live session

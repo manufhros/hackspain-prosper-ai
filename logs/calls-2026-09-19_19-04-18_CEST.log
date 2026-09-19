@@ -1,0 +1,27 @@
+[2026-09-19T19:04:18,945 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_19-04-18_CEST.log
+[2026-09-19T19:04:18,944 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T19:04:55,219 CEST] socket open 1 live
+[2026-09-19T19:04:55,254 CEST] socket open 2 live
+[2026-09-19T19:04:55,255 CEST] call start e1018e2d-bc54-467d-8585-cc3eedb1e340 +34711330529
+[2026-09-19T19:04:55,265 CEST] socket open 3 live
+[2026-09-19T19:04:55,265 CEST] call start b340b911-f95a-495f-ad91-2c2c1cc6c5bf +34611926767
+[2026-09-19T19:04:55,424 CEST] directory hint b340b911-f95a-495f-ad91-2c2c1cc6c5bf [{"patient_id":"P00492","name":"Javier Martín Delgado","insurer":"mapfre","has_visited_before":true,"note":"Last seen November 2025. Coming here since January 2024 -- four visits. A GP referral for De
+[2026-09-19T19:04:55,425 CEST] directory hint e1018e2d-bc54-467d-8585-cc3eedb1e340 [{"patient_id":"P00001","name":"Josefa Domínguez Navarro","insurer":"mapfre","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vid
+[2026-09-19T19:04:55,880 CEST] b340b911 eleven conversation_initiation_metadata
+[2026-09-19T19:04:55,897 CEST] e1018e2d eleven conversation_initiation_metadata
+[2026-09-19T19:04:56,289 CEST] e1018e2d agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T19:04:56,290 CEST] e1018e2d eleven agent_response
+[2026-09-19T19:04:56,297 CEST] b340b911 eleven agent_response
+[2026-09-19T19:04:56,298 CEST] b340b911 agent Clínica Sanitas, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T19:05:00,258 CEST] e1018e2d user Hola, quiero la primera cita de medicina general, lo antes posible.
+[2026-09-19T19:05:01,116 CEST] e1018e2d eleven client_tool_call
+[2026-09-19T19:05:01,117 CEST] e1018e2d tool search_directory {"phone":"+34711330529"}
+[2026-09-19T19:05:01,270 CEST] e1018e2d tool result search_directory {"matches":[{"patient_id":"P00001","given_name":"Josefa","first_surname":"Domínguez","second_surname":"Navarro","national_id":"48064716Y","date_of_birth":"2001-09-19","phone":"711330529","sex":"F","has_visited_before":true,"insurer":"mapfre","referrals":["dermatology"],"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Josefa Domínguez Navarro. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.. If hard of
+[2026-09-19T19:05:01,374 CEST] e1018e2d eleven agent_tool_response
+[2026-09-19T19:05:01,867 CEST] b340b911 user Buenos días, ¿abrís los sábados?
+[2026-09-19T19:05:02,430 CEST] e1018e2d eleven agent_response
+[2026-09-19T19:05:02,430 CEST] e1018e2d agent ¿Es usted Josefa Domínguez Navarro?
+[2026-09-19T19:05:03,185 CEST] b340b911 eleven agent_response
+[2026-09-19T19:05:03,186 CEST] b340b911 agent Sí, abrimos los sábados, pero únicamente en nuestro centro de la zona Centro. ¿Desea que busquemos una cita para ese día?
+[2026-09-19T19:05:07,355 CEST] e1018e2d elevenlabs closed 1006 
+[2026-09-19T19:05:07,355 CEST] b340b911 elevenlabs closed 1006 

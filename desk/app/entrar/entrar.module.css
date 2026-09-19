@@ -1,0 +1,262 @@
+.page {
+  min-height: 100svh;
+  color: var(--ink);
+  background:
+    radial-gradient(650px 500px at 12% 90%, rgba(55, 185, 163, 0.16), transparent 70%),
+    var(--bg);
+}
+
+.page header {
+  display: flex;
+  height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1160px;
+  margin: auto;
+  padding: 0 32px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--brand);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.logo span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--brand);
+  color: #fff;
+}
+
+.back {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.back:hover {
+  color: var(--ink);
+}
+
+.page main {
+  display: grid;
+  grid-template-columns: 1fr 430px;
+  gap: 90px;
+  align-items: center;
+  max-width: 1080px;
+  min-height: calc(100svh - 82px);
+  margin: auto;
+  padding: 40px 32px 100px;
+}
+
+.intro > p:first-child {
+  margin: 0 0 18px;
+  color: var(--brand-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.intro h1 {
+  max-width: 650px;
+  margin: 0;
+  color: var(--brand);
+  font-size: clamp(48px, 6vw, 76px);
+  font-weight: 700;
+  line-height: 0.97;
+  letter-spacing: -0.06em;
+}
+
+.lead {
+  max-width: 510px;
+  margin: 28px 0 0;
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.preview {
+  max-width: 530px;
+  margin-top: 50px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--shadow-md);
+}
+
+.preview > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.preview > div > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preview span,
+.preview dd {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.preview strong {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.preview i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 5px var(--success-soft);
+}
+
+.preview dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 18px 0 0;
+}
+
+.preview dl div + div {
+  padding-left: 18px;
+  border-left: 1px solid var(--border);
+}
+
+.preview dt {
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  font-variant-numeric: tabular-nums;
+}
+
+.preview dd {
+  margin: 1px 0 0;
+}
+
+.loginCard {
+  padding: 34px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 30px 90px rgba(30, 82, 94, 0.12);
+}
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--mint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lock::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  content: "";
+}
+
+.loginCard h2 {
+  margin: 18px 0 6px;
+  color: var(--brand);
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+}
+
+.loginCard > p {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.loginCard :global(.login) {
+  margin: 0;
+}
+
+.loginCard :global(.login input) {
+  height: 50px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.loginCard :global(.login button) {
+  height: 50px;
+  border-radius: 12px;
+}
+
+.help {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.help a {
+  color: var(--brand-2);
+  font-weight: 700;
+}
+
+@media (max-width: 850px) {
+  .page main {
+    grid-template-columns: 1fr;
+    gap: 50px;
+    max-width: 600px;
+  }
+
+  .intro h1 {
+    font-size: 55px;
+  }
+}
+
+@media (max-width: 520px) {
+  .page header {
+    height: 70px;
+    padding-inline: 18px;
+  }
+
+  .page main {
+    padding: 48px 18px 70px;
+  }
+
+  .intro h1 {
+    font-size: 44px;
+  }
+
+  .preview {
+    display: none;
+  }
+
+  .loginCard {
+    padding: 24px;
+  }
+}

@@ -1,0 +1,58 @@
+import { eventIdentity } from "../agent/caller-identity.ts";
+import type { CallEvent } from "../agent/call-event.ts";
+import { mergeRuntimeConfig } from "../agent/runtime-config.ts";
+import { auditPayload } from "./audit.ts";
+
+export async function readRuntimeConfig(db: D1Database, orgSlug: string) {
+  const rows = await db.prepare("SELECT key, value FROM desk_settings WHERE key IN (?, ?)")
+    .bind("agent-config", `org-agent-config:${orgSlug}`).all<{ key: string; value: string }>();
+  const settings = Object.fromEntries(rows.results.map((row) => [row.key, JSON.parse(row.value)]));
+  return mergeRuntimeConfig(settings["agent-config"] ?? {}, settings[`org-agent-config:${orgSlug}`] ?? {});
+}
+
+export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<void> {
+  // The call record retains the conversation even when diagnostic PII is redacted.
+  // Persist each turn, not the handoff context's rolling twelve-message window.
+  if ((event.type === "conversation.user" || event.type === "conversation.agent") &&
+      typeof event.payload.text === "string" && event.payload.text.trim()) {
+    await db.prepare(`INSERT INTO voice_transcript_entries
+      (event_id, call_id, org_slug, occurred_at, sequence, speaker, text)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO NOTHING`)
+      .bind(event.eventId, event.callId, String(event.payload.orgSlug ?? "arenal"),
+        event.occurredAt, Number(event.payload.sequence ?? 0),
+        event.type === "conversation.user" ? "caller" : "agent", event.payload.text).run();
+  }
+  const identity = eventIdentity(event.type, event.payload);
+  if (identity) {
+    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, summary)
+      VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      summary = json_patch(COALESCE(voice_calls.summary, '{}'), excluded.summary)
+      WHERE voice_calls.org_slug = excluded.org_slug`)
+      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt, JSON.stringify({ patientId: null, insurer: null, ...identity })).run();
+  }
+  const payload = auditPayload(event.payload, event.payload.zeroRetention !== false);
+  await db.prepare(`INSERT INTO agent_events
+    (event_id, schema_version, call_id, config_version, type, occurred_at, payload)
+    VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO NOTHING`)
+    .bind(event.eventId, event.schemaVersion, event.callId, event.configVersion,
+      event.type, event.occurredAt, JSON.stringify(payload)).run();
+  if (event.type === "call.started" && !event.payload.demo) {
+    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, summary)
+      VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      started_at = min(voice_calls.started_at, excluded.started_at),
+      summary = json_patch(excluded.summary, COALESCE(voice_calls.summary, '{}'))
+      WHERE voice_calls.org_slug = excluded.org_slug`)
+      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt,
+        JSON.stringify({ origin: event.payload.origin ?? "unknown" })).run();
+  }
+  if (event.type === "call.ended" && !event.payload.demo) {
+    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary)
+      VALUES (?, ?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      started_at = min(voice_calls.started_at, excluded.started_at),
+      ended_at = excluded.ended_at, summary = json_patch(COALESCE(voice_calls.summary, '{}'), excluded.summary)
+      WHERE voice_calls.org_slug = excluded.org_slug`)
+      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"),
+        new Date(Date.parse(event.occurredAt) - Number(event.payload.durationMs ?? 0)).toISOString(),
+        event.occurredAt, JSON.stringify(event.payload)).run();
+  }
+}

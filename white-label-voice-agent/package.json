@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun --hot run src/server.ts",
     "start": "bun run src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval": "bun run src/eval/run.ts"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.86",

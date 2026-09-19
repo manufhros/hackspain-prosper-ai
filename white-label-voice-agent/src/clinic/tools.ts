@@ -12,12 +12,20 @@ import {
   resolveDateRange,
 } from "./normalize.ts";
 
+export type CapturedAction = { action: string; [k: string]: unknown };
+
 export type CallContext = {
   callId: string;
   fromNumber: string | null;
   platform: PlatformClient;
   /** Se marca en cuanto se envía una acción terminal, para no mandar dos. */
   submitted: { action: string } | null;
+  /**
+   * Modo eval: si está presente, los submit_* NO postean a Prosper; capturan
+   * aquí lo que enviarían. search_* siguen leyendo la API real (necesitan ids
+   * y slots reales).
+   */
+  capture?: CapturedAction[];
   onTool?: (name: string, input: unknown, output: string) => void;
 };
 
@@ -41,6 +49,19 @@ export function clinicTools(ctx: CallContext) {
 
   const markSubmitted = (action: string) => {
     ctx.submitted = { action };
+  };
+
+  /** En dry-run captura y no postea; si no, ejecuta el POST real. */
+  const submit = async (
+    action: CapturedAction,
+    post: () => Promise<unknown>,
+  ): Promise<unknown> => {
+    markSubmitted(action.action);
+    if (ctx.capture) {
+      ctx.capture.push(action);
+      return { ok: true, dry: true };
+    }
+    return post();
   };
 
   return {
@@ -122,16 +143,16 @@ export function clinicTools(ctx: CallContext) {
           const policy = asInsurer(input.policy_id);
           const location_id = asLocation(input.location_id);
           if (!policy || !location_id) return { error: "bad policy_id or location_id" };
-          markSubmitted("BOOK");
-          return ctx.platform.submitBook({
-            call_id: ctx.callId,
+          const action = {
+            action: "BOOK",
             patient_id: input.patient_id,
             provider_id: input.provider_id,
             location_id,
             appointment_type_id: input.appointment_type_id,
             slot: input.slot,
             policy_id: policy,
-          });
+          };
+          return submit(action, () => ctx.platform.submitBook({ call_id: ctx.callId, ...action } as never));
         }),
     }),
 
@@ -152,8 +173,8 @@ export function clinicTools(ctx: CallContext) {
         trace("submit_register", input, async () => {
           const insurer = asInsurer(input.insurer);
           if (!insurer) return { error: `unknown insurer ${input.insurer}` };
-          markSubmitted("REGISTER");
-          return ctx.platform.submitRegister({ call_id: ctx.callId, ...input, insurer });
+          return submit({ action: "REGISTER", ...input, insurer }, () =>
+            ctx.platform.submitRegister({ call_id: ctx.callId, ...input, insurer }));
         }),
     }),
 
@@ -163,11 +184,8 @@ export function clinicTools(ctx: CallContext) {
       inputSchema: z.object({ reason: z.string().describe("OutcomeReason") }),
       execute: (input) =>
         trace("submit_no_action", input, async () => {
-          markSubmitted("NO_ACTION");
-          return ctx.platform.submitNoAction({
-            call_id: ctx.callId,
-            reason: input.reason as OutcomeReason,
-          });
+          return submit({ action: "NO_ACTION", reason: input.reason }, () =>
+            ctx.platform.submitNoAction({ call_id: ctx.callId, reason: input.reason as OutcomeReason }));
         }),
     }),
 
@@ -178,11 +196,8 @@ export function clinicTools(ctx: CallContext) {
       }),
       execute: (input) =>
         trace("submit_escalate", input, async () => {
-          markSubmitted("ESCALATE");
-          return ctx.platform.submitEscalate({
-            call_id: ctx.callId,
-            reason: input.reason as OutcomeReason,
-          });
+          return submit({ action: "ESCALATE", reason: input.reason }, () =>
+            ctx.platform.submitEscalate({ call_id: ctx.callId, reason: input.reason as OutcomeReason }));
         }),
     }),
 
@@ -191,11 +206,8 @@ export function clinicTools(ctx: CallContext) {
       inputSchema: z.object({ appointment_id: z.string().describe("From list_appointments") }),
       execute: (input) =>
         trace("submit_cancel", input, async () => {
-          markSubmitted("CANCEL");
-          return ctx.platform.submitCancel({
-            call_id: ctx.callId,
-            appointment_id: input.appointment_id,
-          });
+          return submit({ action: "CANCEL", appointment_id: input.appointment_id }, () =>
+            ctx.platform.submitCancel({ call_id: ctx.callId, appointment_id: input.appointment_id }));
         }),
     }),
 
@@ -214,15 +226,15 @@ export function clinicTools(ctx: CallContext) {
           const policy = asInsurer(input.policy_id);
           const location_id = asLocation(input.location_id);
           if (!policy || !location_id) return { error: "bad policy_id or location_id" };
-          markSubmitted("RESCHEDULE");
-          return ctx.platform.submitReschedule({
-            call_id: ctx.callId,
+          const action = {
+            action: "RESCHEDULE",
             appointment_id: input.appointment_id,
             provider_id: input.provider_id,
             location_id,
             slot: input.slot,
             policy_id: policy,
-          });
+          };
+          return submit(action, () => ctx.platform.submitReschedule({ call_id: ctx.callId, ...action } as never));
         }),
     }),
   };

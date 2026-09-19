@@ -38,6 +38,7 @@ Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVID
 | `LOCAL_TTS_WORKERS` | `2` | Independent persistent Piper workers, 1–4, each loading all three voices. |
 | `LOCAL_TTS_THREADS` | `2` | CPU threads per Piper ONNX session, 1–4; inter-op threads are fixed at one. |
 | `LOCAL_ASR_MODEL` | `small` | MLX multilingual Whisper; `large-v3-turbo` downloads separate pinned ~1.6 GB weights for comparison. |
+| `LOCAL_ASR_DECODER` | `transcribe` | Existing full transcription; `segment` opts into one-encoding, text-only decoding for utterances up to 30 seconds. Native performance/quality is not yet measured. |
 
 The default llama-server uses Metal, continuous batching and the GGUF's embedded Jinja tool template, with thinking disabled. Startup verifies the server's reported slot count and per-slot context; the total context allocation is `LOCAL_LLM_CONTEXT × LOCAL_LLM_PARALLEL`. The llama backend downloads a separate [pinned Unsloth Qwen3.5 4B Q4_K_M conversion](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf) (~2.74 GB), verifies its SHA-256 and caches it under its source revision. It never reuses the Ollama blob: that file has three RoPE sections and a different tensor layout, while [the installed llama.cpp loader requires four](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/src/models/qwen35.cpp). Native loading and synthetic inference succeeded with build `b10964-b29c606e2` in `benchmark-1789818581312.json`; startup reported four slots with 16384 context tokens each. The old Ollama cache stays available for its baseline backend. Whisper remains on MLX and Piper on CPU. Increasing slots is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
 
@@ -79,13 +80,17 @@ The next run (`benchmark-1789818581312.json`, llama.cpp b10964, four slots, Whis
 
 At 20 turns, p95 improved about 15%, but median latency improved only about 4%; the 5/10-turn medians worsened. ASR queue p95 reached 6.14 s, model total p95 was 4.99 s, and TTS again had no measured queue. This is still a slow synchronized burst. The Catalan source phrase retained 50% WER: both automatic detection and an explicit `ca` hint produced `Volia saber a quina hora obra l'Atlíntica als dilluns.` for `Voldria saber a quina hora obre la clínica els dilluns.` The language was correctly identified as Catalan; the synthetic TTS/telephone/ASR chain remains the quality issue. No human recordings were evaluated.
 
-Next compare Whisper large-v3-turbo with the same LLM settings to measure recognition quality and latency together; do not assume a larger model fixes the phrase or reduces queues. Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the Ollama baseline, so that comparison cannot isolate a server-only speedup. Compare one variable at a time, retaining each report:
+The turbo comparison (`benchmark-1789819202722.json`, same llama settings) improved WER on the repeated Catalan phrase to 20%, but still substituted `l'Atlíntica` for `la clínica`. English/Spanish stayed at 0%; all 108 intents were correct. First-chunk p50/p95 were 1.66/1.66 s at one turn, 5.90/6.89 s at five, 10.11/11.69 s at ten, and 17.79/23.32 s at twenty. ASR queue p95 reached 18.89 s at twenty turns. The benchmark has a longer timeout than platform ASR's 12-second operation budget, so its all-completed result does not mean calls would meet that deadline. Keep `small` as the default for now. These repeated synthetic phrases cannot establish general language accuracy or separate synthesis pronunciation from recognition errors.
+
+An opt-in optimization, `LOCAL_ASR_DECODER=segment`, uses MLX Whisper's segment decoder to share encoded audio between language detection and transcription. In the pinned MLX implementation, the existing full-transcription path invokes the encoder separately for language detection and transcription. Segment mode detects language per utterance, uses text-only decoding (no timestamps), retains the no-speech gate, and falls back to full transcription for recordings longer than 30 seconds, low-confidence/repetitive output or possible token exhaustion. It stores no cross-call transcription context. Reports label actual `segment`, `transcribe` or `transcribe_fallback` use. This changes decoding behavior, so accuracy must be checked together with latency; defaults remain unchanged.
+
+Next compare small/segment with the existing small/transcribe result, changing only the decoder:
 
 ```sh
-LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=4 LOCAL_ASR_MODEL=large-v3-turbo bun run benchmark
-# A separate slot-count experiment, with the original ASR model:
-LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=8 LOCAL_ASR_MODEL=small bun run benchmark
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=4 LOCAL_ASR_MODEL=small LOCAL_ASR_DECODER=segment bun run benchmark
 ```
+
+Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the original Ollama baseline, so that earlier comparison cannot isolate a server-only speedup. Retain each report and change one variable at a time.
 
 `bun run benchmark --help` is finite and starts nothing. Offline verification uses `bun run check`; native codec tests use the already-installed `.workbench/voice/venv/bin/python -m unittest discover -s tests -p '*_test.py'` with synthetic model stubs, not real models/devices.
 

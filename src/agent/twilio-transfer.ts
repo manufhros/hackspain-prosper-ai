@@ -110,12 +110,21 @@ export async function updateCallUrl(callSid: string, url: string) {
 }
 
 export function liveStreamTwiml(
-  _wsUrl: string,
-  _joinCallId: string,
-  _orgSlug = "arenal",
-  _statusCallback?: string,
+  wsUrl: string,
+  joinCallId: string,
+  orgSlug = "arenal",
+  statusCallback?: string,
+  streamPhoneAudio = false,
 ) {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="6"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
+  // Workers attach the phone through TwiML; Node retains its existing playback flow.
+  // Start is unidirectional, so the patient's Say instructions can continue playing.
+  const status = statusCallback
+    ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
+    : "";
+  const stream = streamPhoneAudio
+    ? `<Start><Stream url="${xml(wsUrl)}" track="inbound_track"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Start>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${stream}${sayEs(PATIENT_SPEECH)}<Pause length="6"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
 }
 
 export function joinStreamUrl(origin: string, joinCallId: string, orgSlug = "arenal") {

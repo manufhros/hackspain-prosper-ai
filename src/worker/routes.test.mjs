@@ -31,17 +31,27 @@ test("phone callbacks and WebSocket joins route to the original Durable Object",
   assert.deepEqual(seen, [id, id, id]);
 });
 
-test("live TwiML uses a query-free WebSocket path and audits stream callbacks", async () => {
+test("live TwiML plays the patient, streams reception audio into the same call, and audits callbacks", async () => {
   const call = new VoiceCall({ id: { toString: () => id } }, {});
   const events = [];
   const url = `https://desk.example/twiml/live/${id}?join=original&org=arenal`;
   assert.equal((await call.fetch(new Request(url))).status, 404);
-  call.bridge.registerLiveSession({ callId: "original", audit: async (type, payload) => events.push({ type, payload }) });
+  let frozen = 0;
+  call.bridge.registerLiveSession({
+    callId: "original", audit: async (type, payload) => events.push({ type, payload }),
+    freezeDisplay: () => { frozen++; },
+  });
   const response = await call.fetch(new Request(url));
   const twiml = await response.text();
   assert.ok(twiml.includes(`<Stream url="wss://desk.example/ws/${id}"`));
   assert.ok(twiml.includes('name="join" value="original"'));
   assert.ok(twiml.includes(`/twiml/stream-status/${id}?join=original`));
+  assert.equal(frozen, 1);
+  assert.ok(twiml.includes('<Start><Stream'));
+  assert.ok(twiml.includes('track="inbound_track"'));
+  assert.ok(twiml.includes('¿Tienen hueco por la mañana?'));
+  assert.ok(twiml.indexOf('</Start>') < twiml.indexOf('<Say '));
+  assert.equal(twiml.includes('<Connect>'), false);
   const status = await call.fetch(new Request(`https://desk.example/twiml/stream-status/${id}?join=original`, {
     method: "POST", body: new URLSearchParams({ StreamEvent: "stream-started", StreamSid: "stream" }),
   }));

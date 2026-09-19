@@ -17,11 +17,13 @@ export class VoiceCall extends DurableObject<Env> {
     const sessionId = this.ctx.id.toString();
     if (url.pathname.startsWith("/twiml/live/")) {
       const join = url.searchParams.get("join") ?? "";
-      if (!this.bridge.getLiveSession(join)) return new Response("Live call not found", { status: 404 });
+      const host = this.bridge.getLiveSession(join);
+      if (!host) return new Response("Live call not found", { status: 404 });
       const wsUrl = `${url.origin.replace(/^http/, "ws")}/ws/${sessionId}`;
       const callback = new URL(`/twiml/stream-status/${sessionId}`, url.origin);
       callback.searchParams.set("join", join);
-      return new Response(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal", callback.toString()), {
+      host.freezeDisplay();
+      return new Response(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal", callback.toString(), true), {
         headers: { "content-type": "text/xml; charset=utf-8", "cache-control": "no-store" },
       });
     }

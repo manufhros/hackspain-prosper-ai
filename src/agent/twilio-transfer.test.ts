@@ -17,7 +17,7 @@ test("trial fallback message does not say out of scope", () => {
   }
 });
 
-test("live handoff TwiML streams into the existing call", () => {
+test("Node handoff TwiML preserves patient playback", () => {
   const twiml = liveStreamTwiml(
     "wss://example.ngrok-free.app/ws",
     "call-123",
@@ -61,7 +61,7 @@ test("real-call redirect dials the human number via Url", () => {
 });
 
 test("live handoff escapes XML attribute values", () => {
-  const twiml = liveStreamTwiml('wss://example.test/ws/one', 'call"<&', 'org"');
+  const twiml = liveStreamTwiml('wss://example.test/ws/one', 'call"<&', 'org"', undefined, true);
   assert.ok(twiml.includes('value="call&quot;&lt;&amp;"'));
   assert.ok(twiml.includes('value="org&quot;"'));
 });

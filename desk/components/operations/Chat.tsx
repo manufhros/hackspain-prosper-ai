@@ -24,7 +24,7 @@ export function Chat({ call }: { call?: Call }) {
   }, [call?.events.length]);
   return <section className={styles.chat} aria-label="Conversación">
     <header className={styles.chatHeader}><Avatar className="h-9 w-9 rounded-md"><AvatarFallback><Headphones size={17}/></AvatarFallback></Avatar>
-      <div><h2>{call?.name ?? "Conversación"} {language && <span className={styles.flag} title={language}>{language === "es" ? "🇪🇸" : language === "fr" ? "🇫🇷" : "🇬🇧"}</span>}</h2><p>{call ? (call.source === "mock" ? "Simulación local" : `ElevenLabs · ${call.source === "phone" ? "Teléfono" : "Paciente LLM · texto"}`) : "Selecciona una llamada"}</p></div>
+      <div><h2>{call?.name ?? "Conversación"} {language && <span className={styles.flag} title={language}>{language === "es" ? "🇪🇸" : language === "fr" ? "🇫🇷" : "🇬🇧"}</span>}</h2><p>{call ? (call.source === "mock" ? "Simulación local" : call.source === "phone" ? "Twilio · Reproducción de prueba" : "ElevenLabs · Paciente LLM · texto") : "Selecciona una llamada"}</p></div>
       {call && <Badge variant="outline">{call.state}</Badge>}
     </header><Separator/>
     <div className={styles.chatBody}><ScrollArea ref={area} className="h-full">

@@ -1,16 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
+import { liveStreamTwiml } from "../agent/twilio-transfer.ts";
 import { OperationsService } from "./service.ts";
 import { authorized, phoneToken, validPhoneToken } from "./security.ts";
 import type { CallOptions } from "../agent/session.ts";
 import type { CallSocket } from "../agent/socket.ts";
-import { checkPhone, TwilioRequestError } from "./twilio.ts";
+import { checkPhone, dialPatient, TwilioRequestError } from "./twilio.ts";
 
 const settle = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
 function fixture() {
   for (const key of ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID", "PLATFORM_API_KEY"]) process.env[key] = "test";
   process.env.OPERATIONS_SECRET = "s".repeat(40);
+  process.env.TWILIO_HUMAN_NUMBER = "+34600000123";
   const options: CallOptions[] = [];
   const sockets: CallSocket[] = [];
   let dialed = 0, hungup = 0;
@@ -32,7 +33,7 @@ function fixture() {
   };
   return { deps, options, sockets, get dialed() { return dialed; }, get hungup() { return hungup; }, get webhook() { return webhook; } };
 }
-test("three concurrent patients use Lucia core; phone is a fourth fresh session without join", async () => {
+test("three concurrent patients use Lucia core; phone uses Guille exact playback", async () => {
   const f = fixture(); const service = new OperationsService(f.deps);
   service.start();
   assert.throws(() => service.start(), /activa/);
@@ -44,16 +45,11 @@ test("three concurrent patients use Lucia core; phone is a fourth fresh session 
   const response = await service.fetch(new Request(f.webhook));
   const xml = await response.text();
   assert.equal(response.status, 200);
-  assert.ok(xml.includes('demo-'));
-  assert.ok(xml.includes('<Redirect method="POST">'));
-  assert.ok(!xml.includes('<Connect>'));
-  assert.ok(!xml.includes('name="join"'));
-  assert.ok(!xml.includes("<Say"));
-  class Socket extends EventEmitter { readyState = 1; send() {} close() { this.readyState = 3; this.emit("close"); } }
-  await service.attachPhone(new Socket());
-  assert.equal(f.options.length, 4);
-  assert.equal(f.options[3]!.textOnly, undefined);
-  assert.equal(f.options[3]!.demo, true);
+  assert.equal(xml, liveStreamTwiml("wss://voice.example/ws", service.snapshot().calls[3]!.id, "arenal"));
+  assert.equal(response.headers.get("x-operations-call-id"), service.snapshot().calls[3]!.id);
+  assert.ok(!xml.includes("<Stream"));
+  assert.ok(xml.includes("Llamaba para pedir la primera cita"));
+  assert.equal(f.options.length, 3);
   await service.stop();
   assert.equal(service.snapshot().state, "finished");
   assert.ok(f.hungup >= 1);
@@ -111,61 +107,46 @@ test("controls require a server secret; phone tokens are scoped and expire", asy
   assert.ok(validPhoneToken(url, "one")); assert.ok(!validPhoneToken(url, "two"));
   url.searchParams.set("expires", String(Date.now() - 1)); assert.ok(!validPhoneToken(url, "one"));
 });
+test("phone creation uses exactly Lucia's trial-compatible parameters", async t => {
+  process.env.TWILIO_ACCOUNT_SID = "test"; process.env.TWILIO_AUTH_TOKEN = "test";
+  process.env.TWILIO_PHONE_NUMBER = "+12025550123";
+  process.env.TWILIO_HUMAN_NUMBER = "+34600000456";
+  t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+    assert.deepEqual(Object.fromEntries(init!.body as URLSearchParams), {
+      To: "+34600000456", From: "+12025550123", Url: "https://voice.example/phone",
+    });
+    return Response.json({ sid: "CA" + "a".repeat(32), status: "queued" });
+  });
+  assert.ok((await dialPatient("https://voice.example/phone")).sid);
+});
+
 test("account preflight allows Trial to attempt the actual REST transport", async t => {
   process.env.TWILIO_ACCOUNT_SID = "test"; process.env.TWILIO_AUTH_TOKEN = "test"; process.env.TWILIO_PHONE_NUMBER = "+12025550123";
   t.mock.method(globalThis, "fetch", async () => Response.json({ type: "Trial" }));
   await assert.doesNotReject(checkPhone());
 });
 
-test("Lucia REST transport starts once and speaks actual agent replies, not scripted patient lines", async t => {
-  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
-  const f = fixture(); let streams = 0;
-  const service = new OperationsService({ ...f.deps,
-    status: async () => ({ status: "in-progress" }),
-    startStream: async (_sid, url) => { streams++; assert.match(url, /^wss:\/\/voice.example\/operations\/phone\//); return { ok: true, status: 201, callSid: undefined, error: undefined }; },
-  });
-  service.start(); await settle();
-  t.mock.timers.tick(3000); await settle();
-  assert.equal(streams, 1);
-  class Wire extends EventEmitter {
-    readyState = 1; sent: string[] = [];
-    send(data: string) { this.sent.push(data); }
-    close() { this.readyState = 3; this.emit("close", 1000, ""); }
-  }
-  const wire = new Wire();
-  await service.attachPhone(wire);
-  let start: any;
-  f.sockets[3]!.on("message", raw => { start = JSON.parse(String(raw)); });
-  wire.emit("message", JSON.stringify({ event: "start", start: { callSid: "CAreal", streamSid: "MZreal" } }));
-  assert.equal(start.start.customParameters.call_id, service.snapshot().calls[3]!.id);
-  assert.equal(start.start.customParameters.join, undefined);
-  f.sockets[3]!.send(JSON.stringify({ event: "media", media: { payload: "audio" } }));
-  assert.deepEqual(wire.sent, []);
-  f.options[3]!.onMonitor?.({ type: "agent", text: "Hola, ¿en qué puedo ayudarte? <test>" });
-  assert.ok(!(await (await service.fetch(new Request(f.webhook))).text()).includes("<Say"));
-  const speech = await (await service.fetch(new Request(f.webhook, { method: "POST" }))).text();
-  assert.ok(speech.includes("Hola, ¿en qué puedo ayudarte? &lt;test&gt;"));
-  assert.ok(!speech.includes("Llamaba para pedir"));
-  assert.ok(!(await (await service.fetch(new Request(f.webhook, { method: "POST" }))).text()).includes("<Say"));
-  t.mock.timers.tick(3000); await settle(); assert.equal(streams, 1);
-  await service.stop();
-});
-
-test("REST stream rejection ends only the phone, keeping AI patients alive", async t => {
+test("phone serves speech immediately, without REST streams or a fourth agent", async t => {
   t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
   const f = fixture();
-  const service = new OperationsService({ ...f.deps,
-    status: async () => ({ status: "in-progress" }),
-    startStream: async () => ({ ok: false, status: 403, error: "Stream not permitted", callSid: undefined }),
-  });
+  let status = "in-progress";
+  const service = new OperationsService({ ...f.deps, status: async () => ({ status }) });
   service.start(); await settle();
+  const preflight = await service.fetch(new Request(f.webhook));
+  assert.equal(service.snapshot().calls[3]!.state, "Llamando");
+  const playback = await service.fetch(new Request(f.webhook, { method: "POST" }));
+  assert.equal(await playback.text(), await preflight.text());
+  assert.equal(service.snapshot().calls[3]!.state, "Reproducción de prueba");
   t.mock.timers.tick(3000); await settle();
-  assert.ok(service.snapshot().calls[3]!.events.some(event => event.text === "Stream not permitted"));
-  assert.ok(f.hungup >= 1);
-  assert.equal(service.snapshot().state, "running");
+  assert.equal(f.options.length, 3);
+  assert.equal(f.hungup, 0);
   assert.ok(f.sockets.every(socket => socket.readyState === 1));
-  assert.ok(service.snapshot().calls[3]!.ended);
+  status = "completed";
+  t.mock.timers.tick(3000); await settle();
+  assert.equal(service.snapshot().calls[3]!.state, "Finalizada");
+  assert.ok(!service.snapshot().calls[3]!.events.some(event => event.type === "error"));
   await service.stop();
+  assert.equal(f.hungup, 0);
 });
 
 test("definitive phone rejection does not cancel the three AI conversations", async () => {

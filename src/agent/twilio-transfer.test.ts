@@ -88,6 +88,25 @@ test("publicHttpOrigin skips localhost env and uses the ngrok https tunnel", asy
   assert.equal(await publicHttpOrigin(), "https://voice.ngrok-free.app");
 });
 
+test("ngrok selects this instance port and never another server", async (t) => {
+  const keys = ["VOICE_AGENT_PUBLIC_URL", "TWILIO_HANDOFF_URL", "VOICE_STORAGE", "PORT"] as const;
+  const previous = keys.map(key => process.env[key]);
+  t.after(() => keys.forEach((key, i) => {
+    if (previous[i] === undefined) delete process.env[key]; else process.env[key] = previous[i];
+  }));
+  process.env.VOICE_AGENT_PUBLIC_URL = "ws://localhost:7862/ws";
+  delete process.env.TWILIO_HANDOFF_URL;
+  delete process.env.VOICE_STORAGE;
+  process.env.PORT = "7862";
+  t.mock.method(globalThis, "fetch", async () => Response.json({ tunnels: [
+    { public_url: "https://old.example", config: { addr: "http://localhost:7860" } },
+    { public_url: "https://current.example", config: { addr: "http://localhost:7862" } },
+  ] }));
+  assert.equal(await publicHttpOrigin(), "https://current.example");
+  process.env.PORT = "7899";
+  assert.equal(await publicHttpOrigin(), null);
+});
+
 test("Worker handoff uses its Durable Object callback and retains provider auditing", async (t) => {
   const { transferTwilioCall } = await import("./twilio-transfer.ts");
   const keys = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_HUMAN_NUMBER", "TWILIO_PHONE_NUMBER"];

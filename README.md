@@ -17,13 +17,51 @@ bun start
 By default the language model is local Qwen. Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `ollama` is missing. **`bun start` sets up and starts the local stack automatically:**
 
 - Installs missing `uv`/`ollama` using Homebrew and creates a private Python 3.12 environment with locked audio dependencies.
-- Downloads Qwen3.5 4B (~3.4 GB), Whisper small for MLX (~481 MB), and Piper English/Spanish/Catalan voices (~190 MB total), plus runtime dependencies. Allow several GB of disk space and time for the first launch.
-- Starts its own loopback-only Ollama process and a persistent Python audio worker, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
+- Downloads Qwen3.5 4B (~3.4 GB), Whisper small for MLX (~481 MB), and Piper English/Spanish/Catalan voices (~190 MB total), plus Silero VAD (~2.3 MB) and runtime dependencies. Allow several GB of disk space and time for the first launch.
+- Starts its own loopback-only Ollama process and separate persistent recognition and speech workers, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
 - Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Voice stack**.
 
-The stack is sized for your M4 Pro / 48 GB Mac, but no native latency or quality benchmark has been run yet. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
+The stack is sized for your M4 Pro / 48 GB Mac, but the new concurrency profile has not yet been benchmarked with live models or calls. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
 
 For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
+
+## Local inference and concurrency
+
+Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVIDER=local`. Other `OPENROUTER_*` settings are ignored in local mode. The local stack makes no cloud model requests or automatic provider fallbacks. Prosper clinic reads and official test submissions still use its API. The setup phase downloads dependencies/model assets; inference uses cached local files.
+
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `LOCAL_LLM_PARALLEL` | `4` | Concurrent requests to one resident Qwen3.5 4B model, 1–8. Remaining turns wait in a bounded queue. |
+| `LOCAL_LLM_CONTEXT` | `16384` | Context tokens per model request, 4096–32768; preserves the previous request context budget. More parallel slots/context increase memory usage. |
+| `LOCAL_LLM_MAX_TOKENS` | `512` | Output limit, 128–2048. Thinking stays disabled; truncated responses fail visibly. |
+| `LOCAL_TTS_WORKERS` | `2` | Independent persistent Piper workers, 1–4, each loading all three voices. |
+| `LOCAL_TTS_THREADS` | `2` | CPU threads per Piper ONNX session, 1–4; inter-op threads are fixed at one. |
+| `LOCAL_ASR_MODEL` | `small` | MLX multilingual Whisper; `large-v3-turbo` downloads separate pinned ~1.6 GB weights for comparison. |
+
+The current native Ollama adapter remains the LLM backend. Whisper uses MLX; no Core ML encoder or alternate llama-server backend is claimed. Increasing slot/worker counts is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
+
+Platform speech is validated before synthesis. The first short chunk can play while the next is synthesized; only one chunk is prefetched per caller. Interrupted or partially played offers never count as delivered consent. Static greetings/notices retain shared caching; patient-specific speech is not cached. The TUI retains its complete-utterance playback.
+
+Reports include local model queue, prefill, decode, load, and token metrics. ASR/TTS events retain separate worker/queue timings; TTS events now include chunk indices. Silero state is isolated per call, queued detection is bounded, and disconnect drains already received frames before the final transcription.
+
+### Measure the local profile
+
+Stop the voice TUI/server first, then run this yourself. **The benchmark starts and stops its own local model processes** and may perform first-run setup. It never calls the clinic API or submits actions:
+
+```sh
+LLM_PROVIDER=local bun run benchmark
+```
+
+The default runs three synchronized batches at each concurrency of 1, 5, 10 and 20. It records ASR word error rate, structured intent accuracy, native/queue timings and time to the first synthesized response chunk in `.workbench/benchmark-*.json`. Failures remain in the attempted-count denominator. First-chunk latency excludes endpoint detection, transport and playback. Inputs are clean Piper-generated English/Spanish/Catalan speech roundtripped through 8 kHz mu-law: this is an inference stress test, **not human speech quality or live-call capacity proof**. Tool calling, appointment correctness, consent, noise and actual interruption require platform rehearsals separately.
+
+Compare one variable at a time, retaining each report:
+
+```sh
+LLM_PROVIDER=local LOCAL_LLM_PARALLEL=8 bun run benchmark
+LLM_PROVIDER=local LOCAL_ASR_MODEL=large-v3-turbo bun run benchmark
+```
+
+`bun run benchmark --help` is finite and starts nothing. Offline verification uses `bun run check`; native codec tests use the already-installed `.workbench/voice/venv/bin/python -m unittest discover -s tests -p '*_test.py'` with synthetic model stubs, not real models/devices.
 
 ## Use an OpenRouter model
 
@@ -48,7 +86,7 @@ Platform calls use a fixed greeting in `VOICE_LANGUAGE`, then follow the caller'
 
 An empty transcription prompts repetition. A call with no recognized reply receives one reminder after 12 seconds of idle time. These reminders do not confirm an appointment. The consent guard accepts natural confirmations tied to the exact delivered offer, retains proposals through clarification, and prevents already accepted actions from being offered again.
 
-Platform reports distinguish response generation from audio delivery: `at_ms` timestamps each event relative to connection, while `elapsed_ms` measures the individual operation. `tts`/`asr` events separate worker time from `queue_ms`; cached/shared speech has `cache_hit=1` and its shared wait appears in `queue_ms`. `audio_stats` counts incoming frames, frames above the configured speech threshold, detected utterances, empty transcriptions, outgoing frames, and playback acknowledgements. `agent`/`RECEPTIONIST` is emitted only when the first audio frame is sent. `output_sent` means all frames were sent; only `playback_ack` means the peer echoed their mark, and neither proves human comprehension. `end_reason` distinguishes peer stop, socket closure, call timeout, completion, error, and shutdown; a WebSocket close code is included when available. Reports retain no raw audio or model reasoning text. The shared native worker remains serial; these offline checks do not prove live throughput or diagnose the earlier silent calls retroactively.
+Platform reports distinguish response generation from audio delivery: `at_ms` timestamps each event relative to connection, while `elapsed_ms` measures the individual operation. `tts`/`asr` events separate worker time from `queue_ms`; cached/shared speech has `cache_hit=1` and its shared wait appears in `queue_ms`. `audio_stats` counts incoming frames, frames above the configured speech threshold, detected utterances, empty transcriptions, outgoing frames, and playback acknowledgements. `agent`/`RECEPTIONIST` is emitted only when the first audio frame is sent. `output_sent` means all frames were sent; only `playback_ack` means the peer echoed their mark, and neither proves human comprehension. `end_reason` distinguishes peer stop, socket closure, call timeout, completion, error, and shutdown; a WebSocket close code is included when available. Reports retain no raw audio or model reasoning text. Recognition and synthesis use independent bounded queues; these offline checks do not prove live throughput or diagnose earlier calls retroactively.
 
 ## The workbench
 
@@ -150,7 +188,7 @@ bun run serve --dry-run
 
 Every connection gets separate conversation, audio buffers, call/stream IDs, and submission state. Up to 20 calls are admitted by default. Outbound audio is paced in 20 ms, mono, 8 kHz mu-law frames without WAV headers. Caller speech stops further playback locally; the implementation does not rely on the harness honoring `clear`. Audio is transcribed after a detected pause, so this is utterance-based ASR, not streaming recognition. The initial greeting uses `VOICE_LANGUAGE` (Spanish by default), and ASR language detection plus clear caller text switches subsequent turns among English, Spanish, and Catalan. Explicit language requests persist. The active language controls model instructions, offer/closing wording and speech synthesis; bounded retries reject obvious wrong-language drafts.
 
-The models are shared, and native speech operations run through a bounded serial queue; cancelling one caller does not kill other callers' native jobs. **20 isolated sessions in mocked tests do not establish real-time performance for 10/20 live calls.** Start with one public practice case. Silence detection uses an adjustable energy threshold and may need tuning for the track's noise beds; this has not been benchmarked against the live harness.
+The models are shared: one recognition worker, two CPU speech workers, and four local model inference slots by default; cancelling one caller does not kill other callers' native jobs. **20 isolated sessions in mocked tests do not establish real-time performance for 10/20 live calls.** Start with one public practice case. Speech detection uses Silero v6.2 on CPU with isolated state per call, 120 ms onset and a 480 ms end pause. Detection and interruption accuracy still need testing against the live noise beds. Set `VOICE_VAD=energy` only for comparison with the previous energy detector; Silero startup failures are reported without silently changing detectors.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -158,8 +196,10 @@ The models are shared, and native speech operations run through a bounded serial
 | `VOICE_LANGUAGE` | `es` | Initial greeting: `en`, `es`, or `ca`. |
 | `VOICE_MAX_CALLS` | `20` | Concurrent connection limit, 1–20. |
 | `VOICE_SERVER_TOKEN` | unset | Optional Bearer authentication on `/ws`. |
-| `VOICE_VAD_THRESHOLD` | `0.015` | Normalized RMS threshold; raise if noise triggers turns, lower if quiet speech is missed. |
-| `VOICE_SILENCE_MS` | `800` | Pause before transcribing a caller turn, 200–3000 ms. |
+| `VOICE_VAD` | `silero` | CPU neural detector; `energy` selects the previous detector explicitly. |
+| `VOICE_VAD_PROBABILITY` | `0.5` | Silero speech threshold, 0.1–0.9; exit uses a 0.15 hysteresis margin. |
+| `VOICE_VAD_THRESHOLD` | `0.015` | Normalized RMS threshold for `energy` mode only. |
+| `VOICE_SILENCE_MS` | `480` | Pause before transcribing a caller turn, 200–3000 ms. |
 
 The `serve` terminal prints live **CALLER** and **RECEPTIONIST** turns, with numbered conversation labels on every line and start/end separators. Each start shows the platform call ID; overlapping calls keep their own label. Caller text appears after transcription, receptionist text before playback, and interruptions are labeled explicitly. Call endings show status, accepted actions, and the saved report path.
 

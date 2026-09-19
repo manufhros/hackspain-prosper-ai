@@ -27,6 +27,8 @@ export function assertGatewayAuth(): void {
 
 export const models = {
   chat: process.env.WL_CHAT_MODEL ?? "openai/gpt-5.6-sol",
+  caller: process.env.WL_CALLER_MODEL ?? "openai/gpt-5.6-luna", // simulador de paciente: barato
+
   stt: process.env.WL_STT_MODEL ?? "openai/whisper-1",
   tts: process.env.WL_TTS_MODEL ?? "openai/tts-1-hd",
   ttsVoice: process.env.WL_TTS_VOICE ?? "nova",

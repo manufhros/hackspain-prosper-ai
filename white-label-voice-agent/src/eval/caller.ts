@@ -31,7 +31,7 @@ Rules:
   async reply(agentLine: string): Promise<string> {
     this.messages.push({ role: "user", content: agentLine });
     const result = await generateText({
-      model: gateway(models.chat),
+      model: gateway(models.caller),
       system: this.system,
       messages: this.messages,
     });

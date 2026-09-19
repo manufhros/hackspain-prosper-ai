@@ -26,7 +26,8 @@ export async function connectWorkerSocket(url: string): Promise<CallSocket> {
   const response = await fetch(endpoint, {
     headers: { Upgrade: "websocket" },
     signal: AbortSignal.timeout(12_000),
-    redirect: "error",
+    // workerd supports follow/manual only. Do not follow a signed URL to another host.
+    redirect: "manual",
   });
   const socket = response.webSocket;
   if (!socket) throw new Error(`ElevenLabs WebSocket upgrade failed (${response.status})`);

@@ -34,10 +34,22 @@ test("outbound Workers socket performs HTTPS Upgrade and accepts the transport",
   t.mock.method(globalThis, "fetch", async (url, options) => {
     assert.equal(url.toString(), "https://example.test/conversation?token=synthetic");
     assert.equal(options.headers.Upgrade, "websocket");
+    assert.equal(options.redirect, "manual");
     return { webSocket: native, status: 101 };
   });
   const socket = await connectWorkerSocket("wss://example.test/conversation?token=synthetic");
   assert.equal(native.accepted, true);
   assert.equal(socket.readyState, 1);
   await assert.rejects(connectWorkerSocket("ws://example.test"), /secure/);
+});
+
+test("outbound Workers socket rejects redirects without following a signed URL", async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    requests++;
+    assert.equal(options.redirect, "manual");
+    return { webSocket: null, status: 302 };
+  });
+  await assert.rejects(connectWorkerSocket("wss://example.test/conversation?token=synthetic"), /upgrade failed \(302\)/);
+  assert.equal(requests, 1);
 });

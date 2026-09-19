@@ -11,7 +11,7 @@ Integración sobre `feature/lucia-work` (base `d282f1f`). Entrada: **Panel → O
   (`SIMULATOR_MODEL`, por defecto `openai/gpt-4.1-mini`) responde como paciente; ElevenLabs
   ejecuta el mismo `handleCall`, herramientas y configuración de la rama.
   Estas tres conversaciones son de texto, no sintetizan audio.
-- **Start demo**: lo anterior + una llamada a **+34601408225**. El móvil inicia una
+- **Start demo**: lo anterior + una llamada a **TWILIO_HUMAN_NUMBER**. El móvil inicia una
   cuarta sesión como **paciente**, no se incorpora como empleado a otra conversación.
 - **Micrófono**: acceso al simulador de voz existente de Lucía. Ese simulador conserva
   sus propias reglas de herramientas y transferencia; no es el ensayo aislado de Operaciones.
@@ -85,12 +85,14 @@ limitadas a la ejecución activa; nunca incluyen credenciales del proveedor.
 - Si Twilio no confirma la creación/cierre, no se reintenta automáticamente.
   Revisar Calls y usar **He comprobado el cierre en Twilio** únicamente cuando esté cerrado.
 - Un reinicio del Durable Object recupera la ejecución como incierta y bloquea otro arranque.
-  La alarma y el límite de tiempo de Twilio acotan llamadas huérfanas.
-- El teléfono utiliza el transporte REST de Lucía (`startCallMediaStream`, audio entrante).
-  Las respuestas dinámicas de ElevenLabs se reproducen con `<Say>` y la voz de Twilio;
-  no se reproduce audio de ElevenLabs por el stream unidireccional ni textos de paciente fijos.
-  No se bloquea por ser Trial: se muestra el resultado real de la petición Streams.
-  Si Twilio rechaza el stream o no conecta en 20 segundos, se detiene la demo y se cuelga.
+  El servidor y la alarma del Worker limitan la demo a cinco minutos. No se envían
+  TimeLimit ni Timeout al crear llamadas, para usar los mismos parámetros que Lucía.
+  Si el servidor local se cae, comprobar y cerrar manualmente la llamada en Twilio.
+- El teléfono reutiliza exactamente `liveStreamTwiml` del commit de Guille: dos
+  frases fijas de paciente, voz Polly.Sergio-Neural y las mismas pausas.
+  No abre un stream REST ni mantiene una conversación con ElevenLabs. El panel
+  lo identifica como reproducción de prueba; las tres sesiones LLM sí usan el agente.
+  El destinatario es TWILIO_HUMAN_NUMBER. La comprobación HTTPS no reproduce audio.
 
 ## Verificación
 

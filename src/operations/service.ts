@@ -6,19 +6,19 @@ import { loadPatients, patientReply, type Patient, type Turn } from "./patient.t
 import { checkPhone, dialPatient, stopPhone, phoneStatus } from "./twilio.ts";
 import { authorized, phoneToken, validPhoneToken } from "./security.ts";
 import { checkAgent } from "./agent-config.ts";
-import { agentReplyTwiml, startCallMediaStream } from "../agent/twilio-transfer.ts";
+import { liveStreamTwiml } from "../agent/twilio-transfer.ts";
 import { PatientPhoneSocket } from "./phone-socket.ts";
-import { DEMO_NUMBER, TwilioRequestError } from "./twilio.ts";
+import { demoNumber, TwilioRequestError } from "./twilio.ts";
+import { verifyPhoneWebhook } from "./webhook.ts";
 
 type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string };
 export type OperationCall = { id: string; name: string; source: "llm" | "phone"; state: string; started: number; ended?: number; events: Entry[] };
 export type DemoState = { id: string; state: string; message: string; calls: OperationCall[] };
 type Dependencies = {
-  options: CallOptions; origin: () => string;
+  options: CallOptions; origin: () => string | Promise<string>;
   core?: typeof handleCall; patients?: typeof loadPatients; reply?: typeof patientReply;
   checkPhone?: typeof checkPhone; dial?: typeof dialPatient; hangup?: typeof stopPhone; status?: typeof phoneStatus;
   checkAgent?: typeof checkAgent;
-  startStream?: typeof startCallMediaStream;
   verifyWebhook?: (url: string, callId: string) => Promise<void>;
   checkpoint?: (value: { id: string; sid?: string; active: boolean }) => Promise<void>;
 };
@@ -37,9 +37,7 @@ export class OperationsService {
   private starting = false;
   private dialing = false;
   private phoneConnected = false;
-  private phoneReplies: string[] = [];
-  private phoneStreamRequested = false;
-  private phoneStreamDeadline: ReturnType<typeof setTimeout> | undefined;
+  private publicOrigin = "";
   private timer: ReturnType<typeof setTimeout> | undefined;
   private poll: ReturnType<typeof setInterval> | undefined;
   private task: Promise<void> = Promise.resolve();
@@ -65,9 +63,6 @@ export class OperationsService {
     if (call.ended) return;
     const type = String(event.type ?? "event");
     if (type === "ready") call.state = "En conversación";
-    if (call.source === "phone" && type === "agent" && typeof event.text === "string") {
-      this.phoneReplies.push(event.text);
-    }
     call.events.push({
       type, at: Date.now(),
       ...(typeof event.text === "string" ? { text: event.text } : {}),
@@ -82,17 +77,6 @@ export class OperationsService {
     call.ended = Date.now(); call.state = state;
     if (!this.starting && this.run.calls.every(item => item.ended) && this.run.state === "running") {
       void this.stop();
-    }
-  }
-  private async failPhone(call: OperationCall, message: string) {
-    this.event(call, { type: "error", text: message });
-    clearInterval(this.poll); clearTimeout(this.phoneStreamDeadline);
-    try {
-      if (this.sid) await (this.deps.hangup ?? stopPhone)(this.sid);
-      this.end(call, "Error de teléfono");
-    } catch {
-      this.run.state = "uncertain";
-      this.run.message = "No se ha podido confirmar el cierre del teléfono. Los pacientes LLM continúan.";
     }
   }
   private options(call: OperationCall, observe?: (event: Record<string, unknown>) => void): CallOptions {
@@ -155,7 +139,6 @@ export class OperationsService {
   start(includePhone = true) {
     if (this.active) throw new Error("Ya hay una demo activa o pendiente de comprobar.");
     this.controller = new AbortController(); this.sid = undefined; this.phoneConnected = false;
-    this.phoneReplies = []; this.phoneStreamRequested = false;
     this.run = { id: crypto.randomUUID(), state: "preparing", message: "Comprobando configuración y pacientes…", calls: [] };
     this.starting = true;
     this.task = this.launch(includePhone);
@@ -169,7 +152,8 @@ export class OperationsService {
         if (!process.env[key]) throw new Error(`Falta ${key}.`);
       }
       if (includePhone) {
-        if (!this.deps.origin().startsWith("https://")) throw new Error("Configura VOICE_AGENT_PUBLIC_URL con HTTPS.");
+        this.publicOrigin = await this.deps.origin();
+        if (!this.publicOrigin.startsWith("https://")) throw new Error("No hay URL HTTPS pública para esta instancia. Inicia ngrok hacia el puerto del servidor de voz.");
         await (this.deps.checkPhone ?? checkPhone)();
       }
       await (this.deps.checkAgent ?? checkAgent)();
@@ -184,15 +168,11 @@ export class OperationsService {
       if (signal.aborted) return;
       this.run.state = "running"; this.run.message = "Ensayo · Sin cambios en la agenda real";
       if (includePhone) {
-        const call: OperationCall = { id: `demo-${this.run.id}-phone`, name: "Tu teléfono · ••• 8225", source: "phone", state: "Llamando", started: Date.now(), events: [] };
+        const call: OperationCall = { id: `demo-${this.run.id}-phone`, name: `Teléfono · ••• ${demoNumber().slice(-4)}`, source: "phone", state: "Llamando", started: Date.now(), events: [] };
         this.run.calls.push(call);
         const expires = String(Date.now() + 360000);
-        const url = `${this.deps.origin()}/operations/phone/${this.run.id}/${expires}/${phoneToken(this.run.id, expires)}`;
-        await (this.deps.verifyWebhook ?? (async (endpoint, callId) => {
-          const response = await fetch(endpoint, { headers: { "ngrok-skip-browser-warning": "true" }, signal: AbortSignal.timeout(5000) });
-          const xml = await response.text();
-          if (!response.ok || !xml.includes("<Redirect ") || !xml.includes(callId)) throw new Error("La URL pública no devuelve las instrucciones de esta demo. Revisa el despliegue de voz.");
-        }))(url, call.id);
+        const url = `${this.publicOrigin}/operations/phone/${this.run.id}/${expires}/${phoneToken(this.run.id, expires)}`;
+        await (this.deps.verifyWebhook ?? ((endpoint, callId) => verifyPhoneWebhook(endpoint, callId, signal)))(url, call.id);
         if (signal.aborted) return;
         this.dialing = true;
         const result = await (this.deps.dial ?? dialPatient)(url);
@@ -206,25 +186,10 @@ export class OperationsService {
           polling = true;
           void (this.deps.status ?? phoneStatus)(this.sid).then(async status => {
             if (signal.aborted) return;
-            if (status.status === "in-progress" && !this.phoneStreamRequested) {
-              this.phoneStreamRequested = true;
-              this.event(call, { type: "transport", text: "Iniciando audio entrante mediante el flujo REST de Lucía" });
-              try {
-                const result = await (this.deps.startStream ?? startCallMediaStream)(this.sid!, `${url.replace(/^https:/, "wss:")}/ws`);
-                if (signal.aborted) return;
-                if (!result?.ok) throw new Error(result?.error || `Twilio Streams HTTP ${result?.status ?? "sin respuesta"}`);
-                this.event(call, { type: "transport", text: "Twilio aceptó el stream; esperando conexión de audio" });
-                this.phoneStreamDeadline = setTimeout(() => {
-                  if (this.phoneConnected || signal.aborted) return;
-                  void this.failPhone(call, "Twilio aceptó el stream pero no conectó el audio en 20 segundos.");
-                }, 20000);
-              } catch (error) {
-                await this.failPhone(call, error instanceof Error ? error.message : "No se pudo abrir el stream de Twilio.");
-              }
-            }
+            if (status.status === "in-progress") call.state = "Reproducción de prueba";
             if (["completed", "failed", "busy", "no-answer", "canceled"].includes(status.status ?? "")) {
-              if (!this.phoneConnected) this.event(call, { type: "error", text: "La llamada terminó sin abrir audio con ElevenLabs." });
-              this.end(call, this.phoneConnected ? "Finalizada" : "Sin conexión de audio");
+              this.sid = undefined;
+              this.end(call, status.status === "completed" ? "Finalizada" : "No conectada");
               clearInterval(this.poll);
             }
           }).catch(() => {}).finally(() => { polling = false; });
@@ -265,7 +230,7 @@ export class OperationsService {
   }
   async stop() {
     if (this.run.state !== "uncertain") this.run.state = "stopping";
-    this.controller.abort(); clearTimeout(this.timer); clearInterval(this.poll); clearTimeout(this.phoneStreamDeadline);
+    this.controller.abort(); clearTimeout(this.timer); clearInterval(this.poll);
     for (const socket of this.sockets) socket.close();
     await this.task;
     try {
@@ -289,19 +254,22 @@ export class OperationsService {
     const call = this.run.calls.find(item => item.source === "phone");
     if (!call || this.phoneConnected || this.controller.signal.aborted) { socket.close(1008, "No active phone session"); return; }
     this.phoneConnected = true; this.sockets.add(socket);
-    clearTimeout(this.phoneStreamDeadline);
     socket.once("close", () => { this.sockets.delete(socket); this.end(call); });
-    await (this.deps.core ?? handleCall)(new PatientPhoneSocket(socket, call.id, DEMO_NUMBER), this.options(call));
+    await (this.deps.core ?? handleCall)(new PatientPhoneSocket(socket, call.id, demoNumber()), this.options(call));
   }
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/operations/phone/")) {
       if (!this.phoneAllowed(url)) return new Response("Forbidden", { status: 403 });
-      const callId = this.run.calls.find(call => call.source === "phone")?.id ?? "";
-      // GET is a side-effect-free preflight. Only Twilio's POST consumes queued replies.
-      const text = request.method === "POST" ? this.phoneReplies.splice(0).join(" ") : "";
-      return new Response(agentReplyTwiml(text, `${this.deps.origin()}${url.pathname}`, callId), {
-        headers: { "content-type": "text/xml", "cache-control": "no-store" },
+      const call = this.run.calls.find(call => call.source === "phone");
+      const callId = call?.id ?? "";
+      if (request.method === "POST" && call && call.state === "Llamando") {
+        call.state = "Reproducción de prueba";
+        this.event(call, { type: "transport", text: "Twilio ha solicitado el guion de prueba de Guille. No es una conversación con ElevenLabs." });
+      }
+      // Reuse Guille's exact playback, without a stream or an agent startup dependency.
+      return new Response(liveStreamTwiml(`${this.publicOrigin.replace(/^https:/, "wss:")}/ws`, callId, "arenal"), {
+        headers: { "content-type": "text/xml", "cache-control": "no-store", "x-operations-call-id": callId },
       });
     }
     if (!authorized(request)) return Response.json({ error: "No autorizado" }, { status: 403 });

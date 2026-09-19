@@ -177,8 +177,13 @@ async function ngrokHttpsOrigin(): Promise<string | null> {
       tunnels?: Array<{ public_url?: string; config?: { addr?: string } }>;
     };
     const httpsTunnels = (data.tunnels ?? []).filter((tunnel) => tunnel.public_url?.startsWith("https://"));
-    const preferred = httpsTunnels.find((tunnel) => (tunnel.config?.addr ?? "").includes(":7860"))
-      ?? httpsTunnels[0];
+    const port = process.env.PORT || "7860";
+    const preferred = httpsTunnels.find((tunnel) => {
+      try {
+        const addr = tunnel.config?.addr ?? "";
+        return addr === port || new URL(addr.includes("://") ? addr : `http://${addr}`).port === port;
+      } catch { return false; }
+    });
     return preferred?.public_url ?? null;
   } catch {
     return null;
@@ -199,20 +204,24 @@ function wsUrlFromOrigin(origin: string) {
   return `${origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/ws`;
 }
 
-async function twilioPost(path: string, body: URLSearchParams, audit?: AuditAction) {
-  const creds = credentials();
-  if (!creds) return null;
+export async function twilioRequest(path: string, body?: URLSearchParams, audit?: AuditAction): Promise<{
+  ok: boolean; status: number; callSid: string | undefined; error: string | undefined;
+  code?: number | undefined; callStatus?: string | undefined; accountType?: string | undefined;
+} | null> {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
+  const auth = twilioAuth();
+  if (!accountSid || !auth) return null;
   const requestId = crypto.randomUUID();
-  await audit?.("handoff.requested", { requestId, provider: "twilio", path, body: Object.fromEntries(body) });
+  await audit?.("handoff.requested", { requestId, provider: "twilio", path, body: body ? Object.fromEntries(body) : {} });
   const response = await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(creds.accountSid)}${path}`,
+    `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}${path}`,
     {
-      method: "POST",
+      method: body ? "POST" : "GET",
       headers: {
-        authorization: `Basic ${Buffer.from(`${creds.auth.user}:${creds.auth.pass}`).toString("base64")}`,
+        authorization: `Basic ${Buffer.from(`${auth.user}:${auth.pass}`).toString("base64")}`,
         "content-type": "application/x-www-form-urlencoded",
       },
-      body,
+      ...(body ? { body } : {}),
       signal: AbortSignal.timeout(8_000),
     },
   ).catch(async (error: unknown) => {
@@ -220,7 +229,7 @@ async function twilioPost(path: string, body: URLSearchParams, audit?: AuditActi
     throw error;
   });
   const raw = await response.text();
-  let payload: { sid?: string; message?: string } = {};
+  let payload: { sid?: string; message?: string; code?: number; status?: string; type?: string } = {};
   try {
     payload = JSON.parse(raw) as { sid?: string; message?: string };
   } catch {
@@ -235,8 +244,11 @@ async function twilioPost(path: string, body: URLSearchParams, audit?: AuditActi
     status: response.status,
     callSid: payload.sid,
     error: response.ok ? undefined : payload.message ?? raw.slice(0, 240),
+    code: payload.code, callStatus: payload.status, accountType: payload.type,
   };
 }
+
+const twilioPost = twilioRequest;
 
 export async function startCallMediaStream(callSid: string, wsUrl: string) {
   return twilioPost(

@@ -5,7 +5,7 @@ import { database, usesCloudflareStorage } from "@/lib/cloudflare-storage";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if ((await getSession())?.kind !== "hash") {
+  if ((await getSession())?.role !== "admin") {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   if (!usesCloudflareStorage()) {

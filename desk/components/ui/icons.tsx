@@ -1,35 +1,9 @@
-import {
-  Activity,
-  CalendarCheck,
-  FlaskConical,
-  Hospital,
-  KeyRound,
-  LayoutDashboard,
-  PhoneForwarded,
-  PhoneIncoming,
-  Plug,
-  Radio,
-  Settings2,
-  ShieldCheck,
-  TrendingUp,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { FlaskConical, LayoutDashboard, PhoneIncoming, Settings2, type LucideIcon } from "lucide-react";
 import type { IconName } from "@/lib/nav";
 
 export const ICONS: Record<IconName, LucideIcon> = {
   dashboard: LayoutDashboard,
-  calendar: CalendarCheck,
-  escalation: PhoneForwarded,
-  patients: Users,
-  activity: Activity,
-  business: TrendingUp,
-  plug: Plug,
-  flask: FlaskConical,
-  shield: ShieldCheck,
-  radio: Radio,
-  hospital: Hospital,
-  settings: Settings2,
-  key: KeyRound,
   phone: PhoneIncoming,
+  settings: Settings2,
+  flask: FlaskConical,
 };

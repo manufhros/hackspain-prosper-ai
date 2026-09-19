@@ -2,6 +2,7 @@
 
 import { resolve4, resolve6 } from "node:dns/promises";
 import { isIP } from "node:net";
+import { CLINIC } from "@/lib/clinic";
 import { getSession } from "@/lib/session";
 import {
   PROSPER_API_BASE,
@@ -11,9 +12,9 @@ import {
   type OrgAgentConfig,
 } from "@/lib/org-agent-config";
 
-async function requireDeveloper(orgSlug: string) {
+async function requireAdmin(orgSlug: string) {
   const session = await getSession();
-  if (session?.kind !== "org" || session.orgSlug !== orgSlug || session.role !== "dev") {
+  if (session?.role !== "admin" || orgSlug !== CLINIC.slug) {
     throw new Error("No autorizado.");
   }
   return session;
@@ -51,7 +52,7 @@ async function safeEndpoint(raw: string): Promise<URL | null> {
 }
 
 export async function saveOrgIntegrationConfig(input: OrgAgentConfig) {
-  const session = await requireDeveloper(input.orgSlug);
+  const session = await requireAdmin(input.orgSlug);
   await Promise.all([
     safeEndpoint(input.preCallEndpoint),
     safeEndpoint(input.actionEndpoint),
@@ -79,7 +80,7 @@ export async function saveOrgIntegrationConfig(input: OrgAgentConfig) {
 }
 
 export async function checkOrgEndpoints(orgSlug: string) {
-  await requireDeveloper(orgSlug);
+  await requireAdmin(orgSlug);
   const config = await readOrgAgentConfig(orgSlug);
   const targets = {
     preCall: config.preCallEndpoint,

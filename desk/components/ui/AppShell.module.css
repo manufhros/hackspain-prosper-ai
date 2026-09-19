@@ -42,12 +42,8 @@
   font-weight: 800;
 }
 
-/* Workspace switcher ------------------------------------------------------ */
+/* Workspace ------------------------------------------------------------- */
 .workspace {
-  position: relative;
-}
-
-.workspace summary {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -55,19 +51,6 @@
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface-2);
-  color: var(--faint);
-  list-style: none;
-  cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease;
-}
-
-.workspace summary::-webkit-details-marker {
-  display: none;
-}
-
-.workspace summary:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
 }
 
 .wsMark {
@@ -90,8 +73,7 @@
   gap: 2px;
 }
 
-.wsText strong,
-.wsMenu strong {
+.wsText strong {
   overflow: hidden;
   color: var(--ink);
   font-size: 13px;
@@ -100,46 +82,9 @@
   white-space: nowrap;
 }
 
-.wsText small,
-.wsMenu small {
+.wsText small {
   color: var(--muted);
   font-size: 11px;
-}
-
-.wsMenu {
-  position: absolute;
-  z-index: 20;
-  inset: calc(100% + 6px) 0 auto 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 6px;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface);
-  box-shadow: var(--shadow-md);
-}
-
-.wsMenu a {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 8px 10px;
-  border-radius: var(--r-sm);
-}
-
-.wsMenu a:hover {
-  background: var(--surface-2);
-}
-
-.wsMenu a[data-active="true"] {
-  background: var(--mint-soft);
-}
-
-.wsMenu a[data-active="true"] strong {
-  color: var(--brand);
 }
 
 /* Navigation -------------------------------------------------------------- */
@@ -225,8 +170,13 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--warning);
-  box-shadow: 0 0 0 4px var(--warning-soft);
+  background: var(--danger);
+  box-shadow: 0 0 0 4px var(--danger-soft);
+}
+
+.status[data-ok="pending"] i {
+  background: var(--faint);
+  box-shadow: 0 0 0 4px var(--surface-2);
 }
 
 .status[data-ok="true"] i {
@@ -327,7 +277,7 @@
     padding: 0 0 8px;
   }
 
-  .workspace summary {
+  .workspace {
     padding: 8px;
   }
 

@@ -2,37 +2,55 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LogOut } from "lucide-react";
 import type { NavGroup } from "@/lib/nav";
 import { ICONS } from "./icons";
 import styles from "./AppShell.module.css";
 
-export type WorkspaceSwitcherItem = { label: string; meta: string; href: string; active: boolean };
-
 export type AppShellProps = {
   brandHref: string;
-  workspace: {
-    name: string;
-    meta: string;
-    initials: string;
-    tint: string;
-    /** Other workspaces the session may open (sibling hospitals, group view). */
-    switcher?: WorkspaceSwitcherItem[];
-  };
+  workspace: { name: string; meta: string; initials: string; tint: string };
   groups: NavGroup[];
   user: { email: string; roleLabel: string };
-  status?: { ok: boolean; label: string };
   children: React.ReactNode;
 };
+
+type RuntimeHealth = { ok: boolean; activeCalls: number };
 
 function initialsOf(email: string) {
   const local = email.split("@")[0] ?? "";
   return local.replace(/[^a-z0-9]/gi, "").slice(0, 2).toUpperCase() || "H";
 }
 
-export function AppShell({ brandHref, workspace, groups, user, status, children }: AppShellProps) {
+/** Polls the voice runtime so every screen shows the same live status. */
+function useRuntimeHealth(intervalMs = 10_000) {
+  const [health, setHealth] = useState<RuntimeHealth | null>(null);
+  useEffect(() => {
+    let active = true;
+    async function refresh() {
+      try {
+        const response = await fetch("/api/agent-status", { cache: "no-store" });
+        const value = (await response.json()) as RuntimeHealth;
+        if (active) setHealth({ ok: value.ok === true, activeCalls: value.activeCalls ?? 0 });
+      } catch {
+        if (active) setHealth({ ok: false, activeCalls: 0 });
+      }
+    }
+    void refresh();
+    const timer = window.setInterval(refresh, intervalMs);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [intervalMs]);
+  return health;
+}
+
+export function AppShell({ brandHref, workspace, groups, user, children }: AppShellProps) {
   const path = usePathname();
   const router = useRouter();
+  const health = useRuntimeHealth();
 
   function isActive(href: string, exact?: boolean) {
     if (exact) return path === href;
@@ -45,6 +63,15 @@ export function AppShell({ brandHref, workspace, groups, user, status, children 
     router.refresh();
   }
 
+  const statusLabel =
+    health == null
+      ? "Comprobando agente…"
+      : health.ok
+        ? health.activeCalls
+          ? `Agente activo · ${health.activeCalls} en curso`
+          : "Agente activo · sin llamadas"
+        : "Agente sin respuesta";
+
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
@@ -53,28 +80,15 @@ export function AppShell({ brandHref, workspace, groups, user, status, children 
           <strong>hash</strong>
         </Link>
 
-        <details className={styles.workspace}>
-          <summary>
-            <span className={styles.wsMark} style={{ background: workspace.tint }}>
-              {workspace.initials}
-            </span>
-            <span className={styles.wsText}>
-              <strong>{workspace.name}</strong>
-              <small>{workspace.meta}</small>
-            </span>
-            {workspace.switcher?.length ? <ChevronsUpDown size={14} aria-hidden="true" /> : null}
-          </summary>
-          {workspace.switcher?.length ? (
-            <div className={styles.wsMenu}>
-              {workspace.switcher.map((item) => (
-                <Link key={item.href} href={item.href} data-active={item.active}>
-                  <strong>{item.label}</strong>
-                  <small>{item.meta}</small>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </details>
+        <div className={styles.workspace}>
+          <span className={styles.wsMark} style={{ background: workspace.tint }}>
+            {workspace.initials}
+          </span>
+          <span className={styles.wsText}>
+            <strong>{workspace.name}</strong>
+            <small>{workspace.meta}</small>
+          </span>
+        </div>
 
         <nav className={styles.nav} aria-label="Secciones">
           {groups.map((group) => (
@@ -101,12 +115,10 @@ export function AppShell({ brandHref, workspace, groups, user, status, children 
         </nav>
 
         <div className={styles.foot}>
-          {status ? (
-            <p className={styles.status} data-ok={status.ok}>
-              <i aria-hidden="true" />
-              {status.label}
-            </p>
-          ) : null}
+          <p className={styles.status} data-ok={health?.ok ?? "pending"} aria-live="polite">
+            <i aria-hidden="true" />
+            {statusLabel}
+          </p>
           <div className={styles.user}>
             <span className={styles.avatar}>{initialsOf(user.email)}</span>
             <span className={styles.userText}>

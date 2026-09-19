@@ -17,14 +17,14 @@ export type AgentConfigResult = {
   state?: AgentConfigState;
 };
 
-async function requireHash() {
+async function requireAdmin() {
   const session = await getSession();
-  if (session?.kind !== "hash") throw new Error("No autorizado.");
+  if (session?.role !== "admin") throw new Error("No autorizado.");
   return session;
 }
 
 export async function saveAgentDraft(input: AgentConfig): Promise<AgentConfigResult> {
-  await requireHash();
+  await requireAdmin();
   const config = normalizeAgentConfig(input);
   const errors = validateAgentConfig(config);
   if (errors.length) return { ok: false, message: errors.join(" ") };
@@ -35,7 +35,7 @@ export async function saveAgentDraft(input: AgentConfig): Promise<AgentConfigRes
 }
 
 export async function publishAgentDraft(input: AgentConfig): Promise<AgentConfigResult> {
-  const session = await requireHash();
+  const session = await requireAdmin();
   const config = normalizeAgentConfig(input);
   const errors = validateAgentConfig(config);
   if (errors.length) return { ok: false, message: errors.join(" ") };
@@ -64,7 +64,7 @@ export async function publishAgentDraft(input: AgentConfig): Promise<AgentConfig
 }
 
 export async function rollbackAgentConfig(versionId: string): Promise<AgentConfigResult> {
-  await requireHash();
+  await requireAdmin();
   const state = await readAgentConfigState();
   const target = state.versions.find((version) => version.id === versionId);
   if (!target) return { ok: false, message: "La versión ya no está disponible." };

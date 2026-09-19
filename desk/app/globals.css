@@ -211,3 +211,52 @@ textarea {
   background: var(--brand-2);
   opacity: 0.8;
 }
+
+/* Demo account shortcuts on the login form. */
+.login-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.login-accounts > span {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.login .login-account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  height: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink);
+  text-align: left;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.login .login-account:hover {
+  border-color: var(--brand-2);
+  background: var(--surface);
+}
+
+.login .login-account strong {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.login .login-account small {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 500;
+}

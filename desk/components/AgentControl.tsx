@@ -4,7 +4,7 @@ import {
   publishAgentDraft,
   rollbackAgentConfig,
   saveAgentDraft,
-} from "@/app/admin/agent-config-actions";
+} from "@/app/panel/agente/agent-config-actions";
 import type { AgentConfig, AgentConfigState } from "@/lib/agent-config";
 import { useState, useTransition } from "react";
 import styles from "./AgentControl.module.css";

@@ -1,6 +1,6 @@
 "use client";
 
-import { checkOrgEndpoints, saveOrgIntegrationConfig } from "@/app/g/[org]/integraciones/actions";
+import { checkOrgEndpoints, saveOrgIntegrationConfig } from "@/app/panel/agente/actions";
 import type { OrgAgentConfig } from "@/lib/org-agent-config";
 import { useState, useTransition } from "react";
 import styles from "./DeveloperPortal.module.css";

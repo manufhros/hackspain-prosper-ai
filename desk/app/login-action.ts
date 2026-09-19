@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { COOKIE, homeFor, sessionFromEmail } from "@/lib/auth";
 
 export async function loginAction(formData: FormData) {
-  const session = sessionFromEmail(String(formData.get("email") ?? ""));
+  const email = String(formData.get("account") || formData.get("email") || "");
+  const session = sessionFromEmail(email);
   if (!session) {
     redirect("/entrar?e=1");
   }

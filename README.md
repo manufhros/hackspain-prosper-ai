@@ -224,6 +224,18 @@ ASR_PROVIDER=openrouter LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PAR
 
 That benchmark makes **114 billable transcription requests** (six diagnostics plus 108 measured jobs), starts local Qwen/Piper, and reuses the synthetic audio cache. It tests 1/5/10/20 synchronized turns, with no clinic API calls. These commands are user-run; implementation validation uses mocked HTTP and finite offline tests, not live provider accuracy or latency proof. Restart `bun start` or `bun run serve` after changing `.env` to use the same hosted recognition path during real conversations.
 
+The first hosted quality run (`recognition-1789822928401.json`) reused the human corpus input hash `929bdf5511b439a51a00a4663ec4be72eb616cfdfb46b5e5d747195bd7925638`. All 60 HTTP operations completed, but there was one empty English clean transcript and six Spanish language-detection failures across clean/telephone audio. One clean Spanish clip returned Korean text, and another was largely rendered in English. This route is not validated for clinic use.
+
+| Language | Local turbo/segment telephone WER | Hosted telephone WER | Local / hosted median ASR time |
+| --- | ---: | ---: | ---: |
+| English | 4.2% | 35.8% | 419 / 1118 ms |
+| Spanish | 2.4% | 17.8% | 436 / 860 ms |
+| Catalan | 7.0% | 8.8% | 446 / 1683 ms |
+
+The response bodies omitted upstream provider identity. Read-only [generation metadata lookups](https://openrouter.ai/docs/api/api-reference/generations/get-generation) for the saved request IDs identified **55 DeepInfra requests and five Groq requests**; the allowlisted lookup results are saved in `.workbench/recognition-1789822928401-providers.json` without changing the original report. All telephone requests, all language-detection failures and the empty English response were served by DeepInfra. The five Groq requests covered only clean audio (one English, two Spanish, two Catalan) and took 471–650 ms. That unequal subset cannot establish a provider accuracy or latency comparison on matched telephone inputs.
+
+Offline checking confirmed every mu-law byte decodes to exactly the same PCM16 value as Python `audioop`; clean WAV inputs bypass this conversion and also regressed. Quiet English clips suffered especially large omissions, but provider preprocessing/decoding is not observable here, so its precise cause remains unconfirmed. The reported usage costs sum to about $0.00267 for 60 requests. This serial quality run cannot establish concurrent throughput; nonetheless, the quality regression must be resolved before treating hosted throughput as a usable improvement. A direct Groq comparison on the same recordings would isolate that provider, but requires a separate Groq credential and implementation choice; no provider switch, local fallback or production configuration change was made during this analysis. No new transcription requests were sent.
+
 ## Use an OpenRouter model
 
 Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these settings in your git-ignored `.env`:

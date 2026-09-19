@@ -35,7 +35,45 @@ from `desk/` to validate the adapter and final Worker bundle, not only `npm run 
 
 Next.js 16 keeps development output in `.next/dev`, independently of the production `.next` output required by OpenNext.
 
-## One-time Cloudflare setup
+## GitHub automatic deployment
+
+`.github/workflows/deploy-cloudflare.yml` deploys both Workers on every push to
+`main`. You can also run it from GitHub Actions with **Run workflow**, selecting
+`main`; other branches cannot deploy through this workflow.
+
+In GitHub **Settings → Secrets and variables → Actions → New repository secret**, add:
+
+- `CLOUDFLARE_ACCOUNT_ID`: the account that owns the existing `prosper-desk` D1 database and `somelabs.dev` zone.
+- `CLOUDFLARE_API_TOKEN`: create a Cloudflare API token using the **Edit Cloudflare Workers** template, scoped to that account and the `somelabs.dev` zone. Include account **D1: Edit** access for the database binding, and retain the template's Workers Scripts and Workers Routes permissions for Worker and custom-domain deployment.
+
+Ensure GitHub Actions is enabled for the repository and permits `actions/checkout`
+and `actions/setup-node`. No Cloudflare Git integration is required. Disable any
+existing Cloudflare Builds auto-deployment for these same Workers to avoid duplicate deployments.
+
+Complete the database migrations and Worker secret setup below before the first
+CI deployment. Runtime provider secrets stay on the Cloudflare Workers; GitHub
+only needs the two deployment credentials above. The desk configuration publishes
+`turno.somelabs.dev`, so the token must have access to that zone.
+
+The workflow installs both lockfiles with Node.js 22, checks voice types, builds
+OpenNext, and dry-runs both Worker bundles before deploying voice and then desk.
+Deployments are serialized and an active deployment is not cancelled by a new push.
+GitHub may replace a pending run with a newer push while another run is active.
+Deployment of the two Workers is not atomic: if desk deployment fails after voice
+succeeds, inspect the Actions log and rerun after correcting the failure.
+
+D1 migrations remain an explicit operator step (`npm --prefix desk run db:migrate:remote`)
+before deploying code that needs a new schema. Wrangler applies the configured
+Durable Object migrations as part of voice deployment. CI does not upload runtime
+secrets, import call data, or run live provider calls.
+
+The existing Worker unit suite is currently excluded from this deployment workflow:
+`npm run test:worker` has a failing custom-prompt assertion in `src/worker/session.test.mjs`.
+Typechecking and both production build/package checks gate deployment.
+
+Reference: [Cloudflare GitHub Actions authentication setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+
+## Manual resource and secret setup
 
 Run these commands yourself when ready to create the deployment:
 

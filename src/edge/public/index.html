@@ -27,6 +27,11 @@
           <h1 id="title">¿En qué podemos<br>ayudarle?</h1>
           <p class="description" id="description">Toque el botón y hable con nuestro asistente de recepción.</p>
         </div>
+        <section class="chat-panel" id="chat-panel" hidden aria-labelledby="chat-title">
+          <div class="chat-heading"><h2 id="chat-title" data-copy="chatTitle">Su conversación</h2><p data-copy="chatNote">Sus palabras aparecerán cuando termine de hablar.</p></div>
+          <div class="chat-log" id="chat-log" role="log" aria-live="polite" aria-relevant="additions" aria-label="Su conversación" tabindex="0"><p class="chat-empty" id="chat-empty" data-copy="chatEmpty">La conversación aparecerá aquí.</p></div>
+          <div class="chat-follow"><button disabled type="button" class="latest" id="chat-latest" hidden data-copy="chatLatest">Ver últimos mensajes ↓</button></div>
+        </section>
         <div class="actions">
           <button disabled type="button" class="primary" id="start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span data-copy="start">Empezar a hablar</span><span aria-hidden="true">↗</span></button>
           <div class="session-actions" id="session-actions" hidden><button disabled type="button" class="secondary" id="mute" aria-pressed="false">Pausar micrófono</button><button disabled type="button" class="end" id="end">Terminar</button></div>

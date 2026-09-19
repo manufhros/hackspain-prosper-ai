@@ -4,6 +4,34 @@ import { copy } from './locale.js';
 const $ = id => document.getElementById(id);
 let language = 'es', state = 'idle', session = null, resetTimer, errorKey;
 const languageButtons = [...document.querySelectorAll('[data-language]')];
+let lastAgentMessage;
+
+function followChat() {
+  $('chat-log').scrollTop = $('chat-log').scrollHeight;
+  $('chat-latest').hidden = true;
+}
+
+function appendMessage(message) {
+  if (!session || !['user', 'agent'].includes(message.role) || typeof message.text !== 'string' || !message.text.trim()) return;
+  const log = $('chat-log');
+  const following = log.scrollHeight - log.scrollTop - log.clientHeight < 48;
+  $('chat-empty').hidden = true;
+  const row = document.createElement('div');
+  row.className = `chat-message chat-${message.role}`;
+  const label = document.createElement('p'); label.className = 'chat-speaker';
+  label.textContent = copy[language][message.role === 'user' ? 'chatYou' : 'chatAgent'];
+  const text = document.createElement('p'); text.className = 'chat-text'; text.textContent = message.text;
+  row.append(label, text); log.append(row);
+  if (message.role === 'agent') lastAgentMessage = row;
+  if (following) followChat(); else $('chat-latest').hidden = false;
+}
+
+function clearChat() {
+  $('chat-log').querySelectorAll('.chat-message').forEach(message => message.remove());
+  $('chat-empty').hidden = false;
+  lastAgentMessage = undefined;
+  followChat();
+}
 
 function render(next = state) {
   state = next;
@@ -16,6 +44,9 @@ function render(next = state) {
   const visibleState = session?.muted && ['listening', 'thinking', 'speaking'].includes(state) ? 'paused' : state;
   const [status, title, description] = words[visibleState];
   document.body.dataset.state = visibleState;
+  document.body.classList.toggle('session-active', !!session);
+  $('chat-panel').hidden = !session;
+  $('chat-log').setAttribute('aria-label', words.chatTitle);
   $('status').textContent = status;
   $('title').textContent = title;
   $('description').textContent = state === 'error' && errorKey ? words[errorKey] : description;
@@ -53,6 +84,7 @@ function finish(next = 'idle', reason) {
   clearTimeout(resetTimer);
   const previous = session; session = null;
   if (previous) release(previous);
+  clearChat();
   errorKey = reason;
   render(next);
   if (next !== 'helpState') $('start').focus({ preventScroll: true });
@@ -67,6 +99,7 @@ function fail(current, reason) { if (session === current) finish('error', reason
 async function start() {
   if (session) return;
   clearTimeout(resetTimer); errorKey = undefined;
+  clearChat();
   if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.AudioContext || !window.AudioWorkletNode) {
     finish('error', 'unsupported'); return;
   }
@@ -118,6 +151,15 @@ async function start() {
       if (session !== current) return;
       try {
         const message = JSON.parse(event.data);
+        if (message.event === 'edge_message') { appendMessage(message); return; }
+        if (message.event === 'edge_message_status') {
+          if (message.status === 'audio_incomplete' && lastAgentMessage && !lastAgentMessage.querySelector('.chat-notice')) {
+            const notice = document.createElement('p'); notice.className = 'chat-notice';
+            notice.textContent = copy[language].chatInterrupted;
+            lastAgentMessage.append(notice);
+          }
+          return;
+        }
         if (message.event === 'edge_end') {
           if (message.reason === 'completed') {
             // Preserve the final speaker tail before releasing the device.
@@ -150,6 +192,10 @@ async function start() {
 }
 
 $('start').addEventListener('click', start);
+$('chat-latest').addEventListener('click', () => { followChat(); $('chat-log').focus({ preventScroll: true }); });
+$('chat-log').addEventListener('scroll', () => {
+  if ($('chat-log').scrollHeight - $('chat-log').scrollTop - $('chat-log').clientHeight < 48) $('chat-latest').hidden = true;
+});
 $('end').addEventListener('click', () => finish());
 $('mute').addEventListener('click', () => {
   if (!session?.stream) return;

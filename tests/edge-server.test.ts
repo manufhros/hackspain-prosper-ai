@@ -61,10 +61,17 @@ test("edge rejects remote peers, tunnel hosts, cross-origin requests and unknown
   expect(f.handlers.fetch(request(), f.server)?.status).toBe(503);
 });
 
-test("edge state forwarding excludes transcripts, tool output, metrics and raw failures", () => {
-  for (const stage of ["agent", "service", "caller", "tool", "llm", "error", "audio_summary"])
+test("edge forwarding includes only conversation text and excludes internal traces", () => {
+  for (const stage of ["tool", "llm", "reasoning", "error", "audio_summary"])
     expect(edgeEvent({ stage, elapsed_ms: 0, detail: "patient data", metrics: { private: "value" } })).toBeUndefined();
   expect(edgeEvent({ stage: "asr_start", elapsed_ms: 0, detail: "private" })).toEqual({ event: "edge_state", state: "thinking" });
+  for (const stage of ["caller", "agent", "service"]) {
+    expect(edgeEvent({ stage, elapsed_ms: 0, detail: "Hola", metrics: { private: "value" } }))
+      .toEqual({ event: "edge_message", role: stage === "caller" ? "user" : "agent", text: "Hola" });
+    expect(edgeEvent({ stage, elapsed_ms: 0, detail: "  " })).toBeUndefined();
+  }
+  expect(edgeEvent({ stage: "output_incomplete", elapsed_ms: 0, detail: "Internal error" }))
+    .toEqual({ event: "edge_message_status", status: "audio_incomplete" });
 });
 
 test("an edge conversation shares inference but never submits, saves or logs patient sessions, even when /ws is live", async () => {
@@ -83,6 +90,11 @@ test("an edge conversation shares inference but never submits, saves or logs pat
   }
   await socket.data.call!.done;
   expect(sent.some(message => message.event === "media")).toBe(true);
+  const conversation = sent.filter(message => message.event === "edge_message");
+  expect(conversation.map(message => message.role)).toEqual(["agent", "user", "agent"]);
+  expect(conversation[0]!.text).toBe("Clínica Arenal, ¿en qué puedo ayudarle?");
+  expect(conversation[1]!.text).toBe("No necesito cita");
+  expect(sent.findIndex(message => message.event === "media")).toBeLessThan(sent.indexOf(conversation[0]!));
   expect(sent).toContainEqual({ event: "edge_end", reason: "completed" });
   expect(f.counts()).toEqual({ requests: 0, saved: 0, logged: 0 });
   expect(f.handlers.calls.size).toBe(0);

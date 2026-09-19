@@ -39,8 +39,11 @@ export function edgeAsset(request: Request, address?: string): Response | undefi
   } });
 }
 
-/** Only public interaction states cross into the kiosk; no tool traces or caller PII. */
+/** Only this session's spoken conversation crosses into the kiosk; never internal traces. */
 export function edgeEvent(event: TraceEvent): Record<string, string> | undefined {
+  if (["caller", "agent", "service"].includes(event.stage) && event.detail.trim())
+    return { event: "edge_message", role: event.stage === "caller" ? "user" : "agent", text: event.detail };
+  if (event.stage === "output_incomplete") return { event: "edge_message_status", status: "audio_incomplete" };
   if (event.stage === "end") return { event: "edge_end", reason: event.detail };
   if (["speech_start", "interruption"].includes(event.stage)) return { event: "edge_state", state: "listening" };
   if (["utterance", "asr_start", "slow_turn"].includes(event.stage)) return { event: "edge_state", state: "thinking" };

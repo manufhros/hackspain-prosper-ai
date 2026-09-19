@@ -1,5 +1,8 @@
 export const copy = {
   es: {
+    chatTitle: 'Su conversación', chatNote: 'Sus palabras aparecerán cuando termine de hablar.',
+    chatEmpty: 'La conversación aparecerá aquí.', chatYou: 'Usted', chatAgent: 'Asistente',
+    chatLatest: 'Ver últimos mensajes ↓', chatInterrupted: 'El audio de este mensaje no se ha completado.',
     reception: 'Recepción por voz', welcome: 'Le damos la bienvenida', start: 'Empezar a hablar',
     micOff: 'El micrófono está apagado hasta que empiece.', micOn: 'Micrófono activo. Puede hablar con naturalidad.', micPaused: 'El micrófono está pausado.',
     topics: 'Podemos orientarle con', appointments: 'Citas y cambios', hours: 'Horarios', questions: 'Consultas de recepción',
@@ -22,6 +25,9 @@ export const copy = {
     timeout: 'La sesión ha terminado por tiempo de espera. Puede empezar una nueva conversación.',
   },
   ca: {
+    chatTitle: 'La vostra conversa', chatNote: 'Les vostres paraules apareixeran quan acabeu de parlar.',
+    chatEmpty: 'La conversa apareixerà aquí.', chatYou: 'Vosaltres', chatAgent: 'Assistent',
+    chatLatest: 'Veure els últims missatges ↓', chatInterrupted: 'L’àudio d’aquest missatge no s’ha completat.',
     reception: 'Recepció per veu', welcome: 'Us donem la benvinguda', start: 'Començar a parlar',
     micOff: 'El micròfon està apagat fins que comenceu.', micOn: 'Micròfon actiu. Podeu parlar amb naturalitat.', micPaused: 'El micròfon està en pausa.',
     topics: 'Us podem orientar amb', appointments: 'Cites i canvis', hours: 'Horaris', questions: 'Consultes de recepció',
@@ -44,6 +50,9 @@ export const copy = {
     timeout: 'La sessió ha acabat per temps d’espera. Podeu començar una conversa nova.',
   },
   en: {
+    chatTitle: 'Your conversation', chatNote: 'Your words will appear when you finish speaking.',
+    chatEmpty: 'Your conversation will appear here.', chatYou: 'You', chatAgent: 'Assistant',
+    chatLatest: 'See latest messages ↓', chatInterrupted: 'Audio for this message was not completed.',
     reception: 'Voice reception', welcome: 'Welcome to reception', start: 'Start talking',
     micOff: 'The microphone stays off until you start.', micOn: 'Microphone on. You can speak naturally.', micPaused: 'The microphone is paused.',
     topics: 'We can help you with', appointments: 'Appointments & changes', hours: 'Opening hours', questions: 'Reception enquiries',

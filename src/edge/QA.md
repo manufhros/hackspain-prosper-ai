@@ -14,3 +14,9 @@ Browser assertions used intercepted static assets/health, a fake WebSocket and s
 The kiosk remains visibly practice-only. A real hospital action adapter and device-level voice validation remain outside this frontend change. To check live voice, the operator starts `bun run serve --edge` and opens its printed local URL.
 
 Design reconciliation: the original terminal palette, renderer and cell geometry remain unchanged. The new public kiosk intentionally adds a light palette, large rounded touch controls, document scrolling and session reset. DESIGN.md documents the scoped runtime tokens and UX-CONTRACT.md records the separate kiosk owners.
+
+## Live conversation chat
+
+Added per-session visitor recognition and agent/service speech messages using the existing call events. The transport test verifies greeting → recognized visitor → agent reply order and that agent text follows the first outbound audio frame; internal tool/reasoning events remain excluded. `bun run check` passes all 284 tests. Design lint and the strict UI audit have no findings.
+
+Chromium passed 16 additional chat assertions: empty active-session view, both speakers in order, localized labels, narrow layout, incomplete-audio notice, literal rendering of HTML-like speech, rejection of unknown roles, unbroken-text wrapping, preserved manual scroll position, latest-message affordance/following, transcript removal on end/disconnect/completion, and a clean next session. The previous 17 browser voice-lifecycle checks also passed. These use the same synthetic media/fake-socket boundary described above; no backend was started or restarted. Chat screenshots: `output/playwright/edge-chat-desktop.png`, `output/playwright/edge-chat-mobile.png`.

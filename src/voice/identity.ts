@@ -6,6 +6,15 @@ const compact = (value: string) => fold(value).replace(/[^a-z0-9]/g, "");
 const months = ["january enero gener", "february febrero febrer", "march marzo marc", "april abril", "may mayo maig", "june junio juny",
   "july julio juliol", "august agosto agost", "september septiembre setembre", "october octubre", "november noviembre novembre", "december diciembre desembre"];
 
+function suppliedNationalId(text: string, expected: string): boolean {
+  // Consume the entire numeric run, so an extra digit cannot become a matching suffix.
+  // Only explicit letter introductions may bridge digits and the final letter;
+  // never infer a missing letter or join evidence across different caller turns.
+  const letter = "(?:(?:y )?(?:la )?letra(?: final)?(?: es)?|(?:and )?(?:the )?(?:final )?letter(?: is)?|(?:i )?(?:la )?lletra(?: final)?(?: es)?)";
+  const candidates = new RegExp(`\\b([xyz] ?)?(\\d(?: ?\\d)*)(?: ${letter} )? ?([a-z])\\b`, "g");
+  return [...words(text).matchAll(candidates)].some(match => compact(`${match[1] ?? ""}${match[2]}${match[3]}`) === expected);
+}
+
 function suppliedBirthDate(text: string, date: string): boolean {
   if (!validDate(date)) return false;
   const [year, month, day] = date.split("-").map(Number) as [number, number, number];
@@ -23,6 +32,7 @@ export function callerSupplied(field: string, value: unknown, turns: string[]): 
   if (field === "date_of_birth") return turns.some(text => suppliedBirthDate(text, value));
   const expected = field === "phone" ? phone(value) : compact(value);
   if (!expected || (field === "phone" && expected.length !== 9)) return false;
+  if (field === "national_id") return turns.some(text => suppliedNationalId(text, expected));
   return turns.some(text => new RegExp(`(?:^|[^0-9])${field === "phone" ? "(?:0034|34)?" : ""}${expected}(?![0-9])`).test(compact(text)));
 }
 

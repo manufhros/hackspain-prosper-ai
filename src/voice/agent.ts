@@ -9,6 +9,9 @@ import { callPhrases } from "./phrases";
 import { Consent, needsConsent } from "./consent";
 
 export interface ClinicReader { request: PlatformClient["request"] }
+class IdentityInputError extends Error {
+  constructor(message: string, readonly field?: string) { super(message); }
+}
 export interface TraceEvent { stage: string; elapsed_ms: number; detail: string; at_ms?: number; metrics?: Record<string, string | number> }
 export const readEndpoints = operations.filter(o => o.method === "GET" && !["/api/v1/health", "/api/v1/submissions"].includes(o.path));
 export const toolName = (path: string) => path.includes("{patient_id}") ? "appointments" : path.split("/").at(-1)!.replaceAll("-", "_");
@@ -125,6 +128,7 @@ export class Receptionist {
       this.emit("consent", 0, "Updated consent from caller reply", { accepted_actions: this.consent.acceptedActions.length, reoffer_required: this.consent.awaitingReoffer ? 1 : 0 });
     }
     let speechRepairs = 0;
+    let identityFailures = 0;
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
     this.turnStart = { messages: this.messages.length, transcript: this.transcript.length };
@@ -142,21 +146,27 @@ export class Receptionist {
         for (const call of calls) {
           const started = performance.now();
           let result: unknown;
+          let identityClarification: string | undefined;
           try { result = await this.tool(call, signal); signal.throwIfAborted(); }
           catch (error) {
             signal.throwIfAborted();
             result = { error: error instanceof Error ? error.message : "Tool failed" };
             if (call.function?.name === "complete_call") this.completionFailures++;
+            if (error instanceof IdentityInputError && ++identityFailures >= 2) {
+              const phrases = callPhrases[this.currentLanguage];
+              identityClarification = error.field === "national_id" ? phrases.repeatNationalId : phrases.repeatIdentity;
+            }
           }
           this.emit("tool", Math.round(performance.now() - started), `${call.function?.name ?? "unknown"}: ${isObject(result) && result.error ? result.error : "completed"}`);
           this.messages.push({ role: "tool", tool_name: call.function?.name, ...(call.id ? { tool_call_id: call.id } : {}), content: JSON.stringify(result) });
           const completed = this.record as Outcome | undefined;
-          if (completed || this.offerSpeech) {
+          if (completed || this.offerSpeech || identityClarification) {
             // Preserve the provider's original assistant message (including reasoning metadata).
             // Every requested call still needs a paired result, even when an offer ends the turn.
             for (const skipped of calls.slice(calls.indexOf(call) + 1)) this.messages.push({ role: "tool", tool_name: skipped.function.name,
               ...(skipped.id ? { tool_call_id: skipped.id } : {}), content: JSON.stringify({ skipped: true, reason: "Not executed: the preceding action ended this turn. Wait for the caller." }) });
           }
+          if (identityClarification) return this.speak(identityClarification);
           if (completed) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
@@ -232,7 +242,7 @@ export class Receptionist {
       for (const [field, value] of Object.entries(args)) {
         const carrierHint = field === "phone" && value === this.options.callerPhone;
         if (value != null && !carrierHint && !callerSupplied(field, value, callerTurns))
-          throw new Error(`Ask the caller for ${field === "national_id" ? "DNI/NIE" : field}; never invent identifiers or search with a service name. For a birth date, ask for the month by name if ambiguous.`);
+          throw new IdentityInputError(`Ask the caller for ${field === "national_id" ? "DNI/NIE" : field}; never invent identifiers or search with a service name. For a birth date, ask for the month by name if ambiguous.`, field);
       }
     }
     if (["appointments", "availability"].includes(name) && (!args.patient_id || !this.patients.has(String(args.patient_id))))
@@ -241,7 +251,13 @@ export class Receptionist {
     // Let an exact DNI/NIE locate the chart independently of ASR name spelling.
     // Keep every supplied field in args for verification below, including conflicts.
     const lookup = name === "directory" && args.national_id != null ? { national_id: args.national_id } : args;
-    const response = await this.clinic.request(prepareRequest(endpoint, lookup), signal);
+    let request;
+    try { request = prepareRequest(endpoint, lookup); }
+    catch (error) {
+      if (name === "directory") throw new IdentityInputError(error instanceof Error ? error.message : "Invalid identity arguments", args.national_id != null ? "national_id" : undefined);
+      throw error;
+    }
+    const response = await this.clinic.request(request, signal);
     if (response.status !== 200) throw new Error(`Clinic returned ${response.status}: ${response.meaning}`);
     if (!isObject(response.data)) throw new Error("Clinic returned an unexpected response");
     const data = response.data;

@@ -17,6 +17,53 @@ const question: Message = { role: "assistant", content: "Please tell me your ful
 const signal = new AbortController().signal;
 const jessica = { ...patient, patient_id: "P01971", given_name: "Jessica", first_surname: "Roberts", second_surname: "Smith", national_id: "98789619L" };
 
+test("spoken DNI and NIE preserve every digit and the explicitly introduced final letter", () => {
+  for (const ending of ["y la letra final es Q", "la letra Q", "and the final letter is Q", "i la lletra final és Q"]) {
+    const text = `Claro, 6, 3, 6, 6, 3, 3, 9, 5 ${ending}.`;
+    expect(callerSupplied("national_id", "63663395Q", [text])).toBe(true);
+    for (const wrong of ["63663395Y", "63663395L", "63663394Q", "3663395Q"])
+      expect(callerSupplied("national_id", wrong, [text])).toBe(false);
+  }
+  expect(callerSupplied("national_id", "X1234567Q", ["X, 1, 2, 3, 4, 5, 6, 7, la letra final es Q"])).toBe(true);
+  for (const text of ["1, 6, 3, 6, 6, 3, 3, 9, 5 Q", "63663395 QQ", "63663395. Mi nombre empieza por Q", "63663395", "63663395 y la letra no es Q"])
+    expect(callerSupplied("national_id", "63663395Q", [text])).toBe(false);
+  expect(callerSupplied("national_id", "63663395Q", ["63663395", "Q"])).toBe(false);
+});
+
+test("the reported spelled DNI verifies the patient using the previously supplied name", async () => {
+  const repeat: Message = { role: "assistant", content: "¿Me repite su DNI, por favor?" };
+  const f = fixture([repeat, tool("directory", { name: "Andrés Rubio Vázquez", national_id: "63663395Q" }), repeat],
+    { matches: [{ ...patient, given_name: "Andrés", first_surname: "Rubio", second_surname: "Vázquez", national_id: "63663395Q" }] });
+  await f.agent.turn("Mi nombre es Andrés Rubio Vázquez y mi DNI es 636-633-395.", signal);
+  await f.agent.turn("Claro, 6, 3, 6, 6, 3, 3, 9, 5 y la letra final es Q.", signal);
+  expect(f.requests).toEqual(["/api/v1/directory?national_id=63663395Q"]);
+  expect(JSON.parse(f.agent.messages.find(m => m.role === "tool")!.content).identity_verified).toBe(true);
+});
+
+test("repeated invalid identity lookups yield clarification, pair skipped tools, and recover next turn", async () => {
+  const invalid = tool("directory", { national_id: "48064716Q" });
+  const batch: Message = { ...invalid, tool_calls: [
+    { ...invalid.tool_calls![0]!, id: "invalid" },
+    { id: "skip", function: { name: "directory", arguments: { national_id: patient.national_id } } },
+  ] };
+  const f = fixture([invalid, batch, tool("directory", { name: "Josefa Domínguez", national_id: patient.national_id }), question], { matches: [patient] });
+  const answer = await f.agent.turn("My name is Josefa Domínguez, DNI 48064716Y", signal);
+  expect(answer).toContain("digits and the final letter");
+  expect(f.requests).toHaveLength(0);
+  expect(f.agent.record).toBeUndefined();
+  expect(JSON.parse(f.agent.messages.find(m => m.tool_call_id === "skip")!.content).skipped).toBe(true);
+  await f.agent.turn("48064716Y", signal);
+  expect(f.requests).toHaveLength(1);
+  expect(JSON.parse(f.agent.messages.filter(m => m.role === "tool").at(-1)!.content).identity_verified).toBe(true);
+});
+
+test("schema-invalid directory arguments also stop retrying and ask for identity", async () => {
+  const invalid = tool("directory", { national_id: "123456789Q" });
+  const f = fixture([invalid, invalid], {});
+  expect(await f.agent.turn("My DNI is 123456789Q", signal)).toContain("digits and the final letter");
+  expect(f.requests).toHaveLength(0);
+});
+
 test("exact DNI tolerates one surname transcription edit and merged words, not broader identity changes", () => {
   for (const name of ["Jessica Robert Smith", "Jessica Robertsmith", "Jessica Roberts-Smith", "Jessica Smith Roberts", "Jessica Roberts Smyth"]) {
     const query = { name, national_id: jessica.national_id };

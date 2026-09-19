@@ -38,7 +38,7 @@ Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVID
 | `LOCAL_TTS_WORKERS` | `2` | Independent persistent Piper workers, 1–4, each loading all three voices. |
 | `LOCAL_TTS_THREADS` | `2` | CPU threads per Piper ONNX session, 1–4; inter-op threads are fixed at one. |
 | `LOCAL_ASR_MODEL` | `small` | MLX multilingual Whisper; `large-v3-turbo` downloads separate pinned ~1.6 GB weights for comparison. |
-| `LOCAL_ASR_DECODER` | `transcribe` | Existing full transcription; `segment` opts into one-encoding, text-only decoding for utterances up to 30 seconds. Native performance/quality is not yet measured. |
+| `LOCAL_ASR_DECODER` | `transcribe` | Existing full transcription; `segment` opts into one-encoding, text-only decoding for utterances up to 30 seconds. Synthetic small-model results improved; human speech and live-call quality remain unverified. |
 
 The default llama-server uses Metal, continuous batching and the GGUF's embedded Jinja tool template, with thinking disabled. Startup verifies the server's reported slot count and per-slot context; the total context allocation is `LOCAL_LLM_CONTEXT × LOCAL_LLM_PARALLEL`. The llama backend downloads a separate [pinned Unsloth Qwen3.5 4B Q4_K_M conversion](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf) (~2.74 GB), verifies its SHA-256 and caches it under its source revision. It never reuses the Ollama blob: that file has three RoPE sections and a different tensor layout, while [the installed llama.cpp loader requires four](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/src/models/qwen35.cpp). Native loading and synthetic inference succeeded with build `b10964-b29c606e2` in `benchmark-1789818581312.json`; startup reported four slots with 16384 context tokens each. The old Ollama cache stays available for its baseline backend. Whisper remains on MLX and Piper on CPU. Increasing slots is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
 
@@ -84,10 +84,21 @@ The turbo comparison (`benchmark-1789819202722.json`, same llama settings) impro
 
 An opt-in optimization, `LOCAL_ASR_DECODER=segment`, uses MLX Whisper's segment decoder to share encoded audio between language detection and transcription. In the pinned MLX implementation, the existing full-transcription path invokes the encoder separately for language detection and transcription. Segment mode detects language per utterance, uses text-only decoding (no timestamps), retains the no-speech gate, and falls back to full transcription for recordings longer than 30 seconds, low-confidence/repetitive output or possible token exhaustion. It stores no cross-call transcription context. Reports label actual `segment`, `transcribe` or `transcribe_fallback` use. This changes decoding behavior, so accuracy must be checked together with latency; defaults remain unchanged.
 
-Next compare small/segment with the existing small/transcribe result, changing only the decoder:
+The segment run (`benchmark-1789819486185.json`, small, four LLM slots) used segment decoding for all 108 jobs with no fallback or execution failures; all intents and detected languages were correct. Compared with small/transcribe:
+
+| Simultaneous synthetic turns | First chunk p50: transcribe → segment | First chunk p95: transcribe → segment |
+| --- | --- | --- |
+| 1 | 0.98 → 0.91 s | 0.99 → 0.92 s |
+| 5 | 2.82 → 2.50 s | 3.43 → 3.15 s |
+| 10 | 4.62 → 4.18 s | 5.95 → 5.40 s |
+| 20 | 7.96 → 6.86 s | 11.25 → 10.24 s |
+
+At twenty turns, ASR worker median fell from 339 to 236 ms and ASR queue p95 from 6.14 to 4.30 s. Model queue p95 rose to 4.23 s as recognition supplied turns faster; total model p95 was 5.86 s. TTS queue p95 stayed at zero. Catalan WER on the repeated phrase improved from 50% to 40%, while English/Spanish remained exact. This is the fastest measured profile so far, but does not settle Catalan accuracy or validate twenty live calls. Keep segment opt-in until broader utterances are checked.
+
+Next compare eight LLM slots with the existing four-slot small/segment run; this is an experiment, not an assumption that more slots are faster:
 
 ```sh
-LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=4 LOCAL_ASR_MODEL=small LOCAL_ASR_DECODER=segment bun run benchmark
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=8 LOCAL_ASR_MODEL=small LOCAL_ASR_DECODER=segment bun run benchmark
 ```
 
 Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the original Ollama baseline, so that earlier comparison cannot isolate a server-only speedup. Retain each report and change one variable at a time.

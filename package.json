@@ -10,6 +10,7 @@
     "start": "bun src/cli.ts",
     "serve": "bun src/cli.ts serve",
     "test": "bun test",
+    "test:consent:live": "bun scripts/evaluate-consent.ts",
     "typecheck": "tsc --noEmit",
     "check": "bun run typecheck && bun test",
     "evaluate": "bun src/cli.ts evaluate",

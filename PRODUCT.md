@@ -30,7 +30,7 @@ No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra 
 
 - Llamada inbound (telefonía) → agente → herramientas de clínica → POST al registro.
 - Panel web (`desk/`): login por correo → `/panel`, una sola app con navegación filtrada por rol.
-- Los datos del panel salen de las llamadas reales de Clínica Arenal (export de logs en local, D1 en Cloudflare). No hay cuentas de demostración.
+- Los datos del panel salen de las llamadas reales de Clínica Arenal (lectura de logs actuales en local, D1 en Cloudflare). No hay cuentas de demostración.
 - El hospital no recorre un directorio de centros dados de alta.
 
 ## Capabilities and Constraints
@@ -62,4 +62,4 @@ No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra 
 2. La línea hace el trabajo clínico de verdad; el panel explica el valor en cifras de agenda y personal.
 3. Quien no debe tocar el modelo, no lo ve.
 4. Español, tono de hospital, no de pitch de startup.
-5. Distinguir siempre dato de llamada de hipótesis comercial (ticket, jornadas, % de pérdida).
+5. Mostrar solo métricas respaldadas por registros. No proyectar ingresos, ahorro o llamadas recuperadas sin precios, facturación y una base histórica. Distinguir telefonía, pruebas y origen no registrado.

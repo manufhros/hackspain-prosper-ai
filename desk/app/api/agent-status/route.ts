@@ -1,3 +1,4 @@
+import { agentHealth } from "@/lib/agent-health";
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { usesCloudflareStorage } from "@/lib/cloudflare-storage";
@@ -17,25 +18,8 @@ export async function GET() {
       signal: AbortSignal.timeout(1_500),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const health = await response.json() as {
-      ok?: boolean;
-      activeCalls?: number;
-      uptimeSeconds?: number;
-      checkedAt?: string;
-    };
-    return NextResponse.json({
-      ok: health.ok === true,
-      activeCalls: health.activeCalls ?? 0,
-      uptimeSeconds: health.uptimeSeconds ?? 0,
-      checkedAt: health.checkedAt ?? checkedAt,
-    });
-  } catch (error) {
-    return NextResponse.json({
-      ok: false,
-      activeCalls: 0,
-      uptimeSeconds: 0,
-      checkedAt,
-      error: error instanceof Error ? error.message : "No disponible",
-    });
+    return NextResponse.json(agentHealth(await response.json(), checkedAt));
+  } catch {
+    return NextResponse.json(agentHealth(null, checkedAt));
   }
 }

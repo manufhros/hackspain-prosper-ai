@@ -203,3 +203,21 @@ test("text logs enrich matching structured tools without duplicate entries", () 
   assert.equal(tools[0].eventId, "event-tool.called");
   assert.equal(tools[0].payload.parameters.name, "María");
 });
+
+test("live reads retain all calls, identify explicit simulations and never invent a duration", () => {
+  const files = sources(raw([
+    line(`stream start ${id} {"call_id":"${id}","simulation":"1","org_slug":"arenal"}`),
+    line('12345678 tool submit_book {"location_id":"sur"}'),
+    line('12345678 tool result submit_book {"accepted":true,"simulated":true}'),
+  ]));
+  const call = buildImport(files, { includeAll: true }).calls[0];
+  assert.equal(call.summary.origin, "simulator");
+  assert.equal(call.summary.durationMs, null);
+  assert.equal(call.summary.outcome, "sin_cierre");
+  const end = event("call.ended", { outcome: "cita", durationMs: 900000, origin: "phone" });
+  const phone = buildImport(sources(raw(), end), { includeAll: true }).calls[0];
+  assert.equal(phone.summary.origin, "phone");
+  assert.equal(phone.summary.durationMs, 900000);
+  assert.equal(buildImport(sources(raw(), '{"eventId":'), { includeAll: true }).calls.length, 1);
+  assert.throws(() => buildImport(sources(raw(), '{"eventId":\n'), { includeAll: true }), /Invalid structured event/);
+});

@@ -31,7 +31,8 @@ export type LoggedCall = {
   id: string;
   phone: string | null;
   started: string | null;
-  minutes: number;
+  minutes: number | null;
+  origin?: "phone" | "simulator" | "unknown";
   patient: string | null;
   patientId: string | null;
   insurer: string | null;

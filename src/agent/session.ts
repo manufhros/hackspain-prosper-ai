@@ -189,7 +189,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   const emitCallEvent = (...args: Parameters<typeof emitLocalCallEvent>) => {
     const [type, callId, version, payload = {}] = args;
     const promise = Promise.resolve().then(() => (options.emitEvent ?? emitLocalCallEvent)(
-      type, callId, version, { ...payload, orgSlug: ctx?.orgSlug ?? "arenal", demo: options.demo ?? false, zeroRetention: ctx?.zeroRetention ?? true },
+      type, callId, version, { ...payload, origin: options.demo || simulationMode ? "simulator" : "phone", orgSlug: ctx?.orgSlug ?? "arenal", demo: options.demo ?? false, zeroRetention: ctx?.zeroRetention ?? true },
     ));
     background(promise);
     return promise;

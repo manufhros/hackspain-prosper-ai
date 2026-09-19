@@ -26,11 +26,12 @@ export const SITES: Site[] = [
 export const UNASSIGNED_SITE: Site = {
   id: "none",
   name: "Sin sede asignada",
-  city: "Consultas generales y altas",
+  city: "Sede no registrada",
   tint: "#93a6ac",
   initials: "—",
 };
 
-export function siteOf(id: string | null | undefined): Site {
-  return SITES.find((site) => site.id === id) ?? UNASSIGNED_SITE;
+export function siteOf(id: string | null | undefined, sites: Site[] = SITES): Site {
+  if (!id) return UNASSIGNED_SITE;
+  return sites.find((site) => site.id === id) ?? { id, name: id, city: "Nombre del centro no disponible", initials: "—", tint: UNASSIGNED_SITE.tint };
 }

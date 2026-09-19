@@ -220,3 +220,17 @@ Tool activity in call detail uses native `details`/`summary` disclosures, matchi
 Madrid time, status, retained parameters and result. Missing or truncated evidence
 is labeled explicitly; tool requests alone never imply successful execution.
 Tool-event reads use the same clinic scope as the call and preserve audit redaction.
+
+## Reporting data contract
+
+The overview uses the same Card, StatCard, Note, ButtonLink and DataTable owners as
+the call list. `desk/lib/reporting.ts` owns Madrid calendar boundaries and origin
+labels; origin selection is a non-sensitive URL filter. `CallRefresh` owns periodic
+refresh. Source errors show the panel retry state, never a fabricated empty dataset.
+Measured durations expose coverage, and unavailable values use an explicit missing
+state. Results come from stored outcomes/confirmed legacy submissions. The centre
+directory comes from the clinic API, with raw IDs when unavailable. Financial
+projections have been replaced with measured activity and data completeness; the
+provider contracts contain no price/billing/baseline inputs. Public entry screens
+show capabilities rather than static call totals. This is a data-honesty update,
+with no changes to the visual tokens or the demonstration access model.

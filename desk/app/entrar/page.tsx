@@ -1,14 +1,9 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/LoginForm";
-import { SITES } from "@/lib/clinic";
-import fromLogs from "@/lib/from-logs.json";
 import styles from "./entrar.module.css";
 
 export default async function Entrar({ searchParams }: { searchParams: Promise<{ e?: string }> }) {
   const query = await searchParams;
-  const calls = fromLogs.callCount;
-  const citas = fromLogs.calls.filter((call) => call.outcome === "cita").length;
-  const escalados = fromLogs.calls.filter((call) => call.outcome === "escalado").length;
   return (
     <div className={styles.page}>
       <header>
@@ -34,23 +29,23 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
           <div className={styles.preview} aria-hidden="true">
             <div>
               <div>
-                <span>Hoy · {SITES.length} centros</span>
+                <span>Datos disponibles al entrar</span>
                 <strong>Recepción atendida por turno</strong>
               </div>
               <i />
             </div>
             <dl>
               <div>
-                <dt>{calls}</dt>
-                <dd>llamadas</dd>
+                <dt>Llamadas</dt>
+                <dd>registro y transcripción</dd>
               </div>
               <div>
-                <dt>{citas}</dt>
-                <dd>citas</dd>
+                <dt>Citas</dt>
+                <dd>acciones registradas</dd>
               </div>
               <div>
-                <dt>{escalados}</dt>
-                <dd>a persona</dd>
+                <dt>Escalados</dt>
+                <dd>solicitudes de atención</dd>
               </div>
             </dl>
           </div>

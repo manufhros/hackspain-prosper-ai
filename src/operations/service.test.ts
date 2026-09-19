@@ -9,7 +9,7 @@ import { checkPhone, dialPatient, TwilioRequestError } from "./twilio.ts";
 
 const settle = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
 function fixture() {
-  for (const key of ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID", "PLATFORM_API_KEY"]) process.env[key] = "test";
+  for (const key of ["AI_GATEWAY_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID", "PLATFORM_API_KEY"]) process.env[key] = "test";
   process.env.OPERATIONS_SECRET = "s".repeat(40);
   process.env.TWILIO_HUMAN_NUMBER = "+34600000123";
   const options: CallOptions[] = [];

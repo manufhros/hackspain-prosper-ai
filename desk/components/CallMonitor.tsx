@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useRef } from "react";
 import { ChevronLeft, ChevronRight, Clock, Download, Search, X } from "lucide-react";
-import { siteOf } from "@/lib/clinic";
+import { ORIGIN_LABEL } from "@/lib/reporting";
+import { siteOf, type Site } from "@/lib/clinic";
 import { num, pct, timeOf } from "@/lib/format";
 import { reasonLabel } from "@/lib/labels";
 import type { LoggedCall } from "@/lib/types";
@@ -32,9 +33,9 @@ function download(name: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-function durationLabel(minutes: number) {
-  if (!minutes) return "—";
-  return `${Math.max(1, Math.round(minutes))} min`;
+function durationLabel(minutes: number | null) {
+  if (minutes == null) return "—";
+  return `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(minutes)} min`;
 }
 
 export function CallMonitor({
@@ -43,8 +44,10 @@ export function CallMonitor({
   description,
   crumbs,
   refreshMs = 8_000,
+  sites = [],
 }: {
   calls: LoggedCall[];
+  sites?: Site[];
   title: string;
   description?: string;
   crumbs?: Crumb[];
@@ -65,11 +68,11 @@ export function CallMonitor({
       (call) =>
         (tab === "__all" || call.outcome === tab) &&
         (!q ||
-          `${call.patient ?? ""} ${siteOf(call.site).name} ${call.motive} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
+          `${call.patient ?? ""} ${siteOf(call.site, sites).name} ${call.motive} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
             .toLowerCase()
             .includes(q)),
     );
-  }, [calls, tab, query]);
+  }, [calls, tab, query, sites]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages - 1);
@@ -89,16 +92,17 @@ export function CallMonitor({
   function exportCsv() {
     const quote = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const rows = [
-      ["id", "fecha", "paciente", "centro", "resultado", "motivo_codigo", "lo_que_dijo", "minutos", "acciones"],
+      ["id", "fecha", "paciente", "centro", "resultado", "motivo_codigo", "lo_que_dijo", "minutos", "origen", "acciones"],
       ...calls.map((call) => [
         call.id,
         call.started,
         call.patient,
-        siteOf(call.site).name,
+        siteOf(call.site, sites).name,
         call.outcome,
         reasonLabel(call.reason) ?? "",
         call.motive,
         call.minutes,
+        call.origin ?? "unknown",
         call.actions?.map((action) => action.name).join(" | ") ?? "",
       ]),
     ];
@@ -119,7 +123,7 @@ export function CallMonitor({
         actions={
           <>
             <Badge tone="success" dot>
-              En directo · {refreshMs / 1000} s
+              Actualización · {refreshMs / 1000} s
             </Badge>
             <Button variant="secondary" size="sm" icon={Download} onClick={exportJson}>
               JSON
@@ -141,18 +145,18 @@ export function CallMonitor({
           hint="de las llamadas"
         />
         <StatCard
-          label="Pasadas a una persona"
+          label="Escalados registrados"
           value={num(escalated)}
           icon="phone"
           delta={{ label: `${pct(escalated, calls.length)} %`, tone: escalated ? "warning" : "success" }}
           hint="con el motivo registrado"
         />
         <StatCard
-          label="Colgaron sin cierre"
+          label="Sin cierre registrado"
           value={num(unresolved)}
           icon={Clock}
           delta={{ label: `${pct(unresolved, calls.length)} %`, tone: "neutral" }}
-          hint="sin acción del agente"
+          hint="sin resultado final confirmado"
         />
       </StatGrid>
 
@@ -214,7 +218,7 @@ export function CallMonitor({
             {visible.map((call) => {
               const meta = outcomeMeta(call.outcome);
               const reason = reasonLabel(call.reason);
-              const site = siteOf(call.site);
+              const site = siteOf(call.site, sites);
               return (
                 <Link key={call.id} href={`/panel/llamadas/${encodeURIComponent(call.id)}`}
                   prefetch={false} className={styles.row}
@@ -223,7 +227,7 @@ export function CallMonitor({
                     <span className={styles.who}>
                       <strong data-anon={!call.patient}>{call.patient || "Paciente sin identificar"}</strong>
                       <small>
-                        {timeOf(call.started)} · {site.name}
+                        {timeOf(call.started)} · {site.name} · {ORIGIN_LABEL[call.origin ?? "unknown"]}
                       </small>
                     </span>
                     <span className={styles.what} title={call.motive}>
@@ -238,7 +242,7 @@ export function CallMonitor({
                       {durationLabel(call.minutes)}
                     </span>
                     <span className={styles.actions} title="Acciones del agente">
-                      {call.actions?.length ?? call.toolCalls ?? 0}
+                      {call.actions?.length ?? call.toolCalls ?? "—"}
                     </span>
                     <ChevronRight size={15} className={styles.chevron} aria-hidden="true" />
                 </Link>

@@ -1,7 +1,7 @@
 import type { CallDetail, LoggedCall, TranscriptEntry } from "./types";
 import { actionsFromEvents } from "./call-tools";
 
-type CallRow = { call_id: string; started_at: string; summary: string | null };
+type CallRow = { call_id: string; started_at: string; summary: string | null; simulator?: number };
 type CallDatabase = {
   prepare(sql: string): {
     bind(...values: unknown[]): {
@@ -17,16 +17,17 @@ export function callFromRow(row: CallRow): LoggedCall {
   const summary = row.summary ? JSON.parse(row.summary) : {};
   const outcome = String(summary.outcome ?? "en_curso");
   return {
-    id: row.call_id, started: row.started_at, minutes: Number(summary.durationMs ?? 0) / 60_000,
+    id: row.call_id, started: row.started_at, minutes: typeof summary.durationMs === "number" && Number.isFinite(summary.durationMs) && summary.durationMs >= 0 && !summary.importIncomplete ? summary.durationMs / 60_000 : null,
+    origin: row.simulator || summary.demo || summary.simulation || summary.origin === "simulator" ? "simulator" : summary.origin === "phone" ? "phone" : "unknown",
     phone: null, patient: summary.patientName || null, patientId: summary.patientId || null, insurer: summary.insurer || null,
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
-    outcome, reason: summary.reason ?? null, motive: summary.intent ?? "",
+    outcome, reason: summary.reason ?? null, motive: summary.motive ?? summary.intent ?? "",
     slot: null, providerId: null, source: "llamadas", sourceFile: null,
-    resolution: outcome === "en_curso" ? "unknown" : outcome === "sin_cierre" ? "abandoned"
-      : outcome === "escalado" ? "escalated" : "resolved",
+    resolution: outcome === "escalado" ? "escalated"
+      : ["cita", "alta", "sin_cita", "cancelacion", "cambio"].includes(outcome) ? "resolved" : "unknown",
     route: summary.route ?? null, intent: summary.intent ?? null,
-    toolCalls: summary.toolCalls ?? 0, toolErrors: summary.toolErrors ?? 0,
-    frustrationScore: summary.frustrationScore ?? 0, configVersion: summary.configVersion ?? null,
+    toolCalls: summary.toolCalls, toolErrors: summary.toolErrors,
+    frustrationScore: summary.frustrationScore, configVersion: summary.configVersion ?? null,
   };
 }
 
@@ -34,8 +35,14 @@ export function callFromRow(row: CallRow): LoggedCall {
 export async function readCallRecord(
   db: CallDatabase, orgSlug: string, callId: string, requestedPage = 1,
 ): Promise<CallDetail | null> {
-  const row = await db.prepare(`SELECT call_id, started_at, summary FROM voice_calls
-    WHERE org_slug = ? AND call_id = ?`).bind(orgSlug, callId).first<CallRow>();
+  const row = await db.prepare(`SELECT c.call_id, c.started_at, c.summary,
+    EXISTS (SELECT 1 FROM agent_events e WHERE e.call_id = c.call_id
+      AND json_extract(e.payload, '$.orgSlug') = c.org_slug
+      AND (json_extract(e.payload, '$.source') = 'simulator'
+        OR json_extract(e.payload, '$.origin') = 'simulator'
+        OR json_extract(e.payload, '$.demo') = 1
+        OR json_extract(e.payload, '$.simulation') = 1)) AS simulator
+    FROM voice_calls c WHERE c.org_slug = ? AND c.call_id = ?`).bind(orgSlug, callId).first<CallRow>();
   if (!row) return null;
 
   const count = await db.prepare(`SELECT count(*) AS total FROM voice_transcript_entries

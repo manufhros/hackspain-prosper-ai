@@ -101,3 +101,11 @@ test("call detail pairs tools by ID, keeps repeated invocations and excludes oth
   assert.equal(call.actions[1].status, "failed");
   assert.equal(call.actions[2].status, "blocked");
 });
+
+test("call detail recovers simulator origin from historical events", async t => {
+  const db = database(t);
+  await storeCallEvent(db, event("start-origin", "call.started", { origin: "phone" }));
+  assert.equal((await readCallRecord(db, "arenal", "call")).call.origin, "phone");
+  await storeCallEvent(db, event("sim-origin", "conversation.user", { source: "simulator", text: "Test" }));
+  assert.equal((await readCallRecord(db, "arenal", "call")).call.origin, "simulator");
+});

@@ -235,3 +235,38 @@ test("delayed handoff uses the call's registry and remains tracked until Twilio 
   bridge.unregisterLiveSession(ctx.callId);
   assert.equal(bridge.outboundCallSid(ctx.callId), undefined);
 });
+
+test("call events distinguish phone, simulator and rehearsal origins", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  const keys = ["VOICE_STORAGE", "PLATFORM_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_AGENT_ID"];
+  const previous = keys.map(key => process.env[key]);
+  t.after(() => keys.forEach((key, index) => {
+    if (previous[index] === undefined) delete process.env[key];
+    else process.env[key] = previous[index];
+  }));
+  keys.forEach(key => { process.env[key] = key === "VOICE_STORAGE" ? "d1" : "test"; });
+  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  for (const [id, customParameters, demo, origin] of [
+    ["origin-phone", {}, false, "phone"],
+    ["origin-sim", { simulation: "1" }, false, "simulator"],
+    ["origin-demo", {}, true, "simulator"],
+  ]) {
+    const caller = new Socket();
+    const eleven = new Socket();
+    const events = [];
+    const tasks = [];
+    await handleCall(caller, {
+      demo, connect: async () => eleven, loadConfig: async () => DEFAULT_RUNTIME_CONFIG,
+      emitEvent: (type, callId, configVersion, payload) => { events.push({ type, payload }); return {}; },
+      waitUntil: task => tasks.push(task),
+    });
+    caller.message({ event: "start", start: { streamSid: id, callSid: id, customParameters } });
+    await settle();
+    assert.equal(events.find(event => event.type === "call.started")?.payload.origin, origin);
+    caller.close();
+    await settle();
+    t.mock.timers.tick(8_000);
+    await Promise.all(tasks);
+    assert.equal(events.find(event => event.type === "call.ended")?.payload.origin, origin);
+  }
+});

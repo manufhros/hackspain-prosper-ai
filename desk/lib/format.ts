@@ -20,8 +20,11 @@ const MADRID = "Europe/Madrid";
 
 /** "2026-09-19T09:32:56,376 CEST" → "09:32". Falls back to "—". */
 export function timeOf(started: string | null | undefined): string {
-  const match = started?.match(/T(\d{2}:\d{2})/);
-  return match?.[1] ?? "—";
+  if (!started) return "—";
+  const date = new Date(started.replace(",", ".").replace(/ CEST$/, "+02:00").replace(/ CET$/, "+01:00"));
+  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("es-ES", {
+    timeZone: MADRID, hour: "2-digit", minute: "2-digit",
+  }).format(date) : "—";
 }
 
 /** ISO slot → "lun 21 sep · 09:30" in Madrid time. */

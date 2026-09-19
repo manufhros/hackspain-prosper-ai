@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { LeadForm } from "@/components/LeadForm";
 import { SITES } from "@/lib/clinic";
-import fromLogs from "@/lib/from-logs.json";
 import styles from "./landing.module.css";
 
 export default async function Home({
@@ -10,7 +9,6 @@ export default async function Home({
   searchParams: Promise<{ ok?: string; lead?: string }>;
 }) {
   const query = await searchParams;
-  const calls = fromLogs.callCount;
   return (
     <main className={styles.page}>
       <header className={styles.nav}>
@@ -35,7 +33,7 @@ export default async function Home({
             <a className={styles.secondary} href="#producto">Ver una llamada</a>
           </div>
           <div className={styles.trust}>
-            <span><b>{calls}</b> llamadas procesadas en pruebas</span>
+            <span>Registro de llamadas y resultados</span>
             <span><b>{SITES.length}</b> centros configurados</span>
             <span><b>24/7</b> sin ampliar turnos</span>
           </div>
@@ -99,15 +97,15 @@ export default async function Home({
 
       <section className={styles.results}>
         <div>
-          <p>Resultados de las pruebas de Clínica Arenal</p>
+          <p>Actividad que puedes consultar</p>
           <h2>No promete que devolverá la llamada.<br />La resuelve.</h2>
         </div>
         <dl>
-          <div><dt>186</dt><dd>citas cerradas</dd></div>
-          <div><dt>29</dt><dd>pacientes dados de alta</dd></div>
-          <div><dt>3</dt><dd>urgencias escaladas</dd></div>
+          <div><dt>Citas</dt><dd>reservas, cambios y cancelaciones</dd></div>
+          <div><dt>Altas</dt><dd>registros de pacientes</dd></div>
+          <div><dt>Escalados</dt><dd>solicitudes de atención humana</dd></div>
         </dl>
-        <small>Datos extraídos de {calls} llamadas de prueba; no representan actividad clínica en producción.</small>
+        <small>Consulta los resultados y la transcripción de cada llamada en el panel.</small>
       </section>
 
       <section className={styles.finalCta} id="demo">

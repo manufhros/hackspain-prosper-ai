@@ -1,3 +1,4 @@
+import { clinicDirectory } from "@/lib/clinic-catalog";
 import { CallMonitor } from "@/components/CallMonitor";
 import { canOpen, homeFor } from "@/lib/auth";
 import { clinicCalls } from "@/lib/call-data";
@@ -11,11 +12,13 @@ export default async function Llamadas() {
   const session = await getSession();
   if (!session) redirect("/");
   if (!canOpen(session.role, "/llamadas")) redirect(homeFor(session));
+  const [calls, directory] = await Promise.all([clinicCalls(), clinicDirectory()]);
   return (
     <CallMonitor
-      calls={await clinicCalls()}
+      calls={calls}
+      sites={directory.sites}
       title="Llamadas"
-      description={`Cada llamada atendida en ${CLINIC.name}: resultado, motivo y las acciones que ejecutó el agente. Se actualiza solo.`}
+      description={`Últimas 500 llamadas registradas en ${directory.name}, incluidas las pruebas. Resultado, motivo y acciones del agente. Se actualiza automáticamente.`}
       crumbs={[{ label: CLINIC.name, href: homeFor(session) }, { label: "Llamadas" }]}
     />
   );

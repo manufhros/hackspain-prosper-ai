@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
+import { directoryIdentity, eventIdentity, spokenIdentity } from "../agent/caller-identity.ts";
 import { auditPayload } from "../worker/audit.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -45,8 +46,8 @@ export function buildImport(files, { org } = {}) {
   const stats = { files: files.size, ambiguousLines: 0, orphanLines: 0, incompleteCalls: 0, skippedCalls: 0 };
   const ensure = (id) => {
     if (!calls.has(id)) calls.set(id, { id, org: null, start: null, last: null, close: null,
-      turns: new Map(), events: new Map(), sources: new Set(), toolCalls: 0, toolErrors: 0,
-      outcome: "sin_cierre", reason: null, site: null });
+      turns: new Map(), events: new Map(), logTools: new Map(), sources: new Set(), toolCalls: 0, toolErrors: 0,
+      outcome: "sin_cierre", reason: null, site: null, identities: [] });
     return calls.get(id);
   };
   const touch = (call, at, source) => {
@@ -64,6 +65,12 @@ export function buildImport(files, { org } = {}) {
     const id = `log-turn-${hash(JSON.stringify([call.id, at, speaker, text]))}`;
     // A structured turn wins over the duplicate text-log turn.
     if (!call.turns.has(id) || eventId) call.turns.set(id, { id: eventId ?? id, at, speaker, text });
+  };
+
+  const addTool = (call, at, type, name, payload) => {
+    const eventId = `log-tool-${hash(JSON.stringify([call.id, at, type, name]))}`;
+    call.logTools.set(eventId, { eventId, schemaVersion: 1, callId: call.id, configVersion: "log-import",
+      type, occurredAt: at, payload: { toolName: name, importSource: IMPORT_SOURCE, ...payload } });
   };
 
   for (const [source, text] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
@@ -111,15 +118,38 @@ export function buildImport(files, { org } = {}) {
       if (tool) {
         call.toolCalls++;
         const params = json(tool[2]);
+        addTool(call, at, "tool.called", tool[1], params ? { parameters: params } : { truncated: true });
         if (["centro", "norte", "sur"].includes(params?.location_id)) call.site = params.location_id;
       }
-      if (level === "ERROR" && message.startsWith("tool error ")) call.toolErrors++;
+      if (level === "ERROR" && message.startsWith("tool error ")) {
+        call.toolErrors++;
+        const failed = message.match(/^tool error (\w+) ([\w]+Error)/);
+        if (failed) addTool(call, at, "tool.failed", failed[1], { ok: false, errorType: failed[2] });
+      }
+      const toolResult = message.match(/^tool result (\w+) (.*)$/);
+      if (toolResult) {
+        const result = json(toolResult[2]);
+        addTool(call, at, "tool.completed", toolResult[1], result
+          ? { result, ok: !result.error } : { truncated: true });
+      }
+      if (message.startsWith("tool result search_directory ")) {
+        const raw = message.slice("tool result search_directory ".length);
+        // Logs truncate at 800 characters, often after the complete matches array.
+        // Recover only a closed array, never a possibly incomplete candidate list.
+        const closed = raw.match(/^\{"matches":(\[.*\])(?:,|\})/);
+        const identity = directoryIdentity(json(raw) ?? (closed ? json(`{"matches":${closed[1]}}`) : null));
+        if (identity) call.identities.push({ at, identity });
+      }
       const result = message.match(/^tool result (submit_\w+) (\{.*)$/);
       const payload = result && json(result[2]);
       // Tool requests are not evidence of a successful action.
       const action = payload?.record?.actions?.find((item) => item.action === result[1].slice(7).toUpperCase());
       const received = payload?.call_id === call.id && typeof payload.received_at === "string" && action;
       if ((payload?.accepted === true || received) && !payload.error && !payload.held && OUTCOMES[result[1]] && (!call.outcomeAt || at >= call.outcomeAt)) {
+        if (action?.action === "REGISTER") {
+          const identity = directoryIdentity({ matches: [action.new_patient] });
+          if (identity) call.identities.push({ at, identity });
+        }
         call.outcomeAt = at;
         call.outcome = OUTCOMES[result[1]];
         call.reason = typeof (action?.reason ?? payload.reason) === "string" ? (action?.reason ?? payload.reason) : null;
@@ -145,6 +175,8 @@ export function buildImport(files, { org } = {}) {
       setOrg(call, event.payload.orgSlug);
       const eventId = event.eventId || `log-event-${hash(line)}`;
       call.events.set(eventId, { ...event, eventId, occurredAt: at });
+      const identity = eventIdentity(event.type, event.payload);
+      if (identity) call.identities.push({ at, identity });
       if (event.type === "conversation.user" || event.type === "conversation.agent") {
         addTurn(call, at, event.type === "conversation.user" ? "caller" : "agent", event.payload.text, eventId);
       }
@@ -157,6 +189,19 @@ export function buildImport(files, { org } = {}) {
     const greeting = [...call.turns.values()].find((turn) => turn.speaker === "agent" && /^Clínica (Sanitas|Quirón|Arenal)[, ]/.test(turn.text));
     call.org ??= greeting?.text.startsWith("Clínica Sanitas") ? "sanitas"
       : greeting?.text.startsWith("Clínica Quirón") ? "quironsalud" : "arenal";
+    // Enrich matching structured events instead of displaying each source twice.
+    const matched = new Set();
+    const structuredTools = [...call.events.values()];
+    for (const event of call.logTools.values()) {
+      const existing = structuredTools.find(candidate => !matched.has(candidate.eventId) &&
+        (candidate.type === event.type || (event.type === "tool.called" && candidate.type === "tool.received")) &&
+        (candidate.payload.toolName ?? candidate.payload.name) === event.payload.toolName &&
+        Math.abs(Date.parse(candidate.occurredAt) - Date.parse(event.occurredAt)) <= 1000);
+      if (existing) {
+        matched.add(existing.eventId);
+        existing.payload = { ...event.payload, ...existing.payload };
+      } else call.events.set(event.eventId, event);
+    }
     const events = [...call.events.values()].sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     const ended = events.filter((event) => event.type === "call.ended").at(-1);
     const route = events.filter((event) => event.type === "route.decided").at(-1)?.payload ?? {};
@@ -172,7 +217,16 @@ export function buildImport(files, { org } = {}) {
     if (org && call.org !== org) continue;
     const endedAt = ended?.occurredAt ?? (call.close && call.close >= call.last ? call.close : null);
     if (!endedAt) stats.incompleteCalls++;
+    const turns = [...call.turns.values()].sort((a, b) => a.at.localeCompare(b.at));
+    let spoken;
+    let previousAgent = "";
+    for (const turn of turns) {
+      if (turn.speaker === "agent") previousAgent = turn.text;
+      else spoken = spokenIdentity(turn.text, previousAgent) ?? spoken;
+    }
+    const identity = call.identities.sort((a, b) => a.at.localeCompare(b.at)).at(-1)?.identity ?? spoken;
     const summary = {
+      ...identity,
       callId: call.id, orgSlug: call.org, configVersion: ended?.configVersion ?? events.at(-1)?.configVersion ?? "log-import",
       outcome: typeof end.outcome === "string" ? end.outcome : call.outcome,
       reason: typeof end.reason === "string" ? end.reason : call.reason,
@@ -208,6 +262,10 @@ export function importSql(plan) {
     // Existing live call records are authoritative. Imported records can be safely rerun.
     const owned = `EXISTS (SELECT 1 FROM voice_calls WHERE call_id = ${sql(call.id)} AND org_slug = ${sql(call.org)} AND json_extract(summary, '$.importSource') = ${sql(IMPORT_SOURCE)})`;
     statements.push(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary) VALUES (${[call.id, call.org, call.startedAt, call.endedAt, JSON.stringify(call.summary)].map(sql).join(", ")}) ON CONFLICT(call_id) DO NOTHING;`);
+    if (call.summary.patientName) {
+      const identity = Object.fromEntries(["patientName", "patientId", "insurer"].filter(key => call.summary[key]).map(key => [key, call.summary[key]]));
+      statements.push(`UPDATE voice_calls SET summary = json_patch(COALESCE(summary, '{}'), ${sql(JSON.stringify(identity))}) WHERE ${owned} AND NULLIF(json_extract(summary, '$.patientName'), '') IS NULL;`);
+    }
     call.turns.forEach((turn, index) => {
       statements.push(`INSERT INTO voice_transcript_entries (event_id, call_id, org_slug, occurred_at, sequence, speaker, text) SELECT ${[turn.id, call.id, call.org, turn.at, index + 1, turn.speaker, turn.text].map(sql).join(", ")} WHERE ${owned} ON CONFLICT(event_id) DO NOTHING;`);
     });
@@ -217,6 +275,19 @@ export function importSql(plan) {
     }
   }
   return `${statements.join("\n")}\n`;
+}
+
+/** Backfill only tool events for calls already in this database. */
+export function toolEventsSql(plan) {
+  const statements = [];
+  for (const call of plan.calls) {
+    const existing = `EXISTS (SELECT 1 FROM voice_calls WHERE call_id = ${sql(call.id)} AND org_slug = ${sql(call.org)})`;
+    for (const event of call.events.filter(event => /^tool\.(called|received|completed|failed|blocked)$/.test(event.type))) {
+      const payload = auditPayload({ ...event.payload, orgSlug: call.org, zeroRetention: true }, true);
+      statements.push(`INSERT INTO agent_events (event_id, schema_version, call_id, config_version, type, occurred_at, payload) SELECT ${[event.eventId, 1, call.id, event.configVersion ?? "log-import", event.type, event.occurredAt, JSON.stringify(payload)].map(sql).join(", ")} WHERE ${existing} ON CONFLICT(event_id) DO UPDATE SET payload = json_patch(excluded.payload, agent_events.payload) WHERE agent_events.call_id = excluded.call_id AND json_extract(agent_events.payload, '$.orgSlug') = ${sql(call.org)};`);
+    }
+  }
+  return statements.join("\n") + "\n";
 }
 
 export async function readSources(directory) {
@@ -237,11 +308,12 @@ export async function readSources(directory) {
 async function main() {
   const { values } = parseArgs({ options: {
     logs: { type: "string", default: join(ROOT, "logs") }, org: { type: "string" },
+    "tools-only": { type: "boolean" },
     report: { type: "string" }, out: { type: "string" }, apply: { type: "boolean" }, remote: { type: "boolean" },
     local: { type: "boolean" }, "dry-run": { type: "boolean" }, help: { type: "boolean" },
   } });
   if (values.help) {
-    console.log("Usage: npm run calls:import -- [--logs DIR] [--org arenal] [--out FILE.sql] [--report FILE.json]\nDefault: dry-run counts only. Write to D1 with --apply --remote (or --apply --local).\nUses prosper_desk in desk/wrangler.jsonc. Requires migrations 0002–0004.");
+    console.log("Usage: npm run calls:import -- [--logs DIR] [--org arenal] [--out FILE.sql] [--report FILE.json]\nDefault: dry-run counts only. Write to D1 with --apply --remote (or --apply --local).\nUse --tools-only to recover tool events on existing calls without importing call records or transcripts.\nUses prosper_desk in desk/wrangler.jsonc. Requires migrations 0002–0004.");
     return;
   }
   if (values.remote && values.local) throw new Error("Choose --remote or --local, not both.");
@@ -252,22 +324,23 @@ async function main() {
   console.log(JSON.stringify({ mode: values.apply ? "apply" : "dry-run", database: "prosper-desk",
     target: values.remote ? "remote" : values.local ? "local" : "none", ...plan.stats }, null, 2));
   if (!plan.calls.length) throw new Error("No usable calls found; nothing was written.");
+  const statements = values["tools-only"] ? toolEventsSql(plan) : importSql(plan);
   if (values.report) await writeFile(resolve(values.report), JSON.stringify(plan.decisions, null, 2) + "\n", { flag: "wx", mode: 0o600 });
   if (values.out) {
-    await writeFile(resolve(values.out), importSql(plan), { flag: "wx", mode: 0o600 });
+    await writeFile(resolve(values.out), statements, { flag: "wx", mode: 0o600 });
     console.log(`SQL written to ${resolve(values.out)}`);
   }
   if (!values.apply) return;
   const directory = await mkdtemp(join(tmpdir(), "prosper-call-import-"));
   try {
     const file = join(directory, "calls.sql");
-    await writeFile(file, importSql(plan), { mode: 0o600 });
+    await writeFile(file, statements, { mode: 0o600 });
     const result = spawnSync(process.execPath, [join(ROOT, "node_modules/wrangler/bin/wrangler.js"),
       "d1", "execute", "prosper_desk", "--config", join(ROOT, "desk/wrangler.jsonc"),
       values.remote ? "--remote" : "--local", "--file", file, "--yes"], { cwd: ROOT, stdio: "inherit" });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`D1 import failed (${result.status ?? result.signal}); rerunning is safe.`);
-    console.log("Import finished. Existing live records were left unchanged.");
+    console.log(values["tools-only"] ? "Tool-event recovery finished. Call records and transcripts were left unchanged." : "Import finished. Existing live records were left unchanged.");
   } finally { await rm(directory, { recursive: true, force: true }); }
 }
 

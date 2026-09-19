@@ -24,7 +24,9 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   process.env.PLATFORM_API_KEY = "test";
   process.env.ELEVENLABS_API_KEY = "test";
   process.env.ELEVENLABS_AGENT_ID = "test";
-  t.mock.method(globalThis, "fetch", async () => Response.json({ signed_url: "wss://example.test" }));
+  t.mock.method(globalThis, "fetch", async (url) => String(url).includes("/directory")
+    ? Response.json({ matches: [{ patient_id: "P01", given_name: "María", first_surname: "García", second_surname: "López", insurer: "sanitas" }] })
+    : Response.json({ signed_url: "wss://example.test" }));
   const twilio = new Socket();
   const eleven = new Socket();
   const events = [];
@@ -39,11 +41,12 @@ test("shared call engine bridges audio and finalizes once across stop and close"
     emitEvent: (type, callId, configVersion, payload) => { const event = { type, callId, configVersion, payload }; events.push(event); return event; },
     waitUntil: (task) => tasks.push(task),
   });
-  const start = { event: "start", start: { streamSid: "stream", callSid: "call", customParameters: { org_slug: "sanitas" } } };
+  const start = { event: "start", start: { streamSid: "stream", callSid: "call", customParameters: { org_slug: "sanitas", from_number: "+34600000000" } } };
   twilio.message(start);
   twilio.message(start);
   twilio.message({ event: "media", media: { payload: "queued-audio" } });
   await settle();
+  for (let i = 0; i < 10 && !connections; i++) await settle();
   assert.equal(connections, 1);
   assert.equal(eleven.sent[0].dynamic_variables.config_version, "test-v1");
   const initiation = eleven.sent[0];
@@ -63,6 +66,8 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   assert.equal(events.filter((event) => event.type === "call.ended").length, 1);
   assert.equal(events.find((event) => event.type === "call.ended").payload.orgSlug, "sanitas");
   assert.equal(events.find((event) => event.type === "conversation.agent").payload.text, "Buenos días.");
+  assert.equal(events.find((event) => event.type === "call.ended").payload.patientName, "María García López");
+  assert.equal(events.find((event) => event.type === "crm.lookup.completed").payload.patientId, "P01");
   assert.equal(ended, 1);
   assert.equal(eleven.readyState, 3);
 });

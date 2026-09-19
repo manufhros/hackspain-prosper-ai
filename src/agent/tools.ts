@@ -1,3 +1,4 @@
+import { directoryIdentity } from "./caller-identity.ts";
 import type { AuditAction } from "./audit.ts";
 import { PlatformClient } from "../platform/client.ts";
 import type {
@@ -587,6 +588,12 @@ export async function runClinicTool(
         }) as DirectoryQuery,
       );
       const one = found.matches.length === 1 ? found.matches[0] : undefined;
+      const identity = directoryIdentity(found);
+      if (identity) {
+        Object.assign(ctx, identity);
+        ctx.knownPatient = Boolean(identity.patientId);
+        await ctx.audit?.("patient.identified", identity);
+      }
       const phoneHit = one?.matched_fields.includes("phone");
       return JSON.stringify({
         ...found,
@@ -948,6 +955,10 @@ export async function runClinicTool(
       ctx.draftBook = undefined;
       ctx.submitted = true;
       ctx.outcome = "alta";
+      ctx.patientName = [restoreRegisterName(given_name), restoreRegisterName(alignSurnameWithEmail(first_surname, mail)), restoreRegisterName(second_surname)].join(" ");
+      ctx.insurer = insurer;
+      delete ctx.patientId;
+      await ctx.audit?.("patient.identified", { patientName: ctx.patientName, insurer });
       return JSON.stringify(result);
     }
     case "submit_cancel": {

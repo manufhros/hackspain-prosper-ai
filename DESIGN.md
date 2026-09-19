@@ -213,3 +213,10 @@ Transcript pages are bounded to 100 turns and use `turnPage` in the URL.
 Empty, loading, unavailable, and retry states keep navigation back to Llamadas.
 `PRODUCT.md` owns retention behavior; `desk/lib/auth.ts` owns section access, and
 `desk/lib/call-records.ts` scopes both the call and its transcript to the clinic.
+
+Tool activity in call detail uses native `details`/`summary` disclosures, matching
+`VoiceSimulator`, with the existing Card and Badge primitives. The page header's
+"Ver herramientas" link jumps directly to that section. Each invocation shows its
+Madrid time, status, retained parameters and result. Missing or truncated evidence
+is labeled explicitly; tool requests alone never imply successful execution.
+Tool-event reads use the same clinic scope as the call and preserve audit redaction.

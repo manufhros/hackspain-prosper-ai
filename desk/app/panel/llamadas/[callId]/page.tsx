@@ -38,13 +38,16 @@ export default async function CallPage({ params, searchParams }: {
           { label: "Llamadas", href: "/panel/llamadas" },
           { label: "Detalle" },
         ]}
-        actions={<ButtonLink href="/panel/llamadas" variant="secondary" icon={ArrowLeft}>Volver a llamadas</ButtonLink>}
+        actions={<>
+          <ButtonLink href="#herramientas" variant="secondary">Ver herramientas</ButtonLink>
+          <ButtonLink href="/panel/llamadas" variant="secondary" icon={ArrowLeft}>Volver a llamadas</ButtonLink>
+        </>}
       />
       <Card title="Resumen de la llamada" actions={<OutcomeBadge outcome={call.outcome} />}>
         <dl className={styles.facts}>
           <div><dt>Duración</dt><dd>{call.minutes ? `${num(call.minutes * 60)} s` : "No disponible"}</dd></div>
           <div><dt>Motivo</dt><dd>{reason || call.motive || "No registrado"}</dd></div>
-          <div><dt>Acciones del agente</dt><dd>{num(call.actions?.length ?? call.toolCalls ?? 0)}</dd></div>
+          <div><dt>Acciones del agente</dt><dd>{num(Math.max(call.actions?.length ?? 0, call.toolCalls ?? 0))}</dd></div>
           <div><dt>Identificador</dt><dd className={styles.identifier}>{call.id}</dd></div>
           <div><dt>Versión del agente</dt><dd className={styles.identifier}>{call.configVersion || "No registrada"}</dd></div>
           {call.slot ? <div><dt>Cita</dt><dd>{slotLabel(call.slot)}</dd></div> : null}
@@ -79,21 +82,40 @@ export default async function CallPage({ params, searchParams }: {
           </nav>
         ) : null}
       </Card>
-      {call.actions?.length ? (
-        <Card title="Registro de decisiones">
-          <ol className={styles.transcript}>
+      <section id="herramientas" aria-label="Herramientas de la llamada">
+      <Card title="Herramientas de la llamada" description="Consultas y acciones en orden cronológico. Abre cada una para ver sus datos."
+        actions={<Badge>{num(call.actions?.length ?? 0)} registradas</Badge>}>
+        {call.actions?.length ? (
+          <ol className={styles.transcript} aria-label="Herramientas de la llamada">
             {call.actions.map((action, index) => (
-              <li className={styles.turn} key={`${action.name}-${index}`}>
-                <div className={styles.speaker}>
-                  <strong>{TOOL_LABEL[action.name] ?? action.name}</strong>
-                  <small>{action.at ? slotLabel(action.at) : "Hora no disponible"}</small>
-                </div>
-                <p>{action.summary}{action.reason ? ` · ${reasonLabel(action.reason) ?? action.reason}` : ""}</p>
+              <li key={action.id ?? `${action.name}-${index}`} className={styles.tool}>
+                <details>
+                  <summary>
+                    <span className={styles.toolHeading}>
+                      <strong>{TOOL_LABEL[action.name] ?? action.name}</strong>
+                      <span>{action.at ? slotLabel(action.at) : "Hora no disponible"}</span>
+                    </span>
+                    <Badge tone={action.status === "failed" ? "danger" : action.status === "blocked" ? "warning" : "neutral"}>
+                      {action.summary}
+                    </Badge>
+                  </summary>
+                  <div className={styles.toolContent}>
+                    <p className={styles.identifier}>{action.name}{action.latencyMs != null ? ` · ${num(action.latencyMs)} ms` : ""}</p>
+                    {action.reason ? <p>{reasonLabel(action.reason) ?? action.reason}</p> : null}
+                    <h3>Parámetros</h3>
+                    {action.parameters != null ? <pre>{JSON.stringify(action.parameters, null, 2)}</pre> : <p>No se conservaron los parámetros.</p>}
+                    <h3>Resultado</h3>
+                    {action.result != null ? <pre>{JSON.stringify(action.result, null, 2)}</pre> : <p>No se conservó el resultado completo.</p>}
+                  </div>
+                </details>
               </li>
             ))}
           </ol>
-        </Card>
-      ) : null}
+        ) : <Note>{call.toolCalls
+          ? "La llamada registra acciones, pero no se conservó su detalle."
+          : "No hay herramientas registradas para esta llamada."}</Note>}
+      </Card>
+      </section>
     </>
   );
 }

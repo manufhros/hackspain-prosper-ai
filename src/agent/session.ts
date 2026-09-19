@@ -1,3 +1,4 @@
+import { spokenIdentity, summaryIdentity } from "./caller-identity.ts";
 import { currentAuditContext, withAuditContext } from "./audit.ts";
 import { SOCKET_OPEN, type CallSocket } from "./socket.ts";
 import { PlatformClient } from "../platform/client.ts";
@@ -222,7 +223,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       frustrationScore: callCtx.frustrationScore ?? 0,
       zeroRetention: callCtx.zeroRetention ?? true,
     };
-    await emitCallEvent("call.ended", callCtx.callId, callCtx.configVersion ?? "defaults", summary);
+    await emitCallEvent("call.ended", callCtx.callId, callCtx.configVersion ?? "defaults", { ...summary, ...summaryIdentity(callCtx) });
     if (callCtx.postCallWebhook && !options.demo) {
       await deliverPostCall(summary, callCtx.postCallEndpoint, callCtx.audit).catch((error: unknown) => {
         callLogError(callCtx.callId.slice(0, 8), "post-call failed", error);
@@ -446,6 +447,14 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
             muteAgent = true;
           } else {
           callLog(tag, "user", t);
+          if (!callCtx.patientId) {
+            const previousAgent = [...(callCtx.transcript ?? [])].reverse().find(turn => turn.speaker === "agent")?.text;
+            const identity = spokenIdentity(t, previousAgent);
+            if (identity) {
+              Object.assign(callCtx, identity);
+              background(callCtx.audit?.("patient.identified", identity) ?? Promise.resolve());
+            }
+          }
           background(callCtx.audit?.("conversation.user", { text: t }) ?? Promise.resolve());
           callCtx.transcript = [
             ...(callCtx.transcript ?? []),
@@ -914,6 +923,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         callCtx.patientId = preCall.patientId;
         callCtx.insurer = preCall.insurer;
         emitCallEvent("crm.lookup.completed", callId, runtime.version, {
+          ...summaryIdentity(preCall),
           matched: Boolean(preCall.patientId),
           latencyMs: Date.now() - preCallStarted,
         });

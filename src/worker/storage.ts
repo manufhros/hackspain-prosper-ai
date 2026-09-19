@@ -1,3 +1,4 @@
+import { eventIdentity } from "../agent/caller-identity.ts";
 import type { CallEvent } from "../agent/call-event.ts";
 import { mergeRuntimeConfig } from "../agent/runtime-config.ts";
 import { auditPayload } from "./audit.ts";
@@ -21,6 +22,14 @@ export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<
         event.occurredAt, Number(event.payload.sequence ?? 0),
         event.type === "conversation.user" ? "caller" : "agent", event.payload.text).run();
   }
+  const identity = eventIdentity(event.type, event.payload);
+  if (identity) {
+    await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, summary)
+      VALUES (?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      summary = json_patch(COALESCE(voice_calls.summary, '{}'), excluded.summary)
+      WHERE voice_calls.org_slug = excluded.org_slug`)
+      .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt, JSON.stringify({ patientId: null, insurer: null, ...identity })).run();
+  }
   const payload = auditPayload(event.payload, event.payload.zeroRetention !== false);
   await db.prepare(`INSERT INTO agent_events
     (event_id, schema_version, call_id, config_version, type, occurred_at, payload)
@@ -29,13 +38,17 @@ export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<
       event.type, event.occurredAt, JSON.stringify(payload)).run();
   if (event.type === "call.started" && !event.payload.demo) {
     await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at)
-      VALUES (?, ?, ?) ON CONFLICT(call_id) DO NOTHING`)
+      VALUES (?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
+      started_at = min(voice_calls.started_at, excluded.started_at)
+      WHERE voice_calls.org_slug = excluded.org_slug`)
       .bind(event.callId, String(event.payload.orgSlug ?? "arenal"), event.occurredAt).run();
   }
   if (event.type === "call.ended" && !event.payload.demo) {
     await db.prepare(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary)
       VALUES (?, ?, ?, ?, ?) ON CONFLICT(call_id) DO UPDATE SET
-      ended_at = excluded.ended_at, summary = excluded.summary`)
+      started_at = min(voice_calls.started_at, excluded.started_at),
+      ended_at = excluded.ended_at, summary = json_patch(COALESCE(voice_calls.summary, '{}'), excluded.summary)
+      WHERE voice_calls.org_slug = excluded.org_slug`)
       .bind(event.callId, String(event.payload.orgSlug ?? "arenal"),
         new Date(Date.parse(event.occurredAt) - Number(event.payload.durationMs ?? 0)).toISOString(),
         event.occurredAt, JSON.stringify(event.payload)).run();

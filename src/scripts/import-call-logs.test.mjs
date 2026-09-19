@@ -136,3 +136,70 @@ test("joins a rotated log to a unique full call ID from an earlier file", () => 
   assert.equal(plan.calls[0].turns.length, 2);
   assert.equal(plan.calls[0].summary.durationMs, 2000);
 });
+
+test("imports names from complete and truncated directory results, never ambiguous candidates", (t) => {
+  const patient = { given_name: "María", first_surname: "García", patient_id: "P01", insurer: "sanitas" };
+  for (const result of [JSON.stringify({ matches: [patient] }), `{"matches":[${JSON.stringify(patient)}],"next_step":"truncated`]) {
+    const plan = buildImport(sources(raw([line(`12345678 tool result search_directory ${result}`)])));
+    assert.equal(plan.calls[0].summary.patientName, "María García");
+    const sqlite = database(t);
+    const oldPlan = structuredClone(plan);
+    delete oldPlan.calls[0].summary.patientName;
+    delete oldPlan.calls[0].summary.patientId;
+    sqlite.exec(importSql(oldPlan));
+    sqlite.exec(importSql(plan));
+    sqlite.exec(importSql(plan));
+    assert.equal(JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary).patientName, "María García");
+  }
+  for (const result of [JSON.stringify({ matches: [patient, patient] }), `{"matches":[${JSON.stringify(patient)},`]) {
+    const plan = buildImport(sources(raw([line(`12345678 tool result search_directory ${result}`)])));
+    assert.equal(plan.calls[0].summary.patientName, undefined);
+  }
+});
+
+test("successful registrations recover the accepted patient's full name", () => {
+  const result = { call_id: id, received_at: "2026-09-19T08:00:00Z", record: { actions: [{ action: "REGISTER", new_patient: {
+    given_name: "Antonio", first_surname: "Ramírez", second_surname: "Jiménez", insurer: "cigna",
+  } }] } };
+  const plan = buildImport(sources(raw([line(`12345678 tool result submit_register ${JSON.stringify(result)}`)])));
+  assert.equal(plan.calls[0].summary.patientName, "Antonio Ramírez Jiménez");
+  assert.equal(plan.calls[0].summary.insurer, "cigna");
+});
+
+test("historical tool recovery is idempotent, preserves records, and labels truncated results", async (t) => {
+  const { toolEventsSql } = await import("./import-call-logs.mjs");
+  const { actionsFromEvents } = await import("../../desk/lib/call-tools.ts");
+  const text = raw([
+    line('12345678 tool search_directory {"name":"María","authorization":"secret"}', '10:00:02,000'),
+    line('12345678 tool result search_directory {"matches":[]}', '10:00:02,100'),
+    line('12345678 tool search_directory {"name":"María García"}', '10:00:02,200'),
+    line('12345678 tool result search_directory {"matches":[', '10:00:02,300'),
+  ]);
+  const plan = buildImport(sources(text));
+  const sqlite = database(t);
+  sqlite.exec(toolEventsSql(plan));
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM agent_events").get().n, 0);
+  sqlite.prepare("INSERT INTO voice_calls VALUES (?, 'arenal', '2026-09-19', NULL, ?)").run(id, '{"patientName":"Existing"}');
+  sqlite.exec(toolEventsSql(plan));
+  sqlite.exec(toolEventsSql(plan));
+  const events = sqlite.prepare("SELECT * FROM agent_events ORDER BY occurred_at").all();
+  assert.equal(events.length, 4);
+  assert.equal(JSON.parse(events[0].payload).parameters.authorization, "[redacted]");
+  assert.equal(JSON.parse(events[0].payload).parameters.name, "[redacted]");
+  const actions = actionsFromEvents(events);
+  assert.equal(actions.length, 2);
+  assert.equal(actions[0].status, "completed");
+  assert.equal(actions[1].status, "unknown");
+  assert.equal(actions[1].result, undefined);
+  assert.equal(JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary).patientName, "Existing");
+  assert.equal(sqlite.prepare("SELECT count(*) AS n FROM voice_transcript_entries").get().n, 0);
+});
+
+test("text logs enrich matching structured tools without duplicate entries", () => {
+  const text = raw([line('12345678 tool search_directory {"name":"María"}', '10:01:00,000')]);
+  const plan = buildImport(sources(text, event("tool.called", { name: "search_directory", orgSlug: "arenal" })));
+  const tools = plan.calls[0].events.filter(event => event.type === "tool.called");
+  assert.equal(tools.length, 1);
+  assert.equal(tools[0].eventId, "event-tool.called");
+  assert.equal(tools[0].payload.parameters.name, "María");
+});

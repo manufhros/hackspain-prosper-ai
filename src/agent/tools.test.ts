@@ -440,3 +440,16 @@ test("call-end booking flush cannot bypass disabled agenda tools", async () => {
   assert.equal(call.submitted, undefined);
   assert.equal(call.draftBook, undefined);
 });
+
+test("directory lookup updates session identity and emits a persistent identity event", async () => {
+  const patient = { given_name: "María", first_surname: "García", second_surname: "López", patient_id: "P01", insurer: "sanitas", matched_fields: ["name"] };
+  const call = ctx({ directory: async () => ({ matches: [patient] }) } as unknown as Partial<PlatformClient>);
+  const events: unknown[] = [];
+  call.audit = async (type, payload) => { events.push({ type, payload }); };
+  await runClinicTool(call, "search_directory", { name: "María" });
+  assert.equal(call.patientName, "María García López");
+  assert.equal(call.patientId, "P01");
+  assert.equal(call.insurer, "sanitas");
+  assert.equal(call.knownPatient, true);
+  assert.deepEqual(events, [{ type: "patient.identified", payload: { patientName: "María García López", patientId: "P01", insurer: "sanitas" } }]);
+});

@@ -36,6 +36,21 @@ function acceptsOfferedTime(text: string, actions: Action[]): boolean {
   return Number(match[1]) === Number(parts.day) && Number(match[2]) === Number(parts.hour) && Number(match[3] ?? 0) === Number(parts.minute);
 }
 
+/** Explicit cancellation acceptance is meaningful only for the pending CANCEL.
+ * Keep the whole reply anchored so conditions, another appointment, or a new
+ * intent cannot sneak through behind a leading yes.
+ */
+function acceptsCancellation(text: string, actions: Action[]): boolean {
+  if (actions.length !== 1 || actions[0]!.action !== "CANCEL") return false;
+  const value = normalized(text.replace(/·/g, " "));
+  if (!value || /[?¿]/.test(value) || isCorrection(value)
+    || /\b(no|not|don't|dont|but|pero|if|unless|siempre|except|excepto)\b/.test(value)) return false;
+  const body = value
+    .replace(/^(?:(?:yes|yeah|yep|ok|okay|si|vale|perfecto|perfecte|correcto|correcte|correct|that's right|that is right|de acuerdo|d'acord|me viene bien|em va be)\b\s*)+/, "")
+    .replace(/\s+(?:please|thanks|thank you|gracias|por favor|gracies|si us plau|sisplau)$/, "").trim();
+  return /^(?:(?:esa|esta) es la cita que quiero cancelar|(?:quiero )?cancelar (?:esa|esta|la) cita|confirmo la cancelacion(?: de (?:esa|esta|la) cita)?|(?:please )?cancel (?:it|that appointment|this appointment)|(?:i confirm|confirm) (?:the )?cancellation(?: of (?:that|this) appointment)?|that(?:'s| is) the appointment i want to cancel|aquesta es la (?:cita|visita) que vull (?:cancel lar|anul lar)|confirmo (?:la (?:cancel lacio|anul lacio)|que vull (?:cancel lar|anul lar))(?: (?:d'aquesta|de la) (?:cita|visita))?)$/.test(body);
+}
+
 /** Accept a spoken weekday/time only when every supplied detail matches the offer. */
 function acceptsBookingDetails(text: string, actions: Action[], provider?: string): boolean {
   if (actions.length !== 1 || actions[0]!.action !== "BOOK" || typeof actions[0]!.slot !== "string") return false;
@@ -61,11 +76,12 @@ export class Consent {
   get acceptedActions() { return structuredClone([...this.accepted.values()]); }
   hasAccepted(actions: Action[]) { return actions.every(action => this.accepted.has(actionKey(action))); }
   hear(text: string) {
-    if (isCorrection(text) || /\b(no|not|don't|dont|cancel|forget|rechazo|cancelar)\b/.test(fold(text))) {
+    const cancellation = !!this.pending && acceptsCancellation(text, this.pending.actions);
+    if (!cancellation && (isCorrection(text) || /\b(no|not|don't|dont|cancel|forget|rechazo|cancelar)\b/.test(fold(text)))) {
       this.accepted.clear(); this.pending = undefined; return;
     }
     if (!this.pending) return;
-    if (this.pending.delivered && (acceptsOffer(text) || acceptsOfferedTime(text, this.pending.actions)
+    if (this.pending.delivered && (cancellation || acceptsOffer(text) || acceptsOfferedTime(text, this.pending.actions)
       || acceptsBookingDetails(text, this.pending.actions, this.pending.provider))) {
       for (const action of this.pending.actions) this.accepted.set(actionKey(action), structuredClone(action));
       this.pending = undefined;

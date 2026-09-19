@@ -140,6 +140,24 @@ test("cancellation requires an observed upcoming appointment and sessions stay i
   const fresh = new Receptionist(new FakeInference([complete({ actions: [{ action: "CANCEL", appointment_id: "A-future" }] }), say("I must look it up.")]), noClinic, bookCase.reference_time, "en");
   await fresh.turn("Cancel it", signal()); expect(fresh.record).toBeUndefined();
 });
+test("reported cancellation confirmations finish without replaying even a model-requested duplicate offer", async () => {
+  for (const reply of ["Sí, correcto. Esa es la cita que quiero cancelar.", "me viene bien. Confirmo la cancelación de esa cita."]) {
+    const record: Outcome = { actions: [{ action: "CANCEL", appointment_id: "A-future" }] };
+    const inference = new FakeInference([directory(), call("appointments", { patient_id: action.patient_id }),
+      offer(record), offer(record), complete(record)]);
+    const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "es", () => {}, { mode: "platform" });
+    const proposal = await agent.turn(identityText + "Quiero cancelar mi cita.", signal());
+    expect(proposal).toContain("¿Quiere que cancele esta cita?");
+    agent.markDelivered();
+    const closing = await agent.turn(reply, signal());
+    expect(agent.record).toEqual(record);
+    expect(closing).not.toContain("¿");
+    expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
+    const offers = agent.messages.filter(m => m.tool_name === "offer_actions").map(m => JSON.parse(m.content));
+    expect(offers[1].already_accepted).toBe(true);
+  }
+});
+
 test("unknown submission tools and clinic errors return recoverable tool errors", async () => {
   let count = 0;
   const clinic: ClinicReader = { async request() { count++; return { status: 403, meaning: "Invalid key", elapsed_ms: 1, data: {} }; } };

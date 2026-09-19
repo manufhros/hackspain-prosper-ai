@@ -309,7 +309,10 @@ export class Receptionist {
       .replace(/^Book an appointment:/, "I can book an appointment with")
       .replace(/^Reservar una cita:/, "Le puedo reservar una cita con")
       .replace(/^Reservar una visita:/, "Li puc reservar una visita amb");
-    return `${summary} ${{ en: "Does that work for you?", es: "¿Le viene bien?", ca: "Li va bé?" }[this.currentLanguage]}`;
+    const question = action.action === "CANCEL"
+      ? { en: "Shall I cancel this appointment?", es: "¿Quiere que cancele esta cita?", ca: "Vol que cancel·li aquesta visita?" }
+      : { en: "Does that work for you?", es: "¿Le viene bien?", ca: "Li va bé?" };
+    return `${summary} ${question[this.currentLanguage]}`;
   }
   private spokenDate(timestamp: string) {
     return new Intl.DateTimeFormat(this.currentLanguage, { timeZone: "Europe/Madrid", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(timestamp));

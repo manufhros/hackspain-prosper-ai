@@ -14,4 +14,6 @@ logs/*.log
 desk/data/*.json
 !desk/data/.gitkeep
 .tools/
-
+.wrangler/
+.dev.vars*
+/worker-configuration.d.ts

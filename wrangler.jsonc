@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "prosper-voice",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-09-19",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "durable_objects": {
+    "bindings": [{ "name": "CALLS", "class_name": "VoiceCall" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VoiceCall"] }],
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "prosper-desk",
+    // Use the same database_id as desk/wrangler.jsonc.
+    "migrations_dir": "desk/migrations"
+  }],
+  "vars": {
+    "VOICE_STORAGE": "d1",
+    "PLATFORM_API_BASE_URL": "https://hackspain.getprosperapp.com"
+  },
+  "observability": { "enabled": true, "head_sampling_rate": 1 }
+}

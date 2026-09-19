@@ -26,5 +26,13 @@
   "vars": {
     "DESK_STORAGE": "d1"
   },
-  "observability": { "enabled": true, "head_sampling_rate": 1 }
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "traces": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "persist": true
+    }
+  }
 }

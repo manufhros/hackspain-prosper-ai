@@ -7,6 +7,7 @@ export type NavItem = {
   href: string;
   label: string;
   icon: IconName;
+  emoji?: string;
   /** Match only the exact path (used for the section root). */
   exact?: boolean;
 };
@@ -20,7 +21,6 @@ const ALL: Array<{ label: string; items: SectionItem[] }> = [
     label: "Operación",
     items: [
       { section: "", href: "/panel", label: "Resumen", icon: "dashboard", exact: true },
-      { section: "/operaciones", href: "/panel/operaciones", label: "Operaciones", icon: "phone" },
       { section: "/llamadas", href: "/panel/llamadas", label: "Llamadas", icon: "phone" },
     ],
   },
@@ -31,6 +31,12 @@ const ALL: Array<{ label: string; items: SectionItem[] }> = [
       { section: "/pruebas", href: "/panel/pruebas", label: "Pruebas de voz", icon: "flask" },
     ],
   },
+  {
+    label: "Demo",
+    items: [
+      { section: "/operaciones", href: "/panel/operaciones", label: "Hackspain", icon: "phone", emoji: "🚀" },
+    ],
+  },
 ];
 
 /** Sidebar navigation for the panel, filtered by what the role may open. */
@@ -39,6 +45,6 @@ export function panelNav(role: Role): NavGroup[] {
     label: group.label,
     items: group.items
       .filter((item) => canOpen(role, item.section))
-      .map((item) => ({ href: item.href, label: item.label, icon: item.icon, exact: item.exact })),
+      .map((item) => ({ href: item.href, label: item.label, icon: item.icon, emoji: item.emoji, exact: item.exact })),
   })).filter((group) => group.items.length);
 }

@@ -5,7 +5,7 @@ import { OperationsService } from "./service.ts";
 import { authorized, phoneToken, validPhoneToken } from "./security.ts";
 import type { CallOptions } from "../agent/session.ts";
 import type { CallSocket } from "../agent/socket.ts";
-import { checkPhone } from "./twilio.ts";
+import { checkPhone, TwilioRequestError } from "./twilio.ts";
 
 const settle = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
 function fixture() {
@@ -44,7 +44,9 @@ test("three concurrent patients use Lucia core; phone is a fourth fresh session 
   const response = await service.fetch(new Request(f.webhook));
   const xml = await response.text();
   assert.equal(response.status, 200);
-  assert.ok(xml.includes('name="call_id"'));
+  assert.ok(xml.includes('demo-'));
+  assert.ok(xml.includes('<Redirect method="POST">'));
+  assert.ok(!xml.includes('<Connect>'));
   assert.ok(!xml.includes('name="join"'));
   assert.ok(!xml.includes("<Say"));
   class Socket extends EventEmitter { readyState = 1; send() {} close() { this.readyState = 3; this.emit("close"); } }
@@ -57,9 +59,9 @@ test("three concurrent patients use Lucia core; phone is a fourth fresh session 
   assert.ok(f.hungup >= 1);
   assert.ok(!service.phoneAllowed(new URL(f.webhook)));
 });
-test("trial failure prevents all provider sessions and dialing", async () => {
+test("credential failure prevents all provider sessions and dialing", async () => {
   const f = fixture();
-  const service = new OperationsService({ ...f.deps, checkPhone: async () => { throw new Error("Twilio Trial bloquea Stream"); } });
+  const service = new OperationsService({ ...f.deps, checkPhone: async () => { throw new Error("Twilio respondió 401"); } });
   service.start(); await settle();
   assert.equal(service.snapshot().state, "error");
   assert.equal(f.dialed, 0); assert.equal(f.sockets.length, 0);
@@ -91,6 +93,9 @@ test("uncertain origination blocks restart until explicit manual acknowledgement
   service.start(); await settle();
   assert.equal(service.snapshot().state, "uncertain");
   assert.throws(() => service.start(), /activa/);
+  assert.ok(f.sockets.every(socket => socket.readyState === 1));
+  assert.ok(service.snapshot().calls.filter(call => call.source === "llm").every(call => !call.ended));
+  await assert.rejects(service.acknowledge(), /pacientes LLM/);
   await service.stop();
   assert.equal(service.snapshot().state, "uncertain");
   await service.acknowledge();
@@ -106,10 +111,74 @@ test("controls require a server secret; phone tokens are scoped and expire", asy
   assert.ok(validPhoneToken(url, "one")); assert.ok(!validPhoneToken(url, "two"));
   url.searchParams.set("expires", String(Date.now() - 1)); assert.ok(!validPhoneToken(url, "one"));
 });
-test("actual account preflight rejects Trial", async t => {
+test("account preflight allows Trial to attempt the actual REST transport", async t => {
   process.env.TWILIO_ACCOUNT_SID = "test"; process.env.TWILIO_AUTH_TOKEN = "test"; process.env.TWILIO_PHONE_NUMBER = "+12025550123";
   t.mock.method(globalThis, "fetch", async () => Response.json({ type: "Trial" }));
-  await assert.rejects(checkPhone(), /Trial/);
+  await assert.doesNotReject(checkPhone());
+});
+
+test("Lucia REST transport starts once and speaks actual agent replies, not scripted patient lines", async t => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const f = fixture(); let streams = 0;
+  const service = new OperationsService({ ...f.deps,
+    status: async () => ({ status: "in-progress" }),
+    startStream: async (_sid, url) => { streams++; assert.match(url, /^wss:\/\/voice.example\/operations\/phone\//); return { ok: true, status: 201, callSid: undefined, error: undefined }; },
+  });
+  service.start(); await settle();
+  t.mock.timers.tick(3000); await settle();
+  assert.equal(streams, 1);
+  class Wire extends EventEmitter {
+    readyState = 1; sent: string[] = [];
+    send(data: string) { this.sent.push(data); }
+    close() { this.readyState = 3; this.emit("close", 1000, ""); }
+  }
+  const wire = new Wire();
+  await service.attachPhone(wire);
+  let start: any;
+  f.sockets[3]!.on("message", raw => { start = JSON.parse(String(raw)); });
+  wire.emit("message", JSON.stringify({ event: "start", start: { callSid: "CAreal", streamSid: "MZreal" } }));
+  assert.equal(start.start.customParameters.call_id, service.snapshot().calls[3]!.id);
+  assert.equal(start.start.customParameters.join, undefined);
+  f.sockets[3]!.send(JSON.stringify({ event: "media", media: { payload: "audio" } }));
+  assert.deepEqual(wire.sent, []);
+  f.options[3]!.onMonitor?.({ type: "agent", text: "Hola, ¿en qué puedo ayudarte? <test>" });
+  assert.ok(!(await (await service.fetch(new Request(f.webhook))).text()).includes("<Say"));
+  const speech = await (await service.fetch(new Request(f.webhook, { method: "POST" }))).text();
+  assert.ok(speech.includes("Hola, ¿en qué puedo ayudarte? &lt;test&gt;"));
+  assert.ok(!speech.includes("Llamaba para pedir"));
+  assert.ok(!(await (await service.fetch(new Request(f.webhook, { method: "POST" }))).text()).includes("<Say"));
+  t.mock.timers.tick(3000); await settle(); assert.equal(streams, 1);
+  await service.stop();
+});
+
+test("REST stream rejection ends only the phone, keeping AI patients alive", async t => {
+  t.mock.timers.enable({ apis: ["setInterval", "setTimeout"] });
+  const f = fixture();
+  const service = new OperationsService({ ...f.deps,
+    status: async () => ({ status: "in-progress" }),
+    startStream: async () => ({ ok: false, status: 403, error: "Stream not permitted", callSid: undefined }),
+  });
+  service.start(); await settle();
+  t.mock.timers.tick(3000); await settle();
+  assert.ok(service.snapshot().calls[3]!.events.some(event => event.text === "Stream not permitted"));
+  assert.ok(f.hungup >= 1);
+  assert.equal(service.snapshot().state, "running");
+  assert.ok(f.sockets.every(socket => socket.readyState === 1));
+  assert.ok(service.snapshot().calls[3]!.ended);
+  await service.stop();
+});
+
+test("definitive phone rejection does not cancel the three AI conversations", async () => {
+  const f = fixture();
+  const service = new OperationsService({ ...f.deps, dial: async () => { throw new TwilioRequestError(400, 21215); } });
+  service.start(); await settle();
+  assert.equal(service.snapshot().state, "running");
+  assert.match(service.snapshot().message, /21215/);
+  assert.ok(service.snapshot().calls[3]!.ended);
+  assert.ok(f.sockets.every(socket => socket.readyState === 1));
+  f.options[0]!.onMonitor?.({ type: "agent", text: "La conversación continúa" });
+  assert.ok(service.snapshot().calls[0]!.events.some(event => event.text === "La conversación continúa"));
+  await service.stop();
 });
 test("rehearsal without phone opens only three text sessions", async () => {
   const f = fixture(); const service = new OperationsService(f.deps);

@@ -102,6 +102,11 @@ export function patientReplyTwiml(text = PATIENT_REPLY) {
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(text)}<Pause length="600"/></Response>`;
 }
 
+/** Dynamic agent speech, while the separate inbound REST stream keeps listening. */
+export function agentReplyTwiml(text: string, nextUrl: string, callId: string) {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><!-- ${xml(callId)} -->${text ? sayEs(text) : '<Pause length="1"/>'}<Redirect method="POST">${xml(nextUrl)}</Redirect></Response>`;
+}
+
 export async function updateCallUrl(callSid: string, url: string) {
   return twilioPost(
     `/Calls/${encodeURIComponent(callSid)}.json`,

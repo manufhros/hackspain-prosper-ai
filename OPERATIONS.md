@@ -86,8 +86,11 @@ limitadas a la ejecución activa; nunca incluyen credenciales del proveedor.
   Revisar Calls y usar **He comprobado el cierre en Twilio** únicamente cuando esté cerrado.
 - Un reinicio del Durable Object recupera la ejecución como incierta y bloquea otro arranque.
   La alarma y el límite de tiempo de Twilio acotan llamadas huérfanas.
-- **Twilio Trial bloquea Stream**: Start demo lo detecta antes de iniciar sesiones o llamar.
-  Ensayar sin teléfono sigue disponible. Hace falta una cuenta con Stream para validar audio.
+- El teléfono utiliza el transporte REST de Lucía (`startCallMediaStream`, audio entrante).
+  Las respuestas dinámicas de ElevenLabs se reproducen con `<Say>` y la voz de Twilio;
+  no se reproduce audio de ElevenLabs por el stream unidireccional ni textos de paciente fijos.
+  No se bloquea por ser Trial: se muestra el resultado real de la petición Streams.
+  Si Twilio rechaza el stream o no conecta en 20 segundos, se detiene la demo y se cuelga.
 
 ## Verificación
 

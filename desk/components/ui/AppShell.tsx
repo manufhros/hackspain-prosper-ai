@@ -105,7 +105,7 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
                     data-active={on}
                     aria-current={on ? "page" : undefined}
                   >
-                    <Icon size={18} strokeWidth={1.9} aria-hidden="true" />
+                    {item.emoji ? <span aria-hidden="true">{item.emoji}</span> : <Icon size={18} strokeWidth={1.9} aria-hidden="true" />}
                     <span>{item.label}</span>
                   </Link>
                 );

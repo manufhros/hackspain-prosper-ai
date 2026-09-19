@@ -6,6 +6,9 @@ import { loadPatients, patientReply, type Patient, type Turn } from "./patient.t
 import { checkPhone, dialPatient, stopPhone, phoneStatus } from "./twilio.ts";
 import { authorized, phoneToken, validPhoneToken } from "./security.ts";
 import { checkAgent } from "./agent-config.ts";
+import { agentReplyTwiml, startCallMediaStream } from "../agent/twilio-transfer.ts";
+import { PatientPhoneSocket } from "./phone-socket.ts";
+import { DEMO_NUMBER, TwilioRequestError } from "./twilio.ts";
 
 type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string };
 export type OperationCall = { id: string; name: string; source: "llm" | "phone"; state: string; started: number; ended?: number; events: Entry[] };
@@ -15,6 +18,7 @@ type Dependencies = {
   core?: typeof handleCall; patients?: typeof loadPatients; reply?: typeof patientReply;
   checkPhone?: typeof checkPhone; dial?: typeof dialPatient; hangup?: typeof stopPhone; status?: typeof phoneStatus;
   checkAgent?: typeof checkAgent;
+  startStream?: typeof startCallMediaStream;
   verifyWebhook?: (url: string, callId: string) => Promise<void>;
   checkpoint?: (value: { id: string; sid?: string; active: boolean }) => Promise<void>;
 };
@@ -33,6 +37,9 @@ export class OperationsService {
   private starting = false;
   private dialing = false;
   private phoneConnected = false;
+  private phoneReplies: string[] = [];
+  private phoneStreamRequested = false;
+  private phoneStreamDeadline: ReturnType<typeof setTimeout> | undefined;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private poll: ReturnType<typeof setInterval> | undefined;
   private task: Promise<void> = Promise.resolve();
@@ -41,6 +48,7 @@ export class OperationsService {
   snapshot() { return structuredClone(this.run); }
   async acknowledge() {
     if (this.starting || this.run.state !== "uncertain") throw new Error("Solo se puede confirmar una ejecución incierta detenida.");
+    if (this.run.calls.some(call => call.source === "llm" && !call.ended)) throw new Error("Espera a que terminen los pacientes LLM o detén la demo.");
     this.dialing = false; this.sid = undefined;
     this.run.state = "finished"; this.run.message = "Cierre comprobado manualmente en Twilio.";
     await this.checkpoint(false);
@@ -57,6 +65,9 @@ export class OperationsService {
     if (call.ended) return;
     const type = String(event.type ?? "event");
     if (type === "ready") call.state = "En conversación";
+    if (call.source === "phone" && type === "agent" && typeof event.text === "string") {
+      this.phoneReplies.push(event.text);
+    }
     call.events.push({
       type, at: Date.now(),
       ...(typeof event.text === "string" ? { text: event.text } : {}),
@@ -71,6 +82,17 @@ export class OperationsService {
     call.ended = Date.now(); call.state = state;
     if (!this.starting && this.run.calls.every(item => item.ended) && this.run.state === "running") {
       void this.stop();
+    }
+  }
+  private async failPhone(call: OperationCall, message: string) {
+    this.event(call, { type: "error", text: message });
+    clearInterval(this.poll); clearTimeout(this.phoneStreamDeadline);
+    try {
+      if (this.sid) await (this.deps.hangup ?? stopPhone)(this.sid);
+      this.end(call, "Error de teléfono");
+    } catch {
+      this.run.state = "uncertain";
+      this.run.message = "No se ha podido confirmar el cierre del teléfono. Los pacientes LLM continúan.";
     }
   }
   private options(call: OperationCall, observe?: (event: Record<string, unknown>) => void): CallOptions {
@@ -133,6 +155,7 @@ export class OperationsService {
   start(includePhone = true) {
     if (this.active) throw new Error("Ya hay una demo activa o pendiente de comprobar.");
     this.controller = new AbortController(); this.sid = undefined; this.phoneConnected = false;
+    this.phoneReplies = []; this.phoneStreamRequested = false;
     this.run = { id: crypto.randomUUID(), state: "preparing", message: "Comprobando configuración y pacientes…", calls: [] };
     this.starting = true;
     this.task = this.launch(includePhone);
@@ -168,7 +191,7 @@ export class OperationsService {
         await (this.deps.verifyWebhook ?? (async (endpoint, callId) => {
           const response = await fetch(endpoint, { headers: { "ngrok-skip-browser-warning": "true" }, signal: AbortSignal.timeout(5000) });
           const xml = await response.text();
-          if (!response.ok || !xml.includes("<Stream ") || !xml.includes(callId)) throw new Error("La URL pública no devuelve las instrucciones de esta demo. Revisa el despliegue de voz.");
+          if (!response.ok || !xml.includes("<Redirect ") || !xml.includes(callId)) throw new Error("La URL pública no devuelve las instrucciones de esta demo. Revisa el despliegue de voz.");
         }))(url, call.id);
         if (signal.aborted) return;
         this.dialing = true;
@@ -181,7 +204,24 @@ export class OperationsService {
         this.poll = setInterval(() => {
           if (polling || !this.sid || signal.aborted) return;
           polling = true;
-          void (this.deps.status ?? phoneStatus)(this.sid).then(status => {
+          void (this.deps.status ?? phoneStatus)(this.sid).then(async status => {
+            if (signal.aborted) return;
+            if (status.status === "in-progress" && !this.phoneStreamRequested) {
+              this.phoneStreamRequested = true;
+              this.event(call, { type: "transport", text: "Iniciando audio entrante mediante el flujo REST de Lucía" });
+              try {
+                const result = await (this.deps.startStream ?? startCallMediaStream)(this.sid!, `${url.replace(/^https:/, "wss:")}/ws`);
+                if (signal.aborted) return;
+                if (!result?.ok) throw new Error(result?.error || `Twilio Streams HTTP ${result?.status ?? "sin respuesta"}`);
+                this.event(call, { type: "transport", text: "Twilio aceptó el stream; esperando conexión de audio" });
+                this.phoneStreamDeadline = setTimeout(() => {
+                  if (this.phoneConnected || signal.aborted) return;
+                  void this.failPhone(call, "Twilio aceptó el stream pero no conectó el audio en 20 segundos.");
+                }, 20000);
+              } catch (error) {
+                await this.failPhone(call, error instanceof Error ? error.message : "No se pudo abrir el stream de Twilio.");
+              }
+            }
             if (["completed", "failed", "busy", "no-answer", "canceled"].includes(status.status ?? "")) {
               if (!this.phoneConnected) this.event(call, { type: "error", text: "La llamada terminó sin abrir audio con ElevenLabs." });
               this.end(call, this.phoneConnected ? "Finalizada" : "Sin conexión de audio");
@@ -191,6 +231,23 @@ export class OperationsService {
         }, 3000);
       }
     } catch (error) {
+      const phone = this.run.calls.find(call => call.source === "phone");
+      if (phone && !signal.aborted) {
+        const detail = error instanceof Error ? error.message : "Fallo de teléfono";
+        this.event(phone, { type: "error", text: detail });
+        if (error instanceof TwilioRequestError && error.rejected && !this.sid) this.dialing = false;
+        if (this.dialing || this.sid) {
+          this.run.state = "uncertain";
+          phone.state = "Estado desconocido";
+          this.run.message = `${detail}. Comprueba la llamada en Twilio. Los tres pacientes LLM continúan.`;
+        } else {
+          this.run.state = "running";
+          this.run.message = `${detail}. El teléfono no se inició; los tres pacientes LLM continúan.`;
+          this.end(phone, "No iniciada");
+        }
+        // The phone is independent: do not abort the three AI conversations.
+        return;
+      }
       if (this.dialing || this.sid) {
         this.run.state = "uncertain";
         this.run.message = "Respuesta incierta de Twilio. Comprueba Calls antes de volver a iniciar.";
@@ -208,7 +265,7 @@ export class OperationsService {
   }
   async stop() {
     if (this.run.state !== "uncertain") this.run.state = "stopping";
-    this.controller.abort(); clearTimeout(this.timer); clearInterval(this.poll);
+    this.controller.abort(); clearTimeout(this.timer); clearInterval(this.poll); clearTimeout(this.phoneStreamDeadline);
     for (const socket of this.sockets) socket.close();
     await this.task;
     try {
@@ -232,17 +289,18 @@ export class OperationsService {
     const call = this.run.calls.find(item => item.source === "phone");
     if (!call || this.phoneConnected || this.controller.signal.aborted) { socket.close(1008, "No active phone session"); return; }
     this.phoneConnected = true; this.sockets.add(socket);
+    clearTimeout(this.phoneStreamDeadline);
     socket.once("close", () => { this.sockets.delete(socket); this.end(call); });
-    await (this.deps.core ?? handleCall)(socket, this.options(call));
-    // TwiML supplies call_id, org_slug and from_number. No 'join': a new patient session.
+    await (this.deps.core ?? handleCall)(new PatientPhoneSocket(socket, call.id, DEMO_NUMBER), this.options(call));
   }
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/operations/phone/")) {
       if (!this.phoneAllowed(url)) return new Response("Forbidden", { status: 403 });
-      const ws = `${this.deps.origin().replace(/^http/, "ws")}${url.pathname}/ws`;
       const callId = this.run.calls.find(call => call.source === "phone")?.id ?? "";
-      return new Response(`<?xml version="1.0"?><Response><Connect><Stream url="${ws}"><Parameter name="call_id" value="${callId}"/><Parameter name="org_slug" value="arenal"/><Parameter name="from_number" value="+34601408225"/></Stream></Connect></Response>`, {
+      // GET is a side-effect-free preflight. Only Twilio's POST consumes queued replies.
+      const text = request.method === "POST" ? this.phoneReplies.splice(0).join(" ") : "";
+      return new Response(agentReplyTwiml(text, `${this.deps.origin()}${url.pathname}`, callId), {
         headers: { "content-type": "text/xml", "cache-control": "no-store" },
       });
     }

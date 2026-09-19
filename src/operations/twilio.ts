@@ -1,4 +1,10 @@
 export const DEMO_NUMBER = "+34601408225";
+export class TwilioRequestError extends Error {
+  constructor(readonly status: number, readonly code?: number) {
+    super(`Twilio HTTP ${status}${code ? ` · código ${code}` : ""}`);
+  }
+  get rejected() { return this.status >= 400 && this.status < 500 && this.status !== 408; }
+}
 export function operationsOrigin() {
   const value = process.env.VOICE_AGENT_PUBLIC_URL?.trim();
   if (!value) return "";
@@ -18,12 +24,15 @@ async function request(path: string, body?: URLSearchParams) {
     method: body ? "POST" : "GET", headers: { authorization, "content-type": "application/x-www-form-urlencoded" },
     ...(body ? { body } : {}), signal: AbortSignal.timeout(10000),
   });
-  if (!response.ok) throw new Error(`Twilio respondió ${response.status}.`);
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({})) as { code?: number };
+    throw new TwilioRequestError(response.status, detail.code);
+  }
   return response.json() as Promise<{ sid?: string; status?: string; type?: string }>;
 }
 export async function checkPhone() {
-  const account = await request(".json");
-  if (account.type === "Trial") throw new Error("Twilio Trial bloquea el audio Stream. Actualiza la cuenta o usa Ensayar sin teléfono.");
+  // Check credentials, not account tier: the actual Streams response is authoritative.
+  await request(".json");
 }
 export async function dialPatient(url: string) {
   return request("/Calls.json", new URLSearchParams({

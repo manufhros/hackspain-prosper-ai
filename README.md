@@ -394,7 +394,15 @@ To inspect a live-data scenario without starting any caller processes or placing
 bun run simulate:call --prepare-only --language es --kind book --seed clinic-1
 ```
 
-`--endpoint ws://127.0.0.1:7861/ws` selects another local port. The default follows `VOICE_PORT`, falling back to 7860. Live-mode servers and non-loopback endpoints are rejected. Synthetic call IDs are never sent to Prosper's submission API: it only accepts IDs created by its own runner. Reads use the real API; resulting actions remain in the receptionist's dry-run report.
+`--endpoint ws://127.0.0.1:7861/ws` selects another local port in this checkout. The default follows `VOICE_PORT`, falling back to 7860. This local mode rejects live-mode servers and non-loopback endpoints. Synthetic call IDs are never sent to Prosper's submission API by the local dry-run receptionist: it only accepts IDs created by its own runner. Reads use the real API; resulting actions remain in the receptionist's dry-run report.
+
+To test another team implementation, use `--ws-url` with any `ws://` or `wss://` endpoint, including a different local implementation:
+
+```sh
+bun run simulate:call --ws-url wss://teammate.example/voice --language es --mute
+```
+
+The target must speak the same Twilio-compatible audio/mark protocol and be configured for synthetic calls. This mode skips the checkout-specific `/healthz` check and report lookup, so it cannot verify the target's submission mode or grade its actions. It saves transcripts and WAVs and reports `CONNECTED_AND_CLOSED` for a normal socket close, or `FAIL` for transport/caller errors. External reports explicitly mark actions `not_graded` and platform submission as `unknown`; exit code 0 indicates only a clean transport/caller run. `SIM_TARGET_TOKEN`, when set, supplies the external Bearer token; your local `VOICE_SERVER_TOKEN` is never automatically forwarded. `--ws-url` and `--endpoint` are mutually exclusive.
 
 The script prints the conversation, expected/actual records and **PASS / FAIL / NEEDS_REVIEW**, then saves `.workbench/simulation-<id>.json`. This includes the live scenario snapshot, actual receptionist report, caller speech, what the caller ASR heard, timing data and action differences. `.workbench/simulation-<id>-audio/` contains playable per-turn WAV recordings for both sides (long turns are split at 30 seconds). Compare caller speech with `receptionist.transcript` and listen to those files when recognition is wrong. The artifacts contain clinic-persona data and are private/Git-ignored. Exit code 0 means a completed, matching local result; 1 also covers incomplete/unverified runs and setup failures.
 

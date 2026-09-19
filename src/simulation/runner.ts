@@ -12,7 +12,7 @@ import { evaluate } from "../evaluate";
 import { delay } from "../telephony/audio";
 import type { PlatformCallReport } from "../telephony/call";
 import { generateScenario, type Kind, type Language, type Scenario } from "./scenario";
-import { localTarget, requireDryRun, runSimulatedCall, type CallResult } from "./call";
+import { localTarget, websocketTarget, requireDryRun, runSimulatedCall, type CallResult } from "./call";
 import { LivePlayback } from "./playback";
 
 export const simulationHelp = `Simulate one real audio call against your ALREADY RUNNING receptionist.
@@ -25,6 +25,7 @@ Options:
   --kind book|cancel|reschedule  Random when omitted
   --seed <text>            Repeat selection against the same live DB and date
   --endpoint <ws-url>      Default ws://127.0.0.1:7860/ws; loopback only
+  --ws-url <ws[s]-url>     Test another implementation; no local health/report dependency
   --prepare-only          Fetch and save a scenario; no socket, caller or models
   --mute                  Disable live speaker playback (on by default)
   --help                  Show this help without contacting any service
@@ -33,11 +34,27 @@ Uses PLATFORM_API_KEY for read-only live clinic data, OPENROUTER_API_KEY for
 caller chat and listening, and local Piper for caller speech.
 Model selection: SIM_CALLER_MODEL, then OPENROUTER_MODEL, then openai/gpt-4.1-mini.
 The caller inherits OPENROUTER token, timeout, reasoning and routing settings.
-VOICE_SERVER_TOKEN is reused when set. Server and caller must use this checkout.
+VOICE_SERVER_TOKEN is reused for local mode; SIM_TARGET_TOKEN authenticates --ws-url.
+Local mode requires this checkout and checks dry-run mode. With --ws-url, configure
+the target for synthetic calls yourself; its submission mode cannot be verified.
 Artifacts: .workbench/simulation-<id>.json, scenario snapshot and per-turn WAVs.
 This is one clean, cooperative adult-patient call, not a concurrency benchmark
-or the official Prosper caller/judge. All final actions stay in dry-run mode.
+or the official Prosper caller/judge. External action outcomes are not graded.
 `;
+
+export function simulationTarget(options: { endpoint?: string; "ws-url"?: string },
+  env: Record<string, string | undefined> = process.env) {
+  if (options.endpoint !== undefined && options["ws-url"] !== undefined)
+    throw new Error("Use either --endpoint for this checkout or --ws-url for another implementation");
+  if (options["ws-url"] !== undefined) return {
+    socket: websocketTarget(options["ws-url"]), health: undefined, token: env.SIM_TARGET_TOKEN?.trim(),
+  };
+  return { ...localTarget(options.endpoint ?? `ws://127.0.0.1:${env.VOICE_PORT || "7860"}/ws`), token: env.VOICE_SERVER_TOKEN?.trim() };
+}
+
+export function externalCallStatus(call: CallResult) {
+  return call.close_code === 1000 && !call.errors.length ? "connected_and_closed" : "fail";
+}
 
 export function callerModelConfig(env: Record<string, string | undefined> = process.env) {
   // Reuse the user's chosen hosted model even when the receptionist runs locally.
@@ -84,7 +101,7 @@ async function waitForReport(callId: string, before: Set<string>, signal: AbortS
 export async function simulate(argv: string[]) {
   const { values, positionals } = parseArgs({ args: argv, strict: true, allowPositionals: true, options: {
     help: { type: "boolean" }, mute: { type: "boolean" }, "prepare-only": { type: "boolean" }, seed: { type: "string" },
-    language: { type: "string" }, kind: { type: "string" }, endpoint: { type: "string" },
+    language: { type: "string" }, kind: { type: "string" }, endpoint: { type: "string" }, "ws-url": { type: "string" },
   } });
   if (values.help) { console.log(simulationHelp); return; }
   if (positionals.length) throw new Error("Unexpected argument; use bun run simulate:call --help");
@@ -92,14 +109,14 @@ export async function simulate(argv: string[]) {
   if (values.kind && !["book", "cancel", "reschedule"].includes(values.kind)) throw new Error("--kind must be book, cancel or reschedule");
   const seed = values.seed ?? crypto.randomUUID();
   if (!seed.trim() || seed.length > 200) throw new Error("--seed must contain 1–200 characters");
-  const endpoint = localTarget(values.endpoint ?? `ws://127.0.0.1:${process.env.VOICE_PORT || "7860"}/ws`);
+  const endpoint = simulationTarget(values);
   const controller = new AbortController();
   const interrupt = () => controller.abort(new Error("Simulator interrupted"));
   process.once("SIGINT", interrupt); process.once("SIGTERM", interrupt);
   let runtime: LocalRuntime | undefined;
   let playback: LivePlayback | undefined;
   try {
-    if (!values["prepare-only"]) {
+    if (!values["prepare-only"] && endpoint.health) {
       let health: Response;
       try { health = await fetch(endpoint.health, { redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(5000)]) }); }
       catch { throw new Error("No running receptionist at this port. Start it yourself: bun run serve --dry-run"); }
@@ -130,11 +147,11 @@ export async function simulate(argv: string[]) {
         await playback.start();
         controller.signal.throwIfAborted();
       }
-      const before = new Set(await reportFiles());
+      const before = new Set(endpoint.health ? await reportFiles() : []);
       const audioDir = join(stateDir, `simulation-${id}-audio`);
       await mkdir(audioDir, { mode: 0o700 });
       let audioIndex = 0;
-      const call = await runSimulatedCall({ endpoint: endpoint.socket, token: process.env.VOICE_SERVER_TOKEN?.trim(), callId,
+      const call = await runSimulatedCall({ endpoint: endpoint.socket, token: endpoint.token, callId,
         item: scenario.case, inference: runtime, signal: controller.signal, monitor: playback?.push,
         update: event => console.log(`${event.role === "caller" ? "Caller" : "Heard receptionist"}: ${event.text || "[unintelligible]"}`),
         saveAudio: async (role, audio) => {
@@ -147,7 +164,8 @@ export async function simulate(argv: string[]) {
         },
       });
       await playback?.stop();
-      const partial = { scenario_path: scenarioPath, scenario, caller_model: model.model, call, platform_submission: false,
+      const partial = { scenario_path: scenarioPath, scenario, caller_model: model.model, call,
+        target_mode: endpoint.health ? "local" : "external", platform_submission: endpoint.health ? false : "unknown",
         playback: { requested: !values.mute, warnings: playback?.warnings ?? [] },
         limitations: ["Adult existing-patient BOOK/CANCEL/RESCHEDULE only; public personas are lookup seeds, not full database sampling.",
           "Clean synthetic Piper voices; no background-noise, third-party privacy, barge-in or concurrency assessment.",
@@ -155,6 +173,16 @@ export async function simulate(argv: string[]) {
           "Seed repeats selection only against the same data/date; LLM wording and inference are nondeterministic."] };
       // Save before waiting for the server so an interrupted report lookup preserves the conversation.
       await saveLocal(`simulation-${id}.json`, partial);
+      if (!endpoint.health) {
+        const transport = externalCallStatus(call);
+        const path = await saveLocal(`simulation-${id}.json`, { ...partial, transport,
+          evaluation: { status: "not_graded", reason: "External target has no local receptionist report; action outcome and submission mode are unknown." } });
+        console.log(`\n${transport.toUpperCase()} — ${Math.round(call.elapsed_ms / 1000)}s — actions NOT GRADED`);
+        for (const error of call.errors) console.log(`  ${error}`);
+        console.log(`Saved: ${path}\nAudio: ${audioDir}`);
+        if (transport === "fail") process.exitCode = 1;
+        return;
+      }
       const report = await waitForReport(callId, before, controller.signal);
       const evaluation = gradeCall(scenario, call, report);
       const path = await saveLocal(`simulation-${id}.json`, { ...partial, receptionist: report, evaluation });

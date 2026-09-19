@@ -6,6 +6,14 @@ import type { PublicCase } from "../data";
 import { simulatedCallerMessages } from "./scenario";
 import type { AudioLane } from "./playback";
 
+export function websocketTarget(endpoint: string): string {
+  let url: URL;
+  try { url = new URL(endpoint); } catch { throw new Error("Expected a valid ws:// or wss:// URL"); }
+  if (!["ws:", "wss:"].includes(url.protocol) || url.hash || url.username || url.password)
+    throw new Error("Expected a ws:// or wss:// URL without embedded credentials or a fragment");
+  return url.href;
+}
+
 export function localTarget(endpoint: string): { socket: string; health: string } {
   const url = new URL(endpoint);
   if (url.protocol !== "ws:" || !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
@@ -98,7 +106,7 @@ export async function runSimulatedCall(options: {
   // lib.dom's constructor hides Bun's documented headers overload in this project.
   const BunWebSocket = WebSocket as unknown as { new(url: string, options: Bun.WebSocketOptions): WebSocket };
   const connect = options.connect ?? ((url, settings) => new BunWebSocket(url, settings));
-  const socket = connect(localTarget(options.endpoint).socket, {
+  const socket = connect(websocketTarget(options.endpoint), {
     headers: options.token ? { Authorization: `Bearer ${options.token}` } : {},
   });
   const wire = new CallerWire(options.callId, `MS-${crypto.randomUUID()}`, data => {
@@ -163,7 +171,7 @@ export async function runSimulatedCall(options: {
       if (audio) processing = processing.then(() => respond(audio)).catch(error => { fail(error); });
     } catch (error) { fail(error); }
   };
-  socket.onerror = () => fail(new Error("WebSocket connection failed; check the port and VOICE_SERVER_TOKEN"));
+  socket.onerror = () => fail(new Error("WebSocket connection failed; check the endpoint and its authentication"));
   socket.onclose = event => { closeCode = event.code; closed = true; finish(); };
   try {
     if (signal.aborted) onAbort();

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
-import { CallerWire, callerResponse, localTarget, requireDryRun, runSimulatedCall, type CallResult } from "../src/simulation/call";
-import { callerModelConfig, gradeCall } from "../src/simulation/runner";
+import { CallerWire, callerResponse, localTarget, websocketTarget, requireDryRun, runSimulatedCall, type CallResult } from "../src/simulation/call";
+import { callerModelConfig, externalCallStatus, gradeCall, simulationTarget } from "../src/simulation/runner";
 import { WireInspector } from "../src/protocol";
 import { LocalRuntime, type Inference } from "../src/voice/runtime";
 import type { PlatformCallReport } from "../src/telephony/call";
@@ -27,6 +27,22 @@ test("preflight refuses live mode, unready and non-local endpoints", () => {
   expect(localTarget("ws://127.0.0.1:7860/ws").health).toBe("http://127.0.0.1:7860/healthz");
   for (const url of ["wss://external.test/ws", "ws://127.0.0.1:7860/ws?token=x", "ws://user:pass@localhost/ws", "ws://localhost/other"])
     expect(() => localTarget(url)).toThrow("local");
+});
+test("explicit external targets support custom paths and queries without reusing local credentials", () => {
+  const env = { VOICE_PORT: "7861", VOICE_SERVER_TOKEN: "local-secret" };
+  expect(simulationTarget({}, env)).toEqual({ socket: "ws://127.0.0.1:7861/ws", health: "http://127.0.0.1:7861/healthz", token: "local-secret" });
+  for (const url of ["wss://team.example/voice?team=2", "ws://192.168.1.40:9000/calls", "ws://localhost:9001/voice"])
+    expect(simulationTarget({ "ws-url": url }, env)).toEqual({ socket: url, health: undefined, token: undefined });
+  expect(simulationTarget({ "ws-url": "wss://team.example/ws" }, { ...env, SIM_TARGET_TOKEN: " team-token " }).token).toBe("team-token");
+  expect(() => simulationTarget({ endpoint: "ws://localhost/ws", "ws-url": "wss://team.example/ws" })).toThrow("either");
+  for (const url of ["", "invalid", "https://team.example/ws", "wss://user:password@team.example/ws", "wss://team.example/ws#fragment"])
+    expect(() => websocketTarget(url)).toThrow();
+});
+test("external transport status never implies an action grade", () => {
+  const call: CallResult = { call_id: "test", elapsed_ms: 1, events: [], errors: [], close_code: 1000 };
+  expect(externalCallStatus(call)).toBe("connected_and_closed");
+  expect(externalCallStatus({ ...call, close_code: 1006 })).toBe("fail");
+  expect(externalCallStatus({ ...call, errors: ["ASR failed"] })).toBe("fail");
 });
 test("wire preserves telephony frames, silence, padding and sequence after a mark ack", () => {
   const sent: ObjectValue[] = [], inspect = new WireInspector();
@@ -95,9 +111,9 @@ test("caller listens to socket audio and finishes final transcription after a no
     async chat(messages) { expect(JSON.stringify(messages)).not.toContain("P-live"); return { message: { role: "assistant", content: '{"speech":"Hello, I want an appointment.","wait":false}' }, elapsed_ms: 1 }; },
     async removeAudio() {},
   };
-  const result = await runSimulatedCall({ endpoint: "ws://127.0.0.1:7860/ws", token: "synthetic-test-token", callId: "workbench-test",
+  const result = await runSimulatedCall({ endpoint: "wss://team.example/custom?team=2", token: "synthetic-test-token", callId: "workbench-test",
     item: generated.case, inference, signal: AbortSignal.timeout(2000), update() {}, saveAudio: async role => [`${role}.wav`],
-    connect(_url, options) { expect(options.headers).toEqual({ Authorization: "Bearer synthetic-test-token" });
+    connect(url, options) { expect(url).toBe("wss://team.example/custom?team=2"); expect(options.headers).toEqual({ Authorization: "Bearer synthetic-test-token" });
       queueMicrotask(() => { fake.readyState = WebSocket.OPEN; fake.onopen?.(); }); return fake as unknown as WebSocket; },
   });
   expect(result.errors).toEqual([]); expect(result.close_code).toBe(1000);

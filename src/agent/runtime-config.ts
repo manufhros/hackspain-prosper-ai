@@ -84,16 +84,15 @@ export function mergeRuntimeConfig(
   return {
     ...DEFAULT_RUNTIME_CONFIG,
     ...config,
-    ...orgConfig,
     version: parsed.active?.id ?? "defaults",
     escalationFails: Math.min(5, Math.max(1, Number(config.escalationFails ?? 3))),
     frustrationThreshold: Math.min(
       100,
-      Math.max(50, Number(orgConfig.frustrationThreshold ?? config.frustrationThreshold ?? 75)),
+      Math.max(50, Number(config.frustrationThreshold ?? 75)),
     ),
     preCallEndpoint: orgConfig.preCallEndpoint ?? "",
     postCallEndpoint: orgConfig.postCallEndpoint ?? "",
-    faq: Array.isArray(orgConfig.faq) ? orgConfig.faq : Array.isArray(config.faq) ? config.faq : [],
+    faq: Array.isArray(config.faq) ? config.faq : [],
     metaPrompt: meta || "None.",
     extraInstructions: extra || "None.",
     firstMessage: String(orgConfig.firstMessage ?? config.firstMessage ?? DEFAULT_RUNTIME_CONFIG.firstMessage),

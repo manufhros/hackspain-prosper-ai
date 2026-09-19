@@ -59,6 +59,9 @@ cd desk
 npx wrangler secret put ELEVENLABS_API_KEY
 npx wrangler secret put ELEVENLABS_AGENT_ID
 npx wrangler secret put ELEVENLABS_WEBHOOK_SECRET
+# Public-case AI Gateway lab:
+npx wrangler secret put AI_GATEWAY_API_KEY
+npx wrangler secret put PLATFORM_API_KEY
 cd ..
 ```
 
@@ -70,6 +73,8 @@ Deploy the voice service before the desk's service binding:
 npm run cf:deploy
 npm run desk:cf:deploy
 ```
+
+The public-case lab at `/panel/pruebas` uses the desk’s `/api/simulate` endpoint and needs the desk AI Gateway and Prosper secrets above. The case catalog is bundled into the Worker. Live AI Gateway/provider calls are not exercised by build checks.
 
 Use `wss://<prosper-voice workers.dev hostname>/ws` as the Twilio/Prosper endpoint. The desk simulator automatically uses `wss://<desk hostname>/ws`; no public endpoint variable is required. To override it, set `VOICE_AGENT_WS_URL` on the desk Worker. Configure ElevenLabs' post-call webhook as `https://<desk hostname>/api/integrations/elevenlabs/post-call` with its matching signing secret.
 

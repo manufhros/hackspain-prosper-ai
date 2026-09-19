@@ -295,7 +295,8 @@ const patch = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${env.elev
               speed: 1.12,
               stability: 0.48,
               similarity_boost: 0.78,
-            },          },
+            },
+          },
         },
       },
       conversation: {

@@ -1,25 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
+import publicCases from "./public-cases.json";
 import type { PublicCase, PublicCaseFile, SimCase } from "./types";
 
-function catalogPath() {
-  const candidates = [
-    path.join(process.cwd(), "lib/cases/public-cases.json"),
-    path.join(process.cwd(), "task/public-cases.json"),
-    path.join(process.cwd(), "../task/public-cases.json"),
-  ];
-  return candidates.find((file) => existsSync(file));
-}
-
-function loadCatalog(): PublicCaseFile {
-  const file = catalogPath();
-  if (!file) {
-    throw new Error("No se encontró public-cases.json (desk/lib/cases o task/).");
-  }
-  return JSON.parse(readFileSync(file, "utf8")) as PublicCaseFile;
-}
-
-const catalog = loadCatalog();
+// Bundle the catalog so Cloudflare does not need the repository filesystem.
+const catalog = publicCases as PublicCaseFile;
 
 export function loadPublicCases(): PublicCase[] {
   return catalog.cases;

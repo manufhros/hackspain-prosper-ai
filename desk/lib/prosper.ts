@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { SubmitResponse } from "../../src/platform/types";
+
 import { loadLabSecrets } from "./root-env";
 
 function queryString(params: object) {
@@ -62,17 +64,17 @@ export async function prosper() {
         start_time: string;
       }> }>(`/availability${queryString(query)}`),
     submitBook: (body: Record<string, unknown>) =>
-      request("/submit/book", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/book", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     submitCancel: (body: Record<string, unknown>) =>
-      request("/submit/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/cancel", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     submitReschedule: (body: Record<string, unknown>) =>
-      request("/submit/reschedule", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/reschedule", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     submitRegister: (body: Record<string, unknown>) =>
-      request("/submit/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     submitNoAction: (body: Record<string, unknown>) =>
-      request("/submit/no-action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/no-action", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     submitEscalate: (body: Record<string, unknown>) =>
-      request("/submit/escalate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      request<SubmitResponse>("/submit/escalate", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
   };
 }
 

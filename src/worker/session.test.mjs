@@ -34,7 +34,8 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   await handleCall(twilio, {
     connect: async () => { connections++; return eleven; },
     onEnd: () => { ended++; },
-    loadConfig: async () => ({ ...DEFAULT_RUNTIME_CONFIG, version: "test-v1" }),
+    loadConfig: async () => ({ ...DEFAULT_RUNTIME_CONFIG, version: "test-v1",
+      metaPrompt: "Speak warmly.", extraInstructions: "Ask for the preferred site.", voiceId: "published-voice" }),
     emitEvent: (type, callId, configVersion, payload) => { const event = { type, callId, configVersion, payload }; events.push(event); return event; },
     waitUntil: (task) => tasks.push(task),
   });
@@ -45,6 +46,11 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   await settle();
   assert.equal(connections, 1);
   assert.equal(eleven.sent[0].dynamic_variables.config_version, "test-v1");
+  const initiation = eleven.sent[0];
+  assert.equal(initiation.conversation_config_override.tts.voice_id, "published-voice");
+  assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Speak warmly\./);
+  assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Ask for the preferred site\./);
+  assert.equal(initiation.dynamic_variables.meta_prompt, "Speak warmly.");
   assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"));
   eleven.message({ type: "audio", audio_event: { audio_base_64: "reply-audio" } });
   assert.ok(twilio.sent.some((message) => message.media?.payload === "reply-audio"));

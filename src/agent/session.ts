@@ -9,7 +9,6 @@ import {
   PATIENT_SPEECH,
   splitHandoffTranscript,
 } from "./twilio-transfer.ts";
-import { AGENT_PROMPT } from "./prompt.ts";
 import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { applyAgentPrompt, conversationConfigOverride, loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent as emitLocalCallEvent } from "./call-event.ts";

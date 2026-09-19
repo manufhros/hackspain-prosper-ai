@@ -121,12 +121,28 @@ y slots de fechas que nadie pedía (el modelo alucinaba días). En la nuestra,
 
 ## Limitaciones conocidas del eval (leer antes de fiarse del número)
 
-- **Deriva congelado-vs-vivo:** los casos están congelados a `reference_time
-  2026-09-18`; las tools leen la API en vivo (hoy). El "más pronto" del caso puede
-  estar en el pasado del agente → falso fallo en slot/fecha. Arreglable inyectando
-  el `reference_time` del caso como "hoy" del agente (pendiente).
+- **El pass-rate del eval NO es un marcador.** `public-cases.json` trae la answer
+  key pero NO el mundo congelado (disponibilidad/catálogo). El agente consulta la
+  API en vivo → devuelve la disponibilidad de HOY, no la del `reference_time`
+  2026-09-18 del caso. Así que el **slot/provider exacto casi nunca coincide, por
+  diseño**, y NO se arregla inyectando el reference_time (el problema es la API en
+  vivo, no solo el reloj). Corrida completa de ejemplo: 36/73 "pass" pero de los 24
+  fallos, ~5 son deriva temporal pura + ~11 deriva de mundo (paciente correcto,
+  otro provider) + 13 ERROR por rate-limit. El número real de bugs de lógica es un
+  puñado, no 37.
+- **Para qué SÍ sirve:** (1) confirmar que no alucina ids — en los fallos, todos
+  los `patient_id` eran reales; (2) regresiones estructurales (acción correcta,
+  paciente bien identificado); (3) detectar degradación bajo carga (los 13 ERROR
+  del final = gateway con rate-limit, mismo enemigo que la latencia).
+- **Para qué NO sirve:** puntuar slot/provider exactos. Eso solo lo valida un Call
+  real contra Prosper (mundo real, harness real).
 - El eval prueba el **cerebro**, no la voz. STT/TTS/VAD/latencia/concurrencia solo
   se ven con un Call real. Necesitas los dos.
+
+### F6 · Correr 73 casos concurrentes agota el gateway (rate-limit) — ABIERTO
+Los últimos ~13 casos de una corrida de 73 con `WL_EVAL_CONCURRENCY=4` salen como
+ERROR. Es el mismo cuello que la latencia: bajo carga sostenida el gateway limita.
+Relevante porque un Run All del set de 40 es exactamente carga sostenida.
 
 ---
 

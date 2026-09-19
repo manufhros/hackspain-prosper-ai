@@ -17,7 +17,7 @@ export function callFromRow(row: CallRow): LoggedCall {
   const outcome = String(summary.outcome ?? "en_curso");
   return {
     id: row.call_id, started: row.started_at, minutes: Number(summary.durationMs ?? 0) / 60_000,
-    phone: null, patient: null, patientId: null, insurer: null,
+    phone: null, patient: summary.patientName || null, patientId: summary.patientId || null, insurer: summary.insurer || null,
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
     outcome, reason: summary.reason ?? null, motive: summary.intent ?? "",
     slot: null, providerId: null, source: "llamadas", sourceFile: null,

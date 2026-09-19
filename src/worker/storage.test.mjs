@@ -100,3 +100,36 @@ test("lead inserts append independently and reject invalid JSON", () => {
     assert.throws(() => insert.run("three", "lead", "invalid json"));
   } finally { sqlite.close(); }
 });
+
+test("identity survives call end, late starts, retries and audit redaction, within its clinic", async () => {
+  const { sqlite, db } = database();
+  try {
+    const event = { eventId: "identity", schemaVersion: 1, callId: "call", configVersion: "v2", occurredAt: "2026-09-19T12:00:30.000Z",
+      type: "patient.identified", payload: { orgSlug: "arenal", patientName: "María García", patientId: "P01", zeroRetention: true } };
+    await storeCallEvent(db, event);
+    await storeCallEvent(db, { ...event, eventId: "end", type: "call.ended", occurredAt: "2026-09-19T12:01:00.000Z",
+      payload: { orgSlug: "arenal", durationMs: 60_000, outcome: "cita" } });
+    await storeCallEvent(db, { ...event, eventId: "start", type: "call.started", occurredAt: "2026-09-19T12:00:00.000Z", payload: { orgSlug: "arenal" } });
+    await storeCallEvent(db, event);
+    await storeCallEvent(db, { ...event, eventId: "foreign", payload: { ...event.payload, orgSlug: "sanitas", patientName: "Wrong clinic" } });
+    const row = sqlite.prepare("SELECT * FROM voice_calls").get();
+    assert.equal(row.started_at, "2026-09-19T12:00:00.000Z");
+    assert.equal(JSON.parse(row.summary).patientName, "María García");
+    assert.equal(JSON.parse(row.summary).outcome, "cita");
+    assert.equal(JSON.parse(sqlite.prepare("SELECT payload FROM agent_events WHERE event_id = 'identity'").get().payload).patientName, "[redacted]");
+  } finally { sqlite.close(); }
+});
+
+test("a newly registered identity does not inherit another patient's directory ID", async () => {
+  const { sqlite, db } = database();
+  try {
+    const event = { eventId: "known", schemaVersion: 1, callId: "call", configVersion: "v1", type: "patient.identified", occurredAt: "2026-09-19T12:00:00Z",
+      payload: { orgSlug: "arenal", patientName: "Old Patient", patientId: "P01", insurer: "sanitas" } };
+    await storeCallEvent(db, event);
+    await storeCallEvent(db, { ...event, eventId: "registered", payload: { orgSlug: "arenal", patientName: "New Patient", insurer: "cigna" } });
+    const summary = JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary);
+    assert.equal(summary.patientName, "New Patient");
+    assert.equal(summary.insurer, "cigna");
+    assert.equal(summary.patientId, undefined);
+  } finally { sqlite.close(); }
+});

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import { readCallRecord } from "./call-records.ts";
+import { readCallRecord, callFromRow } from "./call-records.ts";
 import { storeCallEvent } from "../../src/worker/storage.ts";
 
 function database(t) {
@@ -27,6 +27,13 @@ function event(id, type, payload = {}) {
   return { eventId: id, callId: "call", schemaVersion: 1, configVersion: "v1",
     occurredAt: "2026-09-19T12:01:00.000Z", type, payload: { orgSlug: "arenal", ...payload } };
 }
+
+test("list and detail mapping expose the stored patient identity", () => {
+  const call = callFromRow({ call_id: "call", started_at: "2026-09-19", summary: JSON.stringify({ patientName: "María García", patientId: "P01", insurer: "sanitas" }) });
+  assert.equal(call.patient, "María García");
+  assert.equal(call.patientId, "P01");
+  assert.equal(call.insurer, "sanitas");
+});
 
 test("stored caller and agent text is read in order, paginated, and scoped to the clinic", async (t) => {
   const db = database(t);

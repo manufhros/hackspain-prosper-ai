@@ -50,20 +50,28 @@ Ensure GitHub Actions is enabled for the repository and permits `actions/checkou
 and `actions/setup-node`. No Cloudflare Git integration is required. Disable any
 existing Cloudflare Builds auto-deployment for these same Workers to avoid duplicate deployments.
 
-Complete the database migrations and Worker secret setup below before the first
+Complete the Worker secret setup below before the first
 CI deployment. Runtime provider secrets stay on the Cloudflare Workers; GitHub
 only needs the two deployment credentials above. The desk configuration publishes
 `turno.somelabs.dev`, so the token must have access to that zone.
 
 The workflow installs both lockfiles with Node.js 22, checks voice types, builds
-OpenNext, and dry-runs both Worker bundles before deploying voice and then desk.
+OpenNext, and dry-runs both Worker bundles before applying pending D1 migrations,
+then deploying voice and desk.
 Deployments are serialized and an active deployment is not cancelled by a new push.
 GitHub may replace a pending run with a newer push while another run is active.
 Deployment of the two Workers is not atomic: if desk deployment fails after voice
 succeeds, inspect the Actions log and rerun after correcting the failure.
 
-D1 migrations remain an explicit operator step (`npm --prefix desk run db:migrate:remote`)
-before deploying code that needs a new schema. Wrangler applies the configured
+D1 migrations run through `npm --prefix desk run db:migrate:remote` against the
+shared `prosper-desk` database. Wrangler compares `desk/migrations/*.sql` with D1's
+migration history and applies only unapplied files; when none are pending, it
+exits successfully without applying migrations. This checks database state on
+every deployment, including retries, rather than relying on changed Git paths.
+A migration failure stops deployment of both Workers. Previously successful
+migrations remain applied, so schema changes must remain compatible with the
+currently deployed Workers until the new deployment succeeds.
+Wrangler applies the configured
 Durable Object migrations as part of voice deployment. CI does not upload runtime
 secrets, import call data, or run live provider calls.
 
@@ -83,7 +91,8 @@ npx wrangler login
 
 Both configurations already point to the existing database `prosper-desk` (`2d1a883d-639b-4246-a6cc-d6e0bc69c571`) with binding `prosper_desk`. Log in to the account that owns this database. If using multiple accounts, set the same `account_id` in both configs. Do not create another database for this deployment.
 
-Apply all three migrations once, through the desk configuration:
+CI applies pending migrations automatically. To apply them manually instead,
+use the same desk configuration:
 
 ```sh
 npm --prefix desk run db:migrate:remote

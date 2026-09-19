@@ -50,7 +50,7 @@ jobs:
           npm run cf:check
           npm run desk:cf:check
 
-      - name: Deploy voice, then desk
+      - name: Apply pending D1 migrations, then deploy voice and desk
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -59,6 +59,9 @@ jobs:
             echo '::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Actions secrets.'
             exit 1
           fi
+          # Wrangler checks D1's migration history and exits successfully when none are pending.
+          # A failed migration stops this step before either Worker is deployed.
+          npm --prefix desk run db:migrate:remote
           npm run cf:deploy
           # Reuse the OpenNext output already validated above.
           cd desk

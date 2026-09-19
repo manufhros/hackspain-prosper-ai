@@ -1,11 +1,10 @@
 import "server-only";
-import { callsFor } from "./metrics";
-import { readLiveCalls } from "./live-calls";
-import { usesCloudflareStorage } from "./cloudflare-storage";
-import type { Org } from "./types";
 
-export async function callsForOrg(org: Org) {
-  return usesCloudflareStorage() && org.source === "llamadas"
-    ? readLiveCalls(org.slug)
-    : callsFor(org);
+import { CLINIC } from "./clinic";
+import { readLiveCalls } from "./live-calls";
+import type { LoggedCall } from "./types";
+
+/** All calls handled for the clinic, newest first (D1 on Cloudflare, log export locally). */
+export async function clinicCalls(): Promise<LoggedCall[]> {
+  return readLiveCalls(CLINIC.slug);
 }

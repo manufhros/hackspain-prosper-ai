@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { LeadForm } from "@/components/LeadForm";
-import { HOSPITALS } from "@/lib/hospitals";
+import { SITES } from "@/lib/clinic";
 import fromLogs from "@/lib/from-logs.json";
 import styles from "./landing.module.css";
 
@@ -36,7 +36,7 @@ export default async function Home({
           </div>
           <div className={styles.trust}>
             <span><b>{calls}</b> llamadas procesadas en pruebas</span>
-            <span><b>{HOSPITALS.length}</b> centros configurados</span>
+            <span><b>{SITES.length}</b> centros configurados</span>
             <span><b>24/7</b> sin ampliar turnos</span>
           </div>
         </div>

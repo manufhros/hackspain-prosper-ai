@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LoginForm } from "@/components/LoginForm";
 import styles from "./entrar.module.css";
 
@@ -10,10 +11,10 @@ export default async function Entrar({
   return (
     <div className={styles.page}>
       <header>
-        <a className={styles.logo} href="/" aria-label="Volver a hash">
+        <Link className={styles.logo} href="/" aria-label="Volver a hash">
           <span>h</span> hash
-        </a>
-        <a className={styles.back} href="/">Volver a la web</a>
+        </Link>
+        <Link className={styles.back} href="/">Volver a la web</Link>
       </header>
       <main>
         <section className={styles.intro}>
@@ -43,7 +44,7 @@ export default async function Entrar({
           <p>Usa el correo que hash ha dado de alta para vuestro centro.</p>
           <LoginForm failed={query.e === "1"} autofocus from="/entrar" />
           <div className={styles.help}>
-            ¿Todavía no tenéis acceso? <a href="/#demo">Pedid una demo</a>
+            ¿Todavía no tenéis acceso? <Link href="/#demo">Pedid una demo</Link>
           </div>
         </section>
       </main>

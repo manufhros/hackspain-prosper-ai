@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LeadForm } from "@/components/LeadForm";
 import { HOSPITALS } from "@/lib/hospitals";
 import fromLogs from "@/lib/from-logs.json";
@@ -13,7 +14,7 @@ export default async function Home({
   return (
     <main className={styles.page}>
       <header className={styles.nav}>
-        <a className={styles.logo} href="/" aria-label="hash, inicio"><span>h</span> hash</a>
+        <Link className={styles.logo} href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
         <nav>
           <a href="#producto">El producto</a>
           <a href="/entrar">Entrar</a>
@@ -124,7 +125,7 @@ export default async function Home({
       <footer className={styles.footer}>
         <div className={styles.footerMain}>
           <div className={styles.footerBrand}>
-            <a href="/" aria-label="hash, inicio"><span>h</span> hash</a>
+            <Link href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
             <p>La recepción por voz que atiende, agenda y resuelve.</p>
           </div>
           <nav>

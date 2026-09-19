@@ -11,6 +11,7 @@ import { systemPrompt } from "./prompt.ts";
  */
 export class Conversation {
   private readonly messages: ModelMessage[] = [];
+  private hintSet = false;
 
   constructor(
     private readonly ctx: CallContext,
@@ -24,6 +25,20 @@ export class Conversation {
         madridToday: clinicTodayYmd(),
         directoryHint,
       }),
+    });
+  }
+
+  /**
+   * El hint de directorio llega por una llamada a la API que tarda ~700 ms.
+   * No se espera para saludar: se inyecta en cuanto está, siempre antes del
+   * primer turno real del paciente.
+   */
+  setDirectoryHint(hint: string): void {
+    if (!hint || this.hintSet) return;
+    this.hintSet = true;
+    this.messages.push({
+      role: "system",
+      content: `directory_hint (lookup por from_number, es una pista, no prueba de identidad): ${hint}`,
     });
   }
 

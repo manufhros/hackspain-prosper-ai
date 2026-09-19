@@ -1,5 +1,7 @@
 import { assertGatewayAuth, env } from "./config.ts";
 import { TwilioSession } from "./telephony/twilio-session.ts";
+import { FIRST_MESSAGE } from "./voice/prompt.ts";
+import { speakToMuLawFrames } from "./voice/tts.ts";
 
 assertGatewayAuth();
 
@@ -36,3 +38,9 @@ const server = Bun.serve<SocketData>({
 });
 
 console.log(`white-label voice agent on ws://0.0.0.0:${server.port}/ws`);
+
+// El TTS en frío tarda ~3.7 s. Se calienta el saludo al arrancar para que la
+// primera llamada real no lo pague.
+void speakToMuLawFrames(FIRST_MESSAGE)
+  .then((frames) => console.log(`greeting prewarmed (${frames.length} frames)`))
+  .catch((error) => console.error("greeting prewarm failed", error));

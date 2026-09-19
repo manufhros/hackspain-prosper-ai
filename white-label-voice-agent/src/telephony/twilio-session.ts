@@ -37,6 +37,7 @@ export class TwilioSession {
   private playing = false;
   private playGeneration = 0;
   private closed = false;
+  private hintReady: Promise<void> | null = null;
 
   constructor(private readonly ws: Socket) {}
 
@@ -63,9 +64,14 @@ export class TwilioSession {
           console.log(tag(callId), "tool", name, JSON.stringify(input), output.slice(0, 300)),
       };
       console.log("call start", callId, fromNumber ?? "withheld");
-      const hint = await lookupByPhone(platform, fromNumber);
-      this.conversation = new Conversation(this.ctx, hint);
+      const conversation = new Conversation(this.ctx, "");
+      this.conversation = conversation;
+      // Saluda YA. Cualquier espera aquí es silencio en la línea y el harness
+      // lo marca como agent_silence.
       void this.say(FIRST_MESSAGE);
+      this.hintReady = lookupByPhone(platform, fromNumber).then((hint) => {
+        conversation.setDirectoryHint(hint);
+      });
       return;
     }
 
@@ -108,6 +114,7 @@ export class TwilioSession {
     try {
       const text = await transcribeUtterance(pcm);
       if (!text) return;
+      await this.hintReady; // resuelto hace rato; solo garantiza el orden
       console.log(tagged, "user", text);
       const reply = await this.conversation.respond(text);
       console.log(tagged, "agent", reply);

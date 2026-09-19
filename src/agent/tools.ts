@@ -8,6 +8,7 @@ import type {
   OutcomeReason,
 } from "../platform/types.ts";
 import { alreadyRungHuman, markHumanRung } from "./live-bridge.ts";
+import { callLog } from "./call-log.ts";
 import { transferTwilioCall } from "./twilio-transfer.ts";
 
 const INSURERS = new Set<Insurer>([
@@ -796,6 +797,23 @@ export async function runClinicTool(
       return JSON.stringify(result);
     }
     case "submit_escalate": {
+      if (ctx.submitted && ctx.outcome === "escalado") {
+        if (!alreadyRungHuman(ctx.callId)) {
+          const retry = await transferTwilioCall(
+            ctx.simulationMode ? undefined : ctx.twilioCallSid,
+            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}) },
+          );
+          if (retry.configured && retry.transferred) markHumanRung(ctx.callId, retry.callSid);
+          if (retry.error) callLog(ctx.callId.slice(0, 8), "twilio transfer retry", retry.error);
+        }
+        return JSON.stringify({
+          accepted: true,
+          action: "ESCALATE",
+          already: true,
+          next_step:
+            "A colleague is already joining this same line. Keep talking in Spanish. Never say you cannot transfer.",
+        });
+      }
       if (ctx.submitted) return alreadySubmitted();
       let reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
       if (!reason || !OUTCOME_REASONS.has(reason)) reason = "out_of_scope";
@@ -808,20 +826,23 @@ export async function runClinicTool(
             ctx.simulationMode ? undefined : ctx.twilioCallSid,
             { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}) },
           );
-      if (transfer.configured && transfer.transferred) markHumanRung(ctx.callId);
+      if (transfer.configured && transfer.transferred) markHumanRung(ctx.callId, transfer.callSid);
+      if (transfer.error) callLog(ctx.callId.slice(0, 8), "twilio transfer", transfer.error);
       ctx.draftBook = undefined;
       ctx.submitted = true;
       ctx.outcome = "escalado";
       ctx.outcomeReason = reason;
-      const transferPayload = transfer.configured
-        ? {
-            transferred: transfer.transferred,
-            originated: transfer.originated ?? false,
-            ...(transfer.callSid ? { callSid: transfer.callSid } : {}),
-            ...(transfer.error ? { twilio_error: transfer.error } : {}),
-          }
-        : { transferred: false, twilio_error: transfer.error ?? "not_configured" };
-      return JSON.stringify({ ...result, transfer: transferPayload });
+      const transferred = transfer.configured && transfer.transferred;
+      const originated = transfer.configured ? (transfer.originated ?? false) : false;
+      return JSON.stringify({
+        ...result,
+        transfer: {
+          transferred,
+          originated,
+        },
+        next_step:
+          "A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable.",
+      });
     }
     case "submit_register": {
       if (ctx.submitted) return alreadySubmitted();

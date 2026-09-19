@@ -3,6 +3,11 @@ import { PlatformClient } from "../platform/client.ts";
 import { callLog, callLogError, callLogWarn } from "./call-log.ts";
 import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts";
 import { holdFrame } from "./hold-audio.ts";
+import {
+  patientReplyFor,
+  PATIENT_SPEECH,
+  splitHandoffTranscript,
+} from "./twilio-transfer.ts";
 import { AGENT_PROMPT } from "./prompt.ts";
 import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { loadRuntimeConfig } from "./runtime-config.ts";
@@ -10,6 +15,8 @@ import { deliverPostCall, emitCallEvent } from "./call-event.ts";
 import {
   getLiveSession,
   liveSessionIds,
+  markPhoneJoined,
+  parseJoinPath,
   registerLiveSession,
   sessionKeptForPhone,
   unregisterLiveSession,
@@ -122,7 +129,8 @@ function clinicNameFor(orgSlug: string): string {
   return "Clínica Arenal";
 }
 
-export async function handleCall(twilio: WebSocket): Promise<void> {
+export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise<void> {
+  const pathJoin = parseJoinPath(requestUrl);
   let streamSid: string | undefined;
   let ctx: CallContext | undefined;
   let eleven: WebSocket | undefined;
@@ -142,6 +150,10 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   let joinedHost: { sendElevenAudio: (ulaw: string) => void; removePhone: (ws: WebSocket) => void } | undefined;
   let connectEleven: (() => Promise<void>) | undefined;
   let elevenReconnects = 0;
+  let muteAgent = false;
+  let handedOff = false;
+  let patientAnnounced = false;
+  let patientReplied = false;
 
   const finalise = async (callCtx: CallContext) => {
     if (finalised) return;
@@ -180,10 +192,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     }
   };
 
-  const sendAgentAudio = (payload: string) => {
-    if (streamSid && twilio.readyState === WebSocket.OPEN) {
-      sendTwilio({ event: "media", streamSid, media: { payload } });
-    }
+  const sendToPhones = (payload: string) => {
     for (const phone of phones) {
       if (phone.ws.readyState === WebSocket.OPEN) {
         phone.ws.send(JSON.stringify({
@@ -193,6 +202,13 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         }));
       }
     }
+  };
+
+  const sendAgentAudio = (payload: string) => {
+    if (streamSid && twilio.readyState === WebSocket.OPEN) {
+      sendTwilio({ event: "media", streamSid, media: { payload } });
+    }
+    sendToPhones(payload);
   };
 
   const sendMonitor = (monitor: Record<string, unknown>) => {
@@ -235,6 +251,12 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     playHold();
   };
 
+  const announceSimulatedPatient = () => {
+    if (patientAnnounced) return;
+    patientAnnounced = true;
+    sendMonitor({ type: "user", text: PATIENT_SPEECH, language: "es", role: "patient" });
+  };
+
   const hostStillNeeded = () =>
     phones.length > 0 || (ctx != null && sessionKeptForPhone(ctx.callId));
 
@@ -254,6 +276,15 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   const isPauseTranscript = (text: string) =>
     /^\.{2,}$/i.test(text.trim()) || /^(um+|uh+|hmm+|mhm+|mm+)\.?$/i.test(text.trim());
 
+  const speakPatientReply = (helperText: string) => {
+    const reply = patientReplyFor(helperText);
+    if (!reply || patientReplied) return;
+    patientReplied = true;
+    sendMonitor({ type: "user", text: reply, language: "es", role: "patient" });
+    callLog(ctx?.callId.slice(0, 8) ?? "session", "patient reply", reply);
+    callLog(ctx?.callId.slice(0, 8) ?? "session", "patient reply on phone after pause");
+  };
+
   const isNudgeSpeech = (text: string) =>
     /still there|anyone there|can you hear me|if you are there|whenever you are ready to speak/i.test(
       text,
@@ -262,7 +293,6 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   const attachEleven = (socket: WebSocket, callCtx: CallContext) => {
     eleven = socket;
     const tag = callCtx.callId.slice(0, 8);
-    let muteAgent = false;
     socket.on("message", (raw) => {
       const text = typeof raw === "string" ? raw : raw.toString();
       let message: unknown;
@@ -317,6 +347,20 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         const t = (message as { user_transcription_event?: { user_transcript?: string } })
           .user_transcription_event?.user_transcript;
         if (t) {
+          if (handedOff) {
+            const parts = splitHandoffTranscript(t);
+            if (parts.patient) announceSimulatedPatient();
+            if (parts.helper) {
+              callLog(tag, "helper", parts.helper);
+              sendMonitor({
+                type: "helper",
+                text: parts.helper,
+                language: transcriptLanguage(parts.helper),
+              });
+              speakPatientReply(parts.helper);
+            }
+            muteAgent = true;
+          } else {
           callLog(tag, "user", t);
           callCtx.transcript = [
             ...(callCtx.transcript ?? []),
@@ -368,23 +412,48 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
               });
             }
           }
+          }
         }
       }
       if (typed.type === "agent_response") {
         const t = (message as { agent_response_event?: { agent_response?: string } })
           .agent_response_event?.agent_response;
         if (t) {
+          if (handedOff) {
+            muteAgent = true;
+          } else {
           callLog(tag, "agent", t);
+          if (
+            /le (paso|pongo|transfiere|conecto)|un momento, por favor|i will transfer|please hold/i.test(
+              t,
+            )
+          ) {
+            muteAgent = true;
+          }
           callCtx.transcript = [
             ...(callCtx.transcript ?? []),
             { speaker: "agent" as const, text: t },
           ].slice(-12);
           sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
           if (isNudgeSpeech(t)) muteAgent = true;
+          }
         }
       }
 
       const toolCall = extractClientToolCall(message);
+      if (toolCall && handedOff) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(
+            JSON.stringify({
+              type: "client_tool_result",
+              tool_call_id: toolCall.tool_call_id,
+              result: "A human receptionist is booking this. Stay silent. Do not call tools.",
+              is_error: false,
+            }),
+          );
+        }
+        return;
+      }
       if (toolCall) {
         toolCalls += 1;
         callLog(tag, "tool", toolCall.tool_name, toolCall.parameters);
@@ -446,12 +515,12 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                 }),
               );
               if (toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
-                socket.send(
-                  JSON.stringify({
-                    type: "contextual_update",
-                    text: "You remain on this same call as reception. A colleague is joining by phone and must hear you. Keep speaking Spanish with the caller. Do not say you are transferring, putting them through, le pongo, le transfiere, le conecto, un momento, out of scope, or goodbye.",
-                  }),
-                );
+                muteAgent = true;
+                sendEleven({
+                  type: "contextual_update",
+                  text: "Stay completely silent. Do not speak. The test patient will start the phone call.",
+                });
+                sendMonitor({ type: "handoff_ready" });
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
                   JSON.stringify({
@@ -575,12 +644,13 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       streamSid = start.start.streamSid;
       const params = start.start.customParameters ?? {};
       callLog("stream start", start.start.callSid, JSON.stringify(params));
-      const joinId = params.join ?? params["Join"];
+      const joinId = params.join ?? params["Join"] ?? pathJoin.joinId;
       if (joinId) {
         const host = getLiveSession(joinId);
         if (host) {
           host.addPhone(twilio, streamSid);
           joinedHost = host;
+          markPhoneJoined(joinId);
           callLog("phone joined live agent", joinId);
           return;
         }
@@ -588,7 +658,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       }
       const callId = start.start.customParameters?.call_id || start.start.callSid;
       const fromNumber = start.start.customParameters?.from_number;
-      const orgSlug = start.start.customParameters?.org_slug || "arenal";
+      const orgSlug = start.start.customParameters?.org_slug || pathJoin.orgSlug || "arenal";
       const clinicName = clinicNameFor(orgSlug);
       simulationMode = start.start.customParameters?.simulation != null;
       const platform = new PlatformClient();
@@ -607,19 +677,32 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
             queueAudio(ulaw);
           }
         },
+        sendToCaller: (ulaw) => {
+          if (streamSid && twilio.readyState === WebSocket.OPEN) {
+            sendTwilio({ event: "media", streamSid, media: { payload: ulaw } });
+          }
+        },
         addPhone: (ws, sid) => {
           phones.push({ ws, streamSid: sid });
-          const joined =
-            "A human receptionist just joined this live call on the phone. Greet them in Spanish in one short sentence and keep talking so they can hear you. Do not say you are transferring, le pongo, out of scope or one moment.";
-          if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
-            sendEleven({ type: "contextual_update", text: joined });
-          } else {
-            pendingHint = joined;
-          }
+          markPhoneJoined(callId);
         },
         removePhone: (ws) => {
           const index = phones.findIndex((phone) => phone.ws === ws);
           if (index >= 0) phones.splice(index, 1);
+        },
+        freezeDisplay: () => {
+          if (handedOff) {
+            announceSimulatedPatient();
+            return;
+          }
+          handedOff = true;
+          muteAgent = true;
+          sendMonitor({ type: "helper_joined" });
+          announceSimulatedPatient();
+          sendEleven({
+            type: "contextual_update",
+            text: "Keep transcribing the human receptionist. Do not speak and do not call tools.",
+          });
         },
       });
 
@@ -776,6 +859,20 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
 
     if (message.event === "user_text") {
       const spoken = String((message as { text?: string }).text ?? "").trim();
+      if (handedOff) {
+        if (!spoken) return;
+        const parts = splitHandoffTranscript(spoken);
+        if (parts.patient) announceSimulatedPatient();
+        if (parts.helper) {
+          sendMonitor({
+            type: "helper",
+            text: parts.helper,
+            language: transcriptLanguage(parts.helper),
+          });
+          speakPatientReply(parts.helper);
+        }
+        return;
+      }
       const callCtx = ctx;
       if (!spoken || !callCtx) return;
       let tries = 0;

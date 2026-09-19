@@ -1,11 +1,44 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { WebSocketServer } from "ws";
 import { env } from "../config.ts";
 import { callLog, callLogError, LOG_FILE } from "./call-log.ts";
+import { getLiveSession, hasPhoneJoined, outboundCallSid } from "./live-bridge.ts";
 import { handleCall } from "./session.ts";
-import { handoffTwiml, liveStreamTwiml } from "./twilio-transfer.ts";
+import { handoffTwiml, joinStreamUrl, liveStreamTwiml, patientReplyTwiml, startCallMediaStream, wsUrlFromOrigin } from "./twilio-transfer.ts";
 
 const startedAt = Date.now();
+
+function requestHost(req: IncomingMessage) {
+  return String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "127.0.0.1:7860")
+    .split(",")[0]!
+    .trim();
+}
+
+function requestProto(req: IncomingMessage) {
+  return String(req.headers["x-forwarded-proto"] ?? "https").split(",")[0]!.trim();
+}
+
+function publicOrigin(req: IncomingMessage) {
+  const proto = requestProto(req) === "http" ? "http" : "https";
+  return `${proto}://${requestHost(req)}`;
+}
+
+function streamUrls(req: IncomingMessage, join: string, org: string) {
+  const origin = publicOrigin(req);
+  const wsUrl = wsUrlFromOrigin(origin);
+  const statusCallback = `${origin}/twiml/stream-status`;
+  return { origin, wsUrl, statusCallback };
+}
+
+function readBody(req: IncomingMessage) {
+  return new Promise<string>((resolve) => {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+  });
+}
 
 const server = createServer((req, res) => {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
@@ -24,28 +57,55 @@ const server = createServer((req, res) => {
     res.end(handoffTwiml(url.searchParams.get("summary") ?? undefined));
     return;
   }
+  if (url.pathname === "/twiml/patient-reply") {
+    res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
+    res.end(patientReplyTwiml(url.searchParams.get("text") ?? undefined));
+    return;
+  }
   if (url.pathname === "/twiml/live") {
     const join = url.searchParams.get("join") ?? "";
-    const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "127.0.0.1:7860")
-      .split(",")[0]!
-      .trim();
-    const proto = String(req.headers["x-forwarded-proto"] ?? "https").split(",")[0]!.trim();
-    const wsUrl = `${proto === "http" ? "ws" : "wss"}://${host}/ws`;
-    const statusCallback = `${proto === "http" ? "http" : "https"}://${host}/twiml/stream-status`;
+    const org = url.searchParams.get("org") ?? "arenal";
+    const { wsUrl, statusCallback } = streamUrls(req, join, org);
     callLog("twiml live", join.slice(0, 8), wsUrl);
     res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
-    res.end(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal", statusCallback));
+    res.end(liveStreamTwiml(wsUrl, join, org, statusCallback));
+    getLiveSession(join)?.freezeDisplay();
     return;
   }
   if (url.pathname === "/twiml/stream-status") {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk) => {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    });
-    req.on("end", () => {
-      callLog("stream status", Buffer.concat(chunks).toString("utf8").slice(0, 500));
+    void readBody(req).then((body) => {
+      callLog("stream status", body.slice(0, 500));
       res.writeHead(204);
       res.end();
+    });
+    return;
+  }
+  if (url.pathname === "/twiml/call-status") {
+    void readBody(req).then((body) => {
+      const posted = new URLSearchParams(body);
+      const callSid = posted.get("CallSid") ?? "";
+      const callStatus = posted.get("CallStatus") ?? "";
+      const join = url.searchParams.get("join") ?? "";
+      const org = url.searchParams.get("org") ?? "arenal";
+      callLog("call status", callStatus, callSid.slice(0, 10), join.slice(0, 8));
+      res.writeHead(204);
+      res.end();
+      if (!callSid || !join) return;
+      if (callStatus !== "in-progress" && callStatus !== "answered") return;
+      if (hasPhoneJoined(join)) return;
+      const { wsUrl, statusCallback } = streamUrls(req, join, org);
+      setTimeout(() => {
+        if (hasPhoneJoined(join)) return;
+        void startCallMediaStream(callSid, joinStreamUrl(publicOrigin(req), join, org)).then((result) => {
+          callLog(
+            "rest stream",
+            callSid.slice(0, 10),
+            result?.ok ? "ok" : "fail",
+            result?.status ?? 0,
+            result?.error ?? "",
+          );
+        });
+      }, 6_000);
     });
     return;
   }
@@ -76,7 +136,7 @@ wss.on("connection", (socket, req) => {
   socket.on("error", (error) => {
     callLogError("twilio socket", error);
   });
-  void handleCall(socket);
+  void handleCall(socket, req.url ?? "/ws");
 });
 
 wss.on("error", (error) => {

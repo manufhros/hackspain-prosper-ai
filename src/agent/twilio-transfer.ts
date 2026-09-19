@@ -2,6 +2,10 @@ function xml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+function sayEs(text: string) {
+  return `<Say language="es-ES" voice="Polly.Sergio-Neural">${xml(text)}</Say>`;
+}
+
 export type TransferResult =
   | { configured: false; error?: string }
   | {
@@ -35,23 +39,85 @@ function credentials() {
 }
 
 function spokenHandoff() {
-  return "Le transfiere recepción. Un compañero se pone al teléfono.";
+  return "Le transfiere recepción. Una compañera se pone al teléfono.";
 }
 
 export function handoffTwiml(_summary?: string) {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff())}</Say><Pause length="3"/></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(spokenHandoff())}<Pause length="3"/></Response>`;
+}
+
+export const PATIENT_SPEECH =
+  "Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana?";
+
+export const PATIENT_REPLY = "Sí, esa hora me viene muy bien. Gracias.";
+export const PATIENT_WAIT_REPLY = "Vale, muchas gracias, espero a tu compañera.";
+
+export function patientReplyFor(helperText: string): string | undefined {
+  const norm = normalizeSpeech(helperText);
+  if (!norm || /^(um+|uh+|hmm+|mhm+|mm+)$/.test(norm)) return undefined;
+  if (norm.includes("companer") || norm.includes("paso con")) return PATIENT_WAIT_REPLY;
+  if (
+    norm.includes("cita") ||
+    norm.includes("viene bien") ||
+    norm.includes("hora") ||
+    norm.includes("nueve") ||
+    /\b9\b/.test(norm)
+  ) {
+    return PATIENT_REPLY;
+  }
+  return "Vale, gracias.";
+}
+
+function normalizeSpeech(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[¿?¡!.,;:–—-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** The phone plays the patient; the helper only confirms the booking. Never keep both in one turn. */
+export function splitHandoffTranscript(text: string): { patient?: string; helper?: string } {
+  const raw = text.replace(/\s+/g, " ").trim();
+  if (!raw) return {};
+  const norm = normalizeSpeech(raw);
+  const patientish =
+    (norm.includes("medicina general") || norm.includes("primera cita")) &&
+    (norm.includes("hueco") || norm.includes("por la manana") || norm.includes("llamaba para pedir"));
+  if (!patientish) return { helper: raw };
+  const cut = raw.match(/por la ma[ñn]ana[^?]{0,16}\??/i);
+  if (cut?.index != null) {
+    const helper = raw.slice(cut.index + cut[0].length).replace(/^[\s.,;:¿¡-]+/, "").trim();
+    return { patient: PATIENT_SPEECH, ...(helper ? { helper } : {}) };
+  }
+  return { patient: PATIENT_SPEECH };
+}
+
+export function patientReplyTwiml(text = PATIENT_REPLY) {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(text)}<Pause length="600"/></Response>`;
+}
+
+export async function updateCallUrl(callSid: string, url: string) {
+  return twilioPost(
+    `/Calls/${encodeURIComponent(callSid)}.json`,
+    new URLSearchParams({ Url: url }),
+  );
 }
 
 export function liveStreamTwiml(
-  wsUrl: string,
-  joinCallId: string,
-  orgSlug = "arenal",
-  statusCallback?: string,
+  _wsUrl: string,
+  _joinCallId: string,
+  _orgSlug = "arenal",
+  _statusCallback?: string,
 ) {
-  const status = statusCallback
-    ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
-    : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="14"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
+}
+
+export function joinStreamUrl(origin: string, joinCallId: string, orgSlug = "arenal") {
+  const base = origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+  return `${base}/ws/join/${encodeURIComponent(joinCallId)}/${encodeURIComponent(orgSlug)}`;
 }
 
 /** Trial accounts reject inline `Twiml`. Use a short HTTPS message URL Twilio can fetch. */
@@ -122,6 +188,16 @@ async function twilioPost(path: string, body: URLSearchParams) {
     callSid: payload.sid,
     error: response.ok ? undefined : payload.message ?? raw.slice(0, 240),
   };
+}
+
+export async function startCallMediaStream(callSid: string, wsUrl: string) {
+  return twilioPost(
+    `/Calls/${encodeURIComponent(callSid)}/Streams.json`,
+    new URLSearchParams({
+      Url: wsUrl,
+      Track: "inbound_track",
+    }),
+  );
 }
 
 export async function originateHandoffCall(join?: {

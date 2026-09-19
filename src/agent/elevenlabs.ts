@@ -60,6 +60,50 @@ function asParams(value: unknown): Record<string, unknown> {
   return asRecord(value) ?? {};
 }
 
+const PATIENT_VOICE_ID = process.env.ELEVENLABS_PATIENT_VOICE_ID?.trim() || "XcXEQzuLXRU9RcfWzEJt";
+const ULAW_FRAME = 160;
+
+export async function synthesizeMulaw8k(text: string): Promise<string[]> {
+  const response = await fetch(
+    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(PATIENT_VOICE_ID)}?output_format=ulaw_8000`,
+    {
+      method: "POST",
+      headers: {
+        "xi-api-key": env.elevenLabsApiKey,
+        "content-type": "application/json",
+        accept: "application/octet-stream",
+      },
+      body: JSON.stringify({
+        text,
+        model_id: "eleven_multilingual_v2",
+        voice_settings: {
+          stability: 0.32,
+          similarity_boost: 0.8,
+          style: 0.55,
+          use_speaker_boost: true,
+        },
+      }),
+      signal: AbortSignal.timeout(12_000),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`ElevenLabs TTS ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  }
+  const raw = Buffer.from(await response.arrayBuffer());
+  const frames: string[] = [];
+  for (let offset = 0; offset < raw.length; offset += ULAW_FRAME) {
+    const slice = raw.subarray(offset, Math.min(raw.length, offset + ULAW_FRAME));
+    if (slice.length === ULAW_FRAME) {
+      frames.push(slice.toString("base64"));
+      continue;
+    }
+    const padded = Buffer.alloc(ULAW_FRAME, 0xff);
+    slice.copy(padded);
+    frames.push(padded.toString("base64"));
+  }
+  return frames;
+}
+
 export function extractClientToolCall(value: unknown): ClientToolCall | undefined {
   const record = asRecord(value);
   if (!record) return undefined;

@@ -93,11 +93,15 @@ function asNumber(value: unknown, fallback: number) {
 }
 
 export function normalizeAgentConfig(value: Partial<AgentConfig>): AgentConfig {
+  const rawVoiceId = String(value.voiceId ?? DEFAULT_AGENT_CONFIG.voiceId).trim();
+  const dropLucia = rawVoiceId === "1XKosoC1PO6b8UZKO1CE";
   return {
     ...DEFAULT_AGENT_CONFIG,
     ...value,
-    voiceId: String(value.voiceId ?? DEFAULT_AGENT_CONFIG.voiceId).trim(),
-    voiceName: String(value.voiceName ?? DEFAULT_AGENT_CONFIG.voiceName).trim(),
+    voiceId: dropLucia ? DEFAULT_AGENT_CONFIG.voiceId : rawVoiceId,
+    voiceName: dropLucia
+      ? DEFAULT_AGENT_CONFIG.voiceName
+      : String(value.voiceName ?? DEFAULT_AGENT_CONFIG.voiceName).trim(),
     voiceSpeed: asNumber(value.voiceSpeed, DEFAULT_AGENT_CONFIG.voiceSpeed),
     backgroundVolume: asNumber(
       value.backgroundVolume,

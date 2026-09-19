@@ -61,7 +61,6 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
           <span><strong>Voz de recepción</strong><small>Nativa de España · cálida y profesional</small></span>
           <select value={draft.voiceId} onChange={(event) => update({ voiceId: event.target.value })}>
             <option value="UOIqAnmS11Reiei1Ytkc">Carolina · español peninsular</option>
-            <option value="1XKosoC1PO6b8UZKO1CE">Lucía · voz propia</option>
           </select>
         </label>
         <label>

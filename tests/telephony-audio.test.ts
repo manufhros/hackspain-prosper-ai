@@ -9,9 +9,9 @@ test("mu-law silence and speech segmentation preserve pre-roll and end on a paus
   for (let i = 0; i < 100; i++) expect(vad.push(silence).utterance).toBeUndefined();
   for (let i = 0; i < 5; i++) expect(vad.push(speech).started).toBe(false);
   expect(vad.push(speech).started).toBe(true);
-  for (let i = 0; i < 39; i++) expect(vad.push(silence).utterance).toBeUndefined();
+  for (let i = 0; i < defaultVad.silenceMs / 20 - 1; i++) expect(vad.push(silence).utterance).toBeUndefined();
   const audio = vad.push(silence).utterance!;
-  expect(audio.length).toBe(50 * 160); expect(vad.speaking).toBe(false);
+  expect(audio.length).toBe((10 + defaultVad.silenceMs / 20) * 160); expect(vad.speaking).toBe(false);
   expect(vad.flush()).toBeUndefined();
 });
 test("sustained noise cannot create an unbounded utterance; stop flushes final speech", () => {

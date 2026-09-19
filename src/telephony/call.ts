@@ -1,3 +1,4 @@
+import { type SpeechDetector } from "./silero";
 import { type Outcome } from "../data";
 import { decodeAudio, WireInspector } from "../protocol";
 import { isObject } from "../validation";
@@ -19,6 +20,7 @@ export interface PlatformCallReport {
 export interface CallOptions {
   inference: Inference; audio: SharedAudio; clinic: ClinicReader; socket: CallSocket;
   lifetime: AbortSignal; live: boolean; language: string; vad: VadOptions;
+  createSpeechDetector?(): SpeechDetector | undefined;
   claim(callId: string): boolean;
   report(report: PlatformCallReport): Promise<void>;
   onEvent?(call: CallIdentity, event: TraceEvent): void;
@@ -35,6 +37,10 @@ export class PlatformCall {
   private abort = new AbortController();
   private signal: AbortSignal;
   private segmenter: VoiceActivity;
+  private detector?: SpeechDetector;
+  private detection: Promise<void> = Promise.resolve();
+  private pendingFrames = 0;
+  private closing = false;
   private inputs: { audio: Buffer; version: number }[] = [];
   private version = 0;
   private greeting = false;
@@ -69,6 +75,7 @@ export class PlatformCall {
     this.started = this.now(); this.language = options.language;
     this.signal = AbortSignal.any([this.abort.signal, options.lifetime]);
     this.segmenter = new VoiceActivity(options.vad);
+    this.detector = options.createSpeechDetector?.();
     this.done = new Promise(resolve => this.resolveDone = resolve);
     this.handshakeTimer = setTimeout(() => this.fail(new Error("No start message within 10 seconds")), 10_000);
     this.handshakeTimer.unref();
@@ -88,7 +95,7 @@ export class PlatformCall {
     this.options.onEvent?.({ session_id: this.id, call_id: this.inspector.callId }, event);
   };
   receive(raw: string | Buffer) {
-    if (this.ended) return;
+    if (this.ended || this.closing) return;
     try {
       if (typeof raw !== "string" || raw.length > 8192) throw new Error("Expected a bounded JSON text message");
       const message: unknown = JSON.parse(raw);
@@ -118,7 +125,26 @@ export class PlatformCall {
         const rms = frameEnergy(frame); this.stats.max_rms = Math.max(this.stats.max_rms, rms);
         if (rms >= this.options.vad.threshold) this.stats.above_threshold_frames++;
         if (this.stats.inbound_frames === 1) this.emit({ stage: "audio_in", elapsed_ms: 0, detail: "First inbound audio frame received" });
-        const result = this.segmenter.push(frame);
+        if (!this.detector) this.acceptFrame(frame, rms);
+        else {
+          if (++this.pendingFrames > 100) throw new Error("Speech detection fell more than two seconds behind");
+          this.detection = this.detection.then(async () => {
+            if (this.signal.aborted || this.finalizing || this.reported) return;
+            const speech = await this.detector!.push(frame);
+            if (!this.signal.aborted && !this.finalizing && !this.reported) this.acceptFrame(frame, rms, speech);
+          }).catch(error => this.fail(error)).finally(() => { this.pendingFrames--; });
+        }
+      } else if (message.event === "mark") {
+        const mark = isObject(message.mark) ? message.mark.name : undefined;
+        if (typeof mark === "string" && this.marks.has(mark)) {
+          const sentAt = this.marks.get(mark)!; this.marks.delete(mark); this.stats.playback_acks++;
+          this.emit({ stage: "playback_ack", elapsed_ms: this.now() - sentAt, detail: "Peer acknowledged the output mark" });
+        }
+      } else if (message.event === "stop") this.end("peer_stop");
+    } catch (error) { this.fail(error); }
+  }
+  private acceptFrame(frame: Buffer, rms: number, speech?: boolean) {
+    const result = this.segmenter.push(frame, speech);
         if (result.started) {
           this.version++; this.stats.speech_starts++;
           this.thinking?.abort(new Error("Superseded by caller speech"));
@@ -131,14 +157,6 @@ export class PlatformCall {
           }
         }
         if (result.utterance) this.enqueue(result.utterance);
-      } else if (message.event === "mark") {
-        const mark = isObject(message.mark) ? message.mark.name : undefined;
-        if (typeof mark === "string" && this.marks.has(mark)) {
-          const sentAt = this.marks.get(mark)!; this.marks.delete(mark); this.stats.playback_acks++;
-          this.emit({ stage: "playback_ack", elapsed_ms: this.now() - sentAt, detail: "Peer acknowledged the output mark" });
-        }
-      } else if (message.event === "stop") this.end("peer_stop");
-    } catch (error) { this.fail(error); }
   }
   private enqueue(audio: Buffer) {
     if (this.inputs.length >= 3) { this.fail(new Error("Caller audio backlog exceeded three turns")); return; }
@@ -150,6 +168,17 @@ export class PlatformCall {
   end(reason: EndReason = "socket_closed", closeCode?: number) {
     if (closeCode !== undefined) this.closeCode = closeCode;
     if (this.ended) return;
+    // Drain already received VAD frames before flushing the final spoken confirmation.
+    if (this.pendingFrames && !this.signal.aborted && !this.finalizing) {
+      if (this.closing) return;
+      this.closing = true; this.playback?.abort(); this.submitter?.closed(this.now());
+      clearTimeout(this.callTimer); clearTimeout(this.idleTimer);
+      this.options.socket.close(1000, "Call ended");
+      this.drainTimer = setTimeout(() => this.abort.abort(new Error("Call drain deadline exceeded")), 25000);
+      this.drainTimer.unref();
+      void this.detection.then(() => { this.closing = false; clearTimeout(this.drainTimer); this.end(reason, closeCode); });
+      return;
+    }
     this.endReason = reason;
     this.emit({ stage: "end", elapsed_ms: 0, detail: reason });
     clearTimeout(this.idleTimer); this.idleNotice = false;
@@ -172,11 +201,11 @@ export class PlatformCall {
     this.abort.abort(error); this.end("error");
   }
   private send(message: unknown) {
-    if (this.ended) return;
+    if (this.ended || this.closing) return;
     if (this.options.socket.send(JSON.stringify(message)) === 0) throw new Error("Socket dropped outbound audio");
   }
   private async speak(text: string, kind: "agent" | "service" = "agent", deadline?: AbortSignal) {
-    if (this.ended) return false;
+    if (this.ended || this.closing) return false;
     const playback = new AbortController(); this.playback = playback;
     const signal = AbortSignal.any([this.signal, playback.signal, ...(deadline ? [deadline] : [])]);
     const started = this.now();
@@ -281,6 +310,7 @@ export class PlatformCall {
           }
           throw error;
         }
+        await this.detection;
         this.language = this.agent.currentLanguage;
         if (version !== this.version || this.segmenter.speaking || this.inputs.length) {
           this.agent.reopenAfterInterruption();
@@ -321,9 +351,11 @@ export class PlatformCall {
   }
   private async finish() {
     if (this.reported) return;
-    this.reported = true; clearTimeout(this.handshakeTimer); clearTimeout(this.callTimer); clearTimeout(this.drainTimer); clearTimeout(this.idleTimer);
+    this.reported = true;
+    await this.detection;
+    clearTimeout(this.handshakeTimer); clearTimeout(this.callTimer); clearTimeout(this.drainTimer); clearTimeout(this.idleTimer);
     this.signal.removeEventListener("abort", this.onAbort); this.submitter?.dispose();
-    this.inputs = []; this.segmenter.reset(); this.marks.clear();
+    this.inputs = []; this.segmenter.reset(); this.detector?.reset(); this.marks.clear();
     this.emit({ stage: "audio_summary", elapsed_ms: 0, detail: "Final audio counters", metrics: { ...this.stats } });
     try {
       await this.options.report({ session_id: this.id, call_id: this.inspector.callId, stream_sid: this.inspector.streamSid,

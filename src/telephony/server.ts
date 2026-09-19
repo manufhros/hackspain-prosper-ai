@@ -1,8 +1,11 @@
+import { join } from "node:path";
+import { loadSilero } from "./silero";
+import { vadAsset } from "../voice/assets";
 import { timingSafeEqual } from "node:crypto";
 import { type Server, type ServerWebSocket } from "bun";
 import { loadConfig, saveLocal } from "../storage";
 import { clinicClient } from "../voice/platform";
-import { LocalRuntime } from "../voice/runtime";
+import { LocalRuntime, voiceDir } from "../voice/runtime";
 import { defaultVad, SharedAudio } from "./audio";
 import { PlatformCall, type CallOptions } from "./call";
 import { LiveTranscript } from "./transcript";
@@ -18,7 +21,8 @@ Requires PLATFORM_API_KEY (.env or the TUI's Keychain entry).
 VOICE_HOST=127.0.0.1  VOICE_PORT=7860  VOICE_LANGUAGE=es  VOICE_MAX_CALLS=20
 LLM_PROVIDER=local (default) or openrouter; set OPENROUTER_MODEL and OPENROUTER_API_KEY in .env (or use Setup Keychain).
 Optional VOICE_SERVER_TOKEN requires Authorization: Bearer <token> on /ws.
-VOICE_VAD_THRESHOLD=0.015  VOICE_SILENCE_MS=800 tune input turn detection.
+VOICE_VAD=silero (default) or energy; VOICE_SILENCE_MS=480
+VOICE_VAD_PROBABILITY=0.5 (Silero); VOICE_VAD_THRESHOLD=0.015 (energy only)
 VOICE_TURN_TIMEOUT_MS=25000  VOICE_WAIT_NOTICE_MS=4000  VOICE_CALL_TIMEOUT_MS=180000
 
 Starting serve warms the same local voice stack as bun start. Wait for Ready.
@@ -44,14 +48,18 @@ export function serverConfig(env: Record<string, string | undefined>, args: stri
   if (!["en", "es", "ca"].includes(language)) throw new Error("VOICE_LANGUAGE must be en, es or ca");
   const threshold = Number(env.VOICE_VAD_THRESHOLD ?? defaultVad.threshold);
   if (!Number.isFinite(threshold) || threshold < 0.001 || threshold > 0.5) throw new Error("VOICE_VAD_THRESHOLD must be 0.001–0.5");
+  const vadEngine = env.VOICE_VAD || "silero";
+  if (!["silero", "energy"].includes(vadEngine)) throw new Error("VOICE_VAD must be silero or energy");
+  const vadProbability = Number(env.VOICE_VAD_PROBABILITY ?? "0.5");
+  if (!Number.isFinite(vadProbability) || vadProbability < 0.1 || vadProbability > 0.9) throw new Error("VOICE_VAD_PROBABILITY must be 0.1–0.9");
   const token = env.VOICE_SERVER_TOKEN?.trim() || undefined;
   if (token && (token.length < 16 || token.length > 256 || /\s/.test(token))) throw new Error("VOICE_SERVER_TOKEN must be 16–256 characters without whitespace");
-  return { hostname: env.VOICE_HOST || "127.0.0.1", port: integer(port, 1, 65535, "Port"), live, language, token,
+  return { hostname: env.VOICE_HOST || "127.0.0.1", port: integer(port, 1, 65535, "Port"), live, language, token, vadEngine, vadProbability,
     turnTimeoutMs: integer(env.VOICE_TURN_TIMEOUT_MS || "25000", 1000, 120000, "VOICE_TURN_TIMEOUT_MS"),
     waitNoticeMs: integer(env.VOICE_WAIT_NOTICE_MS || "4000", 500, 10000, "VOICE_WAIT_NOTICE_MS"),
     callTimeoutMs: integer(env.VOICE_CALL_TIMEOUT_MS || "180000", 30000, 600000, "VOICE_CALL_TIMEOUT_MS"),
     maxCalls: integer(env.VOICE_MAX_CALLS || "20", 1, 20, "VOICE_MAX_CALLS"),
-    vad: { ...defaultVad, threshold, silenceMs: integer(env.VOICE_SILENCE_MS || "800", 200, 3000, "VOICE_SILENCE_MS") } };
+    vad: { ...defaultVad, threshold, silenceMs: integer(env.VOICE_SILENCE_MS || String(defaultVad.silenceMs), 200, 3000, "VOICE_SILENCE_MS") } };
 }
 export function authorized(request: Request, token?: string): boolean {
   if (!token) return true;
@@ -117,7 +125,9 @@ export async function runServer(args: string[]) {
   const lifetime = new AbortController();
   const voice = new LocalRuntime(message => console.log(message));
   const transcript = new LiveTranscript();
+  let silero: Awaited<ReturnType<typeof loadSilero>> | undefined;
   const handlers = serverHandlers(config, { inference: voice, audio: new SharedAudio(voice, lifetime.signal, voice.settings.ttsWorkers), clinic, lifetime: lifetime.signal,
+    createSpeechDetector: () => silero?.create(),
     onEvent: transcript.event,
     async report(report) {
       let saved: string | undefined;
@@ -129,6 +139,11 @@ export async function runServer(args: string[]) {
   process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown); process.once("SIGHUP", shutdown);
   try {
     await voice.start(); lifetime.signal.throwIfAborted();
+    if (config.vadEngine === "silero") {
+      console.log("Warming Silero VAD on CPU…");
+      silero = await loadSilero(join(voiceDir, vadAsset.path), config.vadProbability);
+    }
+    lifetime.signal.throwIfAborted();
     server = Bun.serve({ hostname: config.hostname, port: config.port, fetch: handlers.fetch, websocket: handlers.websocket });
     console.log(`Ready: ws://${config.hostname}:${server.port}/ws · ${config.live ? "REAL test submissions" : "dry run, no submissions"} · ${config.token ? "Bearer authentication required" : "no endpoint authentication"}`);
     console.log("Start your tunnel separately and set the public wss://<host>/ws URL in Prosper Settings → Integration.");
@@ -137,6 +152,7 @@ export async function runServer(args: string[]) {
     shutdown();
     await server?.stop(true);
     await Promise.allSettled([...handlers.calls].map(call => call.done));
+    await silero?.close();
     process.off("SIGINT", shutdown); process.off("SIGTERM", shutdown); process.off("SIGHUP", shutdown);
   }
 }

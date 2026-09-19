@@ -28,3 +28,8 @@ export function speechAssets(model: "small" | "large-v3-turbo"): Asset[] {
       sha256: "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6" },
   ];
 }
+
+export const vadAsset: Asset = {
+  path: "silero-v6.2.onnx", size: 2327524,
+  url: "https://raw.githubusercontent.com/snakers4/silero-vad/be95df9152c0d7618fa1edfeb296fc3dae32376f/src/silero_vad/data/silero_vad.onnx",
+};

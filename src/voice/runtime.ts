@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { createServer } from "node:net";
 import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
-import { speechAssets, MODEL, type Asset } from "./assets";
+import { speechAssets, vadAsset, MODEL, type Asset } from "./assets";
 import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
 import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
@@ -155,7 +155,7 @@ export class LocalRuntime implements Inference {
       for (const command of installationCommands(uv!, python, voiceDir)) await this.command(command);
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
-    for (const asset of speechAssets(this.settings.asrModel)) await this.download(asset);
+    for (const asset of [...speechAssets(this.settings.asrModel), vadAsset]) await this.download(asset);
     if (config.provider === "local") await this.startOllama(ollama!);
     this.startWorker(python, "asr");
     for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");

@@ -11,7 +11,7 @@ export function frameEnergy(frame: Uint8Array): number {
   return Math.sqrt(frame.reduce((sum, byte) => sum + muLawSample(byte) ** 2, 0) / frame.length);
 }
 export interface VadOptions { threshold: number; silenceMs: number; maxSpeechMs: number }
-export const defaultVad: VadOptions = { threshold: 0.015, silenceMs: 800, maxSpeechMs: 20_000 };
+export const defaultVad: VadOptions = { threshold: 0.015, silenceMs: 480, maxSpeechMs: 20_000 };
 
 /** Bounded 20 ms frame segmenter, with 200 ms pre-roll and 120 ms speech onset. */
 export class VoiceActivity {
@@ -21,9 +21,9 @@ export class VoiceActivity {
   private silence = 0;
   speaking = false;
   constructor(private options: VadOptions = defaultVad) {}
-  push(frame: Buffer): { started: boolean; utterance?: Buffer } {
+  push(frame: Buffer, speech?: boolean): { started: boolean; utterance?: Buffer } {
     if (frame.length !== 160) throw new Error("Expected a 20 ms mu-law frame");
-    const loud = frameEnergy(frame) >= this.options.threshold;
+    const loud = speech ?? frameEnergy(frame) >= this.options.threshold;
     let started = false;
     if (!this.speaking) {
       this.pre.push(frame); if (this.pre.length > 10) this.pre.shift();

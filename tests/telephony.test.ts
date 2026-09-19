@@ -301,3 +301,28 @@ test("reported clarification and natural confirmation produce exactly one platfo
   expect(f.requests.at(-1)!.body).toMatchObject({ call_id: "natural-confirmation", slot: booking.actions[0]!.slot });
   expect(f.reports[0]!.events.filter(e => e.stage === "tool" && e.detail.startsWith("complete_call"))).toHaveLength(1);
 });
+
+test("peer stop drains pending asynchronous speech detection before final transcription", async () => {
+  let release!: () => void;
+  const ready = new Promise<void>(resolve => release = resolve);
+  const f = fixture(undefined, false, 200, { createSpeechDetector: () => ({
+    async push(frame) { await ready; return frame[0] === 160; }, reset() {},
+  }) });
+  const wire = f.start("workbench-neural-drain"); await tick();
+  f.utterance(wire, 6, 0); f.call.receive(JSON.stringify(wire.stop(6)));
+  expect(f.reports).toHaveLength(0);
+  release(); await f.call.done;
+  expect(f.reports[0]!.status).toBe("completed");
+  expect(f.reports[0]!.transcript.some(turn => turn.role === "caller")).toBe(true);
+  expect(f.sent.filter(m => m.event === "media")).toHaveLength(1);
+});
+
+test("neural detector errors end only their call and never submit", async () => {
+  const f = fixture(undefined, true, 200, { createSpeechDetector: () => ({
+    async push() { throw new Error("Synthetic VAD failure"); }, reset() {},
+  }) });
+  const wire = f.start(); await tick(); f.utterance(wire);
+  await f.call.done;
+  expect(f.reports[0]!.errors.join()).toContain("Synthetic VAD failure");
+  expect(f.requests).toHaveLength(0);
+});

@@ -15,6 +15,55 @@ function fixture(replies: Message[], data: ObjectValue, callerPhone?: string) {
 }
 const question: Message = { role: "assistant", content: "Please tell me your full name and date of birth." };
 const signal = new AbortController().signal;
+const jessica = { ...patient, patient_id: "P01971", given_name: "Jessica", first_surname: "Roberts", second_surname: "Smith", national_id: "98789619L" };
+
+test("exact DNI tolerates one surname transcription edit and merged words, not broader identity changes", () => {
+  for (const name of ["Jessica Robert Smith", "Jessica Robertsmith", "Jessica Roberts-Smith", "Jessica Smith Roberts", "Jessica Roberts Smyth"]) {
+    const query = { name, national_id: jessica.national_id };
+    expect(verifiedPatient(jessica, query, [`The patient is ${name}. The DNI is ${jessica.national_id}.`])).toBe(true);
+  }
+  for (const name of ["Jessica Robert Smyth", "Jessica Jones Smith", "Jessie Roberts Smith", "Jessica Robert", "Jessica Roberts Brown"]) {
+    expect(verifiedPatient(jessica, { name, national_id: jessica.national_id }, [name, jessica.national_id])).toBe(false);
+  }
+  const name = "Jessica Robert Smith";
+  expect(verifiedPatient(jessica, { name, national_id: "98789618L" }, [name, "98789618L"])).toBe(false);
+  expect(verifiedPatient(jessica, { name, national_id: jessica.national_id }, [name])).toBe(false);
+  expect(verifiedPatient(jessica, { name, phone: jessica.phone }, [name, jessica.phone])).toBe(false);
+  expect(verifiedPatient(jessica, { name, national_id: jessica.national_id, date_of_birth: "1999-01-01" },
+    [name, jessica.national_id, "January 1st, 1999"])).toBe(false);
+});
+
+test("directory locates by exact DNI and verifies the original spoken name locally", async () => {
+  const f = fixture([tool("directory", { name: "Jessica Robert Smith", national_id: jessica.national_id }), question],
+    { matches: [jessica, { ...jessica, patient_id: "different", national_id: "11111111A" }] });
+  await f.agent.turn("Yes, the patient is Jessica Robert Smith. The DNI is 98789619L.", signal);
+  expect(f.requests).toEqual(["/api/v1/directory?national_id=98789619L"]);
+  const result = JSON.parse(f.agent.messages.find(m => m.role === "tool")!.content);
+  expect(result.identity_verified).toBe(true);
+  expect(result.matches.map((m: ObjectValue) => m.patient_id)).toEqual(["P01971"]);
+  expect(result.matches[0]).not.toHaveProperty("national_id");
+});
+
+test("an identifier match with a larger name mismatch asks for spelling without exposing the chart", async () => {
+  const f = fixture([tool("directory", { name: "Jessica Jones Smith", national_id: jessica.national_id }), question], { matches: [jessica] });
+  await f.agent.turn("Jessica Jones Smith, DNI 98789619L", signal);
+  const result = JSON.parse(f.agent.messages.find(m => m.role === "tool")!.content);
+  expect(result.identity_verified).toBe(false); expect(result.matches).toEqual([]);
+  expect(result.instruction).toContain("exact identifier matches a record");
+  expect(result.instruction).toContain("spell the patient's full name");
+  for (const value of ["Roberts", "P01971", jessica.phone, jessica.national_id]) expect(JSON.stringify(result)).not.toContain(value);
+});
+
+test("DNI lookup never discards conflicts or chooses between duplicate exact identifiers", async () => {
+  const args = { name: "Jessica Robert Smith", national_id: jessica.national_id, date_of_birth: "1999-01-01" };
+  const f = fixture([tool("directory", args), question], { matches: [jessica] });
+  await f.agent.turn("Jessica Robert Smith, DNI 98789619L, born January 1st, 1999", signal);
+  expect(JSON.parse(f.agent.messages.find(m => m.role === "tool")!.content).identity_verified).toBe(false);
+  const ambiguous = fixture([tool("directory", { name: "Jessica Robert Smith", national_id: jessica.national_id }), question],
+    { matches: [jessica, { ...jessica, patient_id: "duplicate" }] });
+  await ambiguous.agent.turn("Jessica Robert Smith, DNI 98789619L", signal);
+  expect(JSON.parse(ambiguous.agent.messages.find(m => m.role === "tool")!.content).identity_verified).toBe(false);
+});
 
 test("identity requires supplied name and exact matching second field, not a caller-ID hint", () => {
   const turns = ["Me llamo Josefa Domínguez", "Nací el 19 de septiembre de 2001"];

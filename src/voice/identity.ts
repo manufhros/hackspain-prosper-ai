@@ -26,15 +26,41 @@ export function callerSupplied(field: string, value: unknown, turns: string[]): 
   return turns.some(text => new RegExp(`(?:^|[^0-9])${field === "phone" ? "(?:0034|34)?" : ""}${expected}(?![0-9])`).test(compact(text)));
 }
 
-export function verifiedPatient(patient: ObjectValue, query: ObjectValue, turns: string[]): boolean {
-  if (!callerSupplied("name", query.name, turns)) return false;
-  const name = ` ${words(String(query.name))} `;
-  // Fuzzy directory results alone cannot establish identity. Ask for spelling if needed.
-  if (![patient.given_name, patient.first_surname].every(part => typeof part === "string" && name.includes(` ${words(part)} `))) return false;
+export function exactIdentifiersMatch(patient: ObjectValue, query: ObjectValue, turns: string[]): boolean {
   const fields = ["national_id", "phone", "date_of_birth"].filter(field => query[field] != null);
   return fields.length > 0 && fields.every(field => {
     if (!callerSupplied(field, query[field], turns) || typeof patient[field] !== "string") return false;
     return field === "phone" ? phone(String(query[field])) === phone(String(patient[field]))
       : compact(String(query[field])) === compact(String(patient[field]));
   });
+}
+
+function oneEdit(a: string, b: string): boolean {
+  if (Math.min(a.length, b.length) < 4 || Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++edits > 1) return false;
+    if (a.length >= b.length) i++;
+    if (b.length >= a.length) j++;
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+export function verifiedPatient(patient: ObjectValue, query: ObjectValue, turns: string[]): boolean {
+  if (!callerSupplied("name", query.name, turns) || !exactIdentifiersMatch(patient, query, turns)) return false;
+  if (typeof patient.given_name !== "string" || typeof patient.first_surname !== "string") return false;
+  const given = compact(patient.given_name), first = compact(patient.first_surname);
+  const second = typeof patient.second_surname === "string" ? compact(patient.second_surname) : "";
+  const name = compact(String(query.name));
+  if (!given || !first || !name.startsWith(given)) return false;
+  const surnames = name.slice(given.length);
+  // Ignore ASR spacing/hyphens and surname order, but never an extra conflicting name.
+  if ([first, first + second, second + first].includes(surnames)) return true;
+  // A fuzzy API score is not identity. Only an exact, caller-supplied DNI/NIE
+  // enables one surname edit; the given name and other surname must be exact.
+  if (query.national_id == null || !second) return false;
+  return [[first, second], [second, first]].some(([a, b]) =>
+    (surnames.startsWith(a!) && oneEdit(surnames.slice(a!.length), b!))
+    || (surnames.endsWith(b!) && oneEdit(surnames.slice(0, -b!.length), a!)));
 }

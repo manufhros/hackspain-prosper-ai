@@ -4,19 +4,24 @@ export async function getSignedConversationUrl(): Promise<string> {
   const url = new URL("https://api.elevenlabs.io/v1/convai/conversation/get-signed-url");
   url.searchParams.set("agent_id", env.elevenLabsAgentId);
   let lastError = "signed url failed";
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     if (attempt > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 200 * 2 ** (attempt - 1)));
+      await new Promise((resolve) => setTimeout(resolve, 400 * 2 ** Math.min(attempt - 1, 4)));
     }
-    const response = await fetch(url, {
-      headers: { "xi-api-key": env.elevenLabsApiKey },
-    });
-    if (response.ok) {
-      const body = (await response.json()) as { signed_url: string };
-      return body.signed_url;
+    try {
+      const response = await fetch(url, {
+        headers: { "xi-api-key": env.elevenLabsApiKey },
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (response.ok) {
+        const body = (await response.json()) as { signed_url: string };
+        return body.signed_url;
+      }
+      lastError = `ElevenLabs signed URL ${response.status}: ${await response.text()}`;
+      if (response.status !== 429 && response.status < 500) break;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "signed url failed";
     }
-    lastError = `ElevenLabs signed URL ${response.status}: ${await response.text()}`;
-    if (response.status !== 429 && response.status < 500) break;
   }
   throw new Error(lastError);
 }

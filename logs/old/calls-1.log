@@ -1,0 +1,174 @@
+[2026-09-19T00:25:27.245Z] socket open 1 live
+[2026-09-19T00:25:27.421Z] call start 3353274c-fc7e-5e71-9bf3-35b3d143f277 +34610753975
+[2026-09-19T00:25:27.586Z] directory hint 3353274c-fc7e-5e71-9bf3-35b3d143f277 [{"patient_id":"P00278","name":"Rafael Medina Castro","insurer":"privado","has_visited_before":false}]
+[2026-09-19T00:25:27.977Z] 3353274c eleven conversation_initiation_metadata
+[2026-09-19T00:25:28.510Z] 3353274c agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:28.510Z] 3353274c eleven agent_response
+[2026-09-19T00:25:28.621Z] socket open 2 live
+[2026-09-19T00:25:28.672Z] call start f269fb39-77eb-5aa7-975c-8040aeab2a5b +34698798940
+[2026-09-19T00:25:28.732Z] directory hint f269fb39-77eb-5aa7-975c-8040aeab2a5b [{"patient_id":"P01062","name":"James Wright Bennett","insurer":"caser","has_visited_before":true}]
+[2026-09-19T00:25:28.959Z] socket open 3 live
+[2026-09-19T00:25:29.012Z] call start d7ba1aee-e9cd-5223-8225-4e87dcb724cc +34793769429
+[2026-09-19T00:25:29.074Z] directory hint d7ba1aee-e9cd-5223-8225-4e87dcb724cc [{"patient_id":"P00583","name":"Ramón Gil González","insurer":"cigna","has_visited_before":false}]
+[2026-09-19T00:25:29.137Z] f269fb39 eleven conversation_initiation_metadata
+[2026-09-19T00:25:29.412Z] d7ba1aee eleven conversation_initiation_metadata
+[2026-09-19T00:25:29.583Z] f269fb39 eleven agent_response
+[2026-09-19T00:25:29.584Z] f269fb39 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:30.001Z] d7ba1aee eleven agent_response
+[2026-09-19T00:25:30.001Z] d7ba1aee agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:30.380Z] socket open 4 live
+[2026-09-19T00:25:30.428Z] call start c3a47b5b-4b67-5a6d-afdc-59b412b99dc4 +34700625415
+[2026-09-19T00:25:30.489Z] directory hint c3a47b5b-4b67-5a6d-afdc-59b412b99dc4 [{"patient_id":"P00843","name":"Consuelo Serrano Ramírez","insurer":"privado","has_visited_before":true}]
+[2026-09-19T00:25:31.892Z] socket open 5 live
+[2026-09-19T00:25:31.945Z] call start af0a0f1e-ac78-51ba-8f11-552bb6b22394 +34708022742
+[2026-09-19T00:25:32.006Z] directory hint af0a0f1e-ac78-51ba-8f11-552bb6b22394 [{"patient_id":"P01001","name":"Santiago Serrano Vázquez","insurer":"cigna","has_visited_before":false}]
+[2026-09-19T00:25:32.022Z] c3a47b5b eleven conversation_initiation_metadata
+[2026-09-19T00:25:32.383Z] af0a0f1e eleven conversation_initiation_metadata
+[2026-09-19T00:25:32.386Z] c3a47b5b agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:32.385Z] c3a47b5b eleven agent_response
+[2026-09-19T00:25:33.134Z] af0a0f1e eleven agent_response
+[2026-09-19T00:25:33.134Z] af0a0f1e agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:33.405Z] socket open 6 live
+[2026-09-19T00:25:33.455Z] call start b8a79bf0-67e4-54cd-aecb-c3a0649b89e4 +34601886594
+[2026-09-19T00:25:34.023Z] directory hint b8a79bf0-67e4-54cd-aecb-c3a0649b89e4 [{"patient_id":"P00259","name":"Victoria Navarro Sanz","insurer":"mapfre","has_visited_before":true}]
+[2026-09-19T00:25:34.366Z] 3353274c eleven user_transcript
+[2026-09-19T00:25:34.366Z] 3353274c user Hello.
+[2026-09-19T00:25:34.447Z] 3353274c agent Hello. How can I help you today?
+[2026-09-19T00:25:34.447Z] 3353274c eleven agent_response
+[2026-09-19T00:25:34.455Z] b8a79bf0 eleven conversation_initiation_metadata
+[2026-09-19T00:25:34.774Z] b8a79bf0 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:34.774Z] b8a79bf0 eleven agent_response
+[2026-09-19T00:25:34.899Z] socket open 7 live
+[2026-09-19T00:25:34.949Z] call start fae0bc55-cea5-53ab-bfe6-319253cf9212 +34644455831
+[2026-09-19T00:25:35.025Z] directory hint fae0bc55-cea5-53ab-bfe6-319253cf9212 [{"patient_id":"P00593","name":"Raquel Romero Morales","insurer":"cigna","has_visited_before":true}]
+[2026-09-19T00:25:35.053Z] f269fb39 eleven user_transcript
+[2026-09-19T00:25:35.053Z] f269fb39 user Hello.
+[2026-09-19T00:25:35.135Z] f269fb39 agent Hello. How can I help you today?
+[2026-09-19T00:25:35.135Z] f269fb39 eleven agent_response
+[2026-09-19T00:25:35.323Z] d7ba1aee user Hello.
+[2026-09-19T00:25:35.323Z] d7ba1aee eleven user_transcript
+[2026-09-19T00:25:35.353Z] fae0bc55 eleven conversation_initiation_metadata
+[2026-09-19T00:25:35.396Z] d7ba1aee eleven agent_response
+[2026-09-19T00:25:35.396Z] d7ba1aee agent Hello. How can I help you today?
+[2026-09-19T00:25:36.599Z] fae0bc55 eleven agent_response
+[2026-09-19T00:25:36.598Z] fae0bc55 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:36.631Z] socket open 8 live
+[2026-09-19T00:25:36.688Z] call start 2ace54f7-26a2-5630-86a3-78be280a7c73 +34797339552
+[2026-09-19T00:25:36.830Z] directory hint 2ace54f7-26a2-5630-86a3-78be280a7c73 []
+[2026-09-19T00:25:37.132Z] 2ace54f7 eleven conversation_initiation_metadata
+[2026-09-19T00:25:37.461Z] 2ace54f7 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:37.460Z] 2ace54f7 eleven agent_response
+[2026-09-19T00:25:37.985Z] socket open 9 live
+[2026-09-19T00:25:38.055Z] call start 451f591b-acd7-524a-bc16-93aa500ccda2 +34639426188
+[2026-09-19T00:25:38.948Z] af0a0f1e user Hi.
+[2026-09-19T00:25:38.948Z] af0a0f1e eleven user_transcript
+[2026-09-19T00:25:38.948Z] directory hint 451f591b-acd7-524a-bc16-93aa500ccda2 [{"patient_id":"P00694","name":"Olivia Jackson Johnson","insurer":"caser","has_visited_before":true}]
+[2026-09-19T00:25:39.388Z] af0a0f1e eleven agent_response
+[2026-09-19T00:25:39.388Z] af0a0f1e agent Hello. How can I help you today?
+[2026-09-19T00:25:40.186Z] socket open 10 live
+[2026-09-19T00:25:40.320Z] call start d35e411e-6088-52ec-ad02-95c4193c02e0 +34750864362
+[2026-09-19T00:25:41.263Z] directory hint d35e411e-6088-52ec-ad02-95c4193c02e0 []
+[2026-09-19T00:25:42.288Z] b8a79bf0 eleven user_transcript
+[2026-09-19T00:25:42.288Z] b8a79bf0 user Hello.
+[2026-09-19T00:25:42.505Z] b8a79bf0 eleven agent_response
+[2026-09-19T00:25:42.505Z] b8a79bf0 agent Hello. How can I help you today?
+[2026-09-19T00:25:42.673Z] c3a47b5b eleven agent_response
+[2026-09-19T00:25:42.673Z] c3a47b5b eleven user_transcript
+[2026-09-19T00:25:42.673Z] c3a47b5b user Oh, sorry. I must have got the wrong number.
+[2026-09-19T00:25:42.673Z] c3a47b5b tool submit_no_action {"reason":"out_of_scope"}
+[2026-09-19T00:25:42.673Z] c3a47b5b agent No problem. Have a great day.
+[2026-09-19T00:25:42.673Z] c3a47b5b eleven client_tool_call
+[2026-09-19T00:25:42.901Z] 451f591b eleven conversation_initiation_metadata
+[2026-09-19T00:25:42.910Z] c3a47b5b eleven interruption
+[2026-09-19T00:25:42.910Z] c3a47b5b eleven agent_response_correction
+[2026-09-19T00:25:43.220Z] c3a47b5b tool result submit_no_action {"call_id":"c3a47b5b-4b67-5a6d-afdc-59b412b99dc4","received_at":"2026-09-19T00:25:42.952820Z","record":{"actions":[{"action":"NO_ACTION","reason":"out_of_scope"}]}}
+[2026-09-19T00:25:43.330Z] c3a47b5b eleven agent_tool_response
+[2026-09-19T00:25:43.494Z] d35e411e eleven conversation_initiation_metadata
+[2026-09-19T00:25:43.651Z] 451f591b eleven agent_response
+[2026-09-19T00:25:43.652Z] 451f591b agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:43.841Z] c3a47b5b eleven user_transcript
+[2026-09-19T00:25:43.841Z] c3a47b5b user Goodbye.
+[2026-09-19T00:25:43.850Z] d35e411e agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:43.850Z] d35e411e eleven agent_response
+[2026-09-19T00:25:43.902Z] 2ace54f7 user Hello.
+[2026-09-19T00:25:43.902Z] 2ace54f7 eleven user_transcript
+[2026-09-19T00:25:43.961Z] c3a47b5b eleven agent_response
+[2026-09-19T00:25:43.961Z] c3a47b5b agent Goodbye. Have a nice day.
+[2026-09-19T00:25:43.985Z] 2ace54f7 eleven agent_response
+[2026-09-19T00:25:43.985Z] 2ace54f7 agent Hello. How can I help you today?
+[2026-09-19T00:25:46.229Z] 3353274c user Yeah. So, um, I need an appointment with Dr. Peral about lower back pain that's been there a month.
+[2026-09-19T00:25:46.229Z] 3353274c eleven user_transcript
+[2026-09-19T00:25:46.321Z] 3353274c eleven agent_response
+[2026-09-19T00:25:46.320Z] 3353274c agent I can help you with that. May I have your full name, please?
+[2026-09-19T00:25:48.748Z] socket open 10 live
+[2026-09-19T00:25:48.941Z] d7ba1aee eleven agent_response
+[2026-09-19T00:25:48.941Z] d7ba1aee eleven user_transcript
+[2026-09-19T00:25:48.941Z] d7ba1aee user Yeah. So, I need a GP appointment about high blood pressure readings as soon as you've got one.
+[2026-09-19T00:25:48.941Z] d7ba1aee agent I can help you with that. May I have your full name, please?
+[2026-09-19T00:25:48.971Z] call start c46881e4-3354-5fc0-a95d-c7c7061c0b34 +34653170327
+[2026-09-19T00:25:49.123Z] directory hint c46881e4-3354-5fc0-a95d-c7c7061c0b34 []
+[2026-09-19T00:25:49.429Z] c46881e4 eleven conversation_initiation_metadata
+[2026-09-19T00:25:49.771Z] c46881e4 eleven agent_response
+[2026-09-19T00:25:49.772Z] c46881e4 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:25:50.792Z] f269fb39 eleven user_transcript
+[2026-09-19T00:25:50.792Z] f269fb39 user Yeah. So, I need an orthopedics appointment for my knee. It aches after long walks, and I'd like the first one you've got.
+[2026-09-19T00:25:51.010Z] f269fb39 agent I can certainly help you find the earliest orthopedics appointment. May I have your full name, please?
+[2026-09-19T00:25:51.010Z] f269fb39 eleven agent_response
+[2026-09-19T00:25:52.856Z] c3a47b5b elevenlabs closed 1005 
+[2026-09-19T00:25:53.482Z] af0a0f1e eleven user_transcript
+[2026-09-19T00:25:53.482Z] af0a0f1e user Yeah, so I need a general practice appointment to go over some blood test results as soon as you have one.
+[2026-09-19T00:25:53.728Z] af0a0f1e agent I can help you with that. May I have your full name and your national identification number or date of birth to look up your file?
+[2026-09-19T00:25:53.727Z] af0a0f1e eleven agent_response
+[2026-09-19T00:25:54.388Z] c46881e4 user Hello.
+[2026-09-19T00:25:54.388Z] c46881e4 eleven user_transcript
+[2026-09-19T00:25:54.444Z] fae0bc55 eleven user_transcript
+[2026-09-19T00:25:54.444Z] fae0bc55 user Yeah, so I need an appointment with Dr. Iglesias, the dermatologist, about a dry, itchy patch on my scalp.
+[2026-09-19T00:25:54.453Z] fae0bc55 tool search_directory {"phone":"+34644455831"}
+[2026-09-19T00:25:54.453Z] fae0bc55 eleven client_tool_call
+[2026-09-19T00:25:54.472Z] c46881e4 agent Hello. How can I help you today?
+[2026-09-19T00:25:54.472Z] c46881e4 eleven agent_response
+[2026-09-19T00:25:54.938Z] fae0bc55 tool result search_directory {"matches":[{"patient_id":"P00593","given_name":"Raquel","first_surname":"Romero","second_surname":"Morales","national_id":"56744619P","date_of_birth":"1938-12-28","phone":"644455831","sex":"F","has_visited_before":true,"insurer":"cigna","referrals":["dermatology"],"note":"Nothing since May 2025, but an established patient. Eight visits, the first of them back in October 2024. A GP referral for Dermatology is on file -- the gated specialties need one. Writes it down while you wait; leave a pause after the date.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T00:25:55.044Z] fae0bc55 eleven agent_tool_response
+[2026-09-19T00:25:55.881Z] fae0bc55 eleven agent_response
+[2026-09-19T00:25:55.880Z] fae0bc55 agent I can help you with that. Are you Raquel Romero Morales?
+[2026-09-19T00:25:55.916Z] f269fb39 eleven interruption
+[2026-09-19T00:25:55.924Z] f269fb39 eleven agent_response_correction
+[2026-09-19T00:25:55.947Z] d7ba1aee tool search_directory {"name":"Ramon Hill Gonzalez"}
+[2026-09-19T00:25:55.947Z] d7ba1aee user Ramon Hill Gonzalez.
+[2026-09-19T00:25:55.947Z] d7ba1aee eleven client_tool_call
+[2026-09-19T00:25:55.946Z] d7ba1aee eleven user_transcript
+[2026-09-19T00:25:56.887Z] d7ba1aee tool result search_directory {"matches":[{"patient_id":"P00583","given_name":"Ramón","first_surname":"Gil","second_surname":"González","national_id":"30031162Q","date_of_birth":"1995-02-24","phone":"793769429","sex":"M","has_visited_before":false,"insurer":"cigna","referrals":["dermatology","physiotherapy"],"note":"Registered but never seen -- nothing on the chart yet. Answers before the question is finished; check they heard the whole of it.","match_score":0.8469387755102041,"matched_fields":["name"]},{"patient_id":"P02387","given_name":"Ramón","first_surname":"Gil","second_surname":"Morales","national_id":"18488694Y","date_of_birth":"1963-01-19","phone":"741623663","sex":"M","has_visited_before":false,"insurer":"nueva_mutua","referrals":[],"note":"First contact with the clinic; the record is empty behind them. Mishe
+[2026-09-19T00:25:56.995Z] d7ba1aee eleven agent_tool_response
+[2026-09-19T00:25:57.853Z] d7ba1aee agent To confirm your file, could you please tell me your date of birth?
+[2026-09-19T00:25:57.853Z] d7ba1aee eleven agent_response
+[2026-09-19T00:25:58.506Z] 2ace54f7 eleven user_transcript
+[2026-09-19T00:25:58.506Z] 2ace54f7 user Yeah. So, I'm new to the clinic, and I'd like to get registered as a patient, please. You're on my insurer's list, and you're the nearest clinic.
+[2026-09-19T00:25:58.544Z] b8a79bf0 eleven user_transcript
+[2026-09-19T00:25:58.544Z] b8a79bf0 user Yeah. So, um, I need an appointment with Dr. Okanya for my daughter, a rash on her tummy that comes and goes.
+[2026-09-19T00:25:58.596Z] f269fb39 eleven client_tool_call
+[2026-09-19T00:25:58.596Z] f269fb39 tool search_directory {"name":"James Wright Bennett"}
+[2026-09-19T00:25:58.596Z] f269fb39 eleven user_transcript
+[2026-09-19T00:25:58.596Z] f269fb39 user James Wright Bennett.
+[2026-09-19T00:25:58.727Z] b8a79bf0 agent I can help you with that. May I have your daughter's full name, please?
+[2026-09-19T00:25:58.727Z] b8a79bf0 eleven agent_response
+[2026-09-19T00:25:58.782Z] 2ace54f7 eleven agent_response
+[2026-09-19T00:25:58.781Z] 2ace54f7 agent I would be happy to help you register. May I have your first and second surname, please?
+[2026-09-19T00:25:59.230Z] d35e411e user Yeah, so I'm new to the clinic, and I'd like to register as a patient, just for now. I've just moved to the neighborhood and wanted somewhere close to home.
+[2026-09-19T00:25:59.230Z] d35e411e eleven user_transcript
+[2026-09-19T00:25:59.557Z] d35e411e agent Welcome to Clínica Arenal. I can certainly help you register as a new patient today. Could you please share your full name, including both of your surnames?
+[2026-09-19T00:25:59.557Z] d35e411e eleven agent_response
+[2026-09-19T00:26:00.012Z] f269fb39 tool result search_directory {"matches":[{"patient_id":"P01062","given_name":"James","first_surname":"Wright","second_surname":"Bennett","national_id":"X4542333V","date_of_birth":"1933-12-08","phone":"698798940","sex":"M","has_visited_before":true,"insurer":"caser","referrals":["dermatology","orthopaedics","physiotherapy"],"note":"Has not been in since June 2025. Has been seen three times, in general practice and orthopaedics; no usual doctor. A GP referral for Dermatology is on file -- the gated specialties need one. Asks for the date and time again at the end of the call.","match_score":1,"matched_fields":["name"]},{"patient_id":"P00203","given_name":"James","first_surname":"Walker","second_surname":"Bennett","national_id":"37134786K","date_of_birth":"1962-04-17","phone":"752008285","sex":"M","has_visited_before":tr
+[2026-09-19T00:26:00.115Z] f269fb39 eleven agent_tool_response
+[2026-09-19T00:26:00.455Z] fae0bc55 eleven agent_response_correction
+[2026-09-19T00:26:00.455Z] fae0bc55 eleven interruption
+[2026-09-19T00:26:00.644Z] af0a0f1e eleven agent_response_correction
+[2026-09-19T00:26:00.644Z] af0a0f1e eleven interruption
+[2026-09-19T00:26:00.857Z] 451f591b eleven user_transcript
+[2026-09-19T00:26:00.857Z] 451f591b user Yeah. So, um, I need to see Dr. Iglesia, the orthopedic surgeon, about lower back pain that's been going on a month.
+[2026-09-19T00:26:00.857Z] 451f591b eleven client_tool_call
+[2026-09-19T00:26:00.857Z] 451f591b tool search_directory {"phone":"639426188"}
+[2026-09-19T00:26:00.930Z] 451f591b tool result search_directory {"matches":[{"patient_id":"P00694","given_name":"Olivia","first_surname":"Jackson","second_surname":"Johnson","national_id":"Z0555440H","date_of_birth":"1999-09-22","phone":"639426188","sex":"F","has_visited_before":true,"insurer":"caser","referrals":["physiotherapy"],"note":"Nothing since June 2025, but an established patient. Two visits, most recently with Dra. Laura Benítez Roca. Holds a referral for Physiotherapy; no need to ask whether they have one. Asks for a confirmation by text afterwards.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T00:26:01.035Z] 451f591b eleven agent_tool_response
+[2026-09-19T00:26:01.112Z] f269fb39 eleven agent_response
+[2026-09-19T00:26:01.112Z] f269fb39 agent To confirm your file, could you please tell me your date of birth or your national ID number?
+[2026-09-19T00:34:01.769Z] listening ws://0.0.0.0:7860/ws

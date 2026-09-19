@@ -1,0 +1,250 @@
+[2026-09-19T00:59:28.427Z] listening ws://0.0.0.0:7860/ws
+[2026-09-19T00:59:39.964Z] socket open 1 live
+[2026-09-19T00:59:39.988Z] socket open 4 live
+[2026-09-19T00:59:39.988Z] socket open 2 live
+[2026-09-19T00:59:39.988Z] socket open 3 live
+[2026-09-19T00:59:40.035Z] call start 8a360267-caf5-5dd8-a030-d2575d83001d +34751213934
+[2026-09-19T00:59:40.086Z] call start 0cff97b2-5a2d-5861-b61a-741c5b0da913 +34618858185
+[2026-09-19T00:59:40.112Z] socket open 5 live
+[2026-09-19T00:59:40.148Z] call start 4817bc34-c616-507b-8061-ef72dc17e7c4 +34611926767
+[2026-09-19T00:59:40.203Z] directory hint 8a360267-caf5-5dd8-a030-d2575d83001d [{"patient_id":"P00159","name":"Beatriz Sánchez Medina","insurer":"cigna","has_visited_before":true}]
+[2026-09-19T00:59:40.208Z] call start c24696b4-fcaa-56ff-a473-8bcf7b4174c4 +34671868258
+[2026-09-19T00:59:40.285Z] call start 4f7b8b39-03d9-55f3-ad52-c000da8ed1fa +34637073696
+[2026-09-19T00:59:41.513Z] directory hint c24696b4-fcaa-56ff-a473-8bcf7b4174c4 [{"patient_id":"P00480","name":"Concepción Molina Suárez","insurer":"sanitas","has_visited_before":true}]
+[2026-09-19T00:59:41.513Z] directory hint 0cff97b2-5a2d-5861-b61a-741c5b0da913 [{"patient_id":"P00476","name":"Miguel Fernández López","insurer":"privado","has_visited_before":true}]
+[2026-09-19T00:59:42.554Z] directory hint 4817bc34-c616-507b-8061-ef72dc17e7c4 [{"patient_id":"P00492","name":"Javier Martín Delgado","insurer":"mapfre","has_visited_before":true}]
+[2026-09-19T00:59:44.070Z] 4817bc34 eleven conversation_initiation_metadata
+[2026-09-19T00:59:44.284Z] 8a360267 eleven conversation_initiation_metadata
+[2026-09-19T00:59:44.290Z] 0cff97b2 eleven conversation_initiation_metadata
+[2026-09-19T00:59:44.694Z] directory hint 4f7b8b39-03d9-55f3-ad52-c000da8ed1fa [{"patient_id":"P00625","name":"Grace Lewis Lewis","insurer":"axa","has_visited_before":true}]
+[2026-09-19T00:59:44.705Z] c24696b4 eleven conversation_initiation_metadata
+[2026-09-19T00:59:44.705Z] 4f7b8b39 eleven conversation_initiation_metadata
+[2026-09-19T00:59:44.705Z] 8a360267 eleven agent_response
+[2026-09-19T00:59:44.705Z] 8a360267 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:59:44.708Z] 0cff97b2 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:59:44.708Z] 0cff97b2 eleven agent_response
+[2026-09-19T00:59:44.897Z] 4817bc34 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:59:44.897Z] 4817bc34 eleven agent_response
+[2026-09-19T00:59:45.174Z] c24696b4 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:59:45.174Z] c24696b4 eleven agent_response
+[2026-09-19T00:59:45.186Z] 4f7b8b39 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T00:59:45.186Z] 4f7b8b39 eleven agent_response
+[2026-09-19T00:59:55.103Z] 4f7b8b39 user Yeah. So, um, I need a gynecology appointment about contraception.
+[2026-09-19T00:59:55.103Z] 4f7b8b39 eleven client_tool_call
+[2026-09-19T00:59:55.103Z] 4f7b8b39 tool search_directory {"phone":"+34637073696"}
+[2026-09-19T00:59:55.103Z] 4f7b8b39 eleven user_transcript
+[2026-09-19T00:59:55.403Z] 4f7b8b39 tool result search_directory {"matches":[{"patient_id":"P00625","given_name":"Grace","first_surname":"Lewis","second_surname":"Lewis","national_id":"Z5983742K","date_of_birth":"1990-09-02","phone":"637073696","sex":"F","has_visited_before":true,"insurer":"axa","referrals":["dermatology","physiotherapy"],"note":"Last seen December 2025. A single visit on the chart, with Dr. Martín Sáez. Holds a referral for Dermatology; no need to ask whether they have one. On speakerphone; expect a lag and some noise.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T00:59:55.506Z] 4f7b8b39 eleven agent_tool_response
+[2026-09-19T00:59:56.227Z] 4f7b8b39 eleven agent_response
+[2026-09-19T00:59:56.227Z] 4f7b8b39 agent Are you Grace Lewis?
+[2026-09-19T01:00:06.377Z] 8a360267 user Yeah. So, um, I need a general practice appointment about a cough that's been hanging around three weeks, as soon as you've got one.
+[2026-09-19T01:00:06.377Z] 8a360267 eleven client_tool_call
+[2026-09-19T01:00:06.377Z] 8a360267 eleven user_transcript
+[2026-09-19T01:00:06.377Z] 0cff97b2 tool search_directory {"phone":"+34618858185"}
+[2026-09-19T01:00:06.377Z] 0cff97b2 eleven user_transcript
+[2026-09-19T01:00:06.377Z] 8a360267 tool search_directory {"phone":"+34751213934"}
+[2026-09-19T01:00:06.377Z] c24696b4 user Yeah. So, I need an orthopedics appointment for a stiff shoulder after a fall a few months ago.
+[2026-09-19T01:00:06.377Z] c24696b4 eleven user_transcript
+[2026-09-19T01:00:06.377Z] 0cff97b2 eleven client_tool_call
+[2026-09-19T01:00:06.377Z] 0cff97b2 user Yeah. So, I need an orthopedics appointment. My wrist still twinges from a sprain, and I'd like the soonest one you've got.
+[2026-09-19T01:00:06.377Z] c24696b4 tool search_directory {"phone":"+34671868258"}
+[2026-09-19T01:00:06.377Z] c24696b4 eleven client_tool_call
+[2026-09-19T01:00:07.425Z] 4f7b8b39 user Mm. Yes, Grace Lewis.
+[2026-09-19T01:00:07.425Z] 4f7b8b39 eleven user_transcript
+[2026-09-19T01:00:07.438Z] 4f7b8b39 eleven agent_response
+[2026-09-19T01:00:07.438Z] 4f7b8b39 agent To confirm your identity, could you please tell me your date of birth?
+[2026-09-19T01:00:07.767Z] 4817bc34 user Yeah. So, um, I need an orthopedics appointment, the soonest one you've got. My lower back's been sore for a month and isn't getting better.
+[2026-09-19T01:00:07.767Z] 4817bc34 tool search_directory {"phone":"+34611926767"}
+[2026-09-19T01:00:07.767Z] 4817bc34 eleven user_transcript
+[2026-09-19T01:00:07.767Z] 4817bc34 eleven client_tool_call
+[2026-09-19T01:00:08.066Z] c24696b4 tool result search_directory {"matches":[{"patient_id":"P00480","given_name":"Concepción","first_surname":"Molina","second_surname":"Suárez","national_id":"09777211A","date_of_birth":"1967-10-08","phone":"671868258","sex":"F","has_visited_before":true,"insurer":"sanitas","referrals":["dermatology","orthopaedics","physiotherapy"],"note":"An existing patient with nothing on the chart behind them. Holds a referral for Dermatology; no need to ask whether they have one. Volunteers nothing; ask for each detail directly rather than waiting.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T01:00:08.066Z] 0cff97b2 tool result search_directory {"matches":[{"patient_id":"P00476","given_name":"Miguel","first_surname":"Fernández","second_surname":"López","national_id":"Z4814060G","date_of_birth":"2001-05-17","phone":"618858185","sex":"M","has_visited_before":true,"insurer":"privado","referrals":["dermatology","orthopaedics"],"note":"Still attending; the last visit was October 2025. Four visits, most recently with Dr. Pablo Requena. A GP referral for Dermatology is on file -- the gated specialties need one. Books for a partner as often as for themselves; settle who the patient is.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T01:00:08.067Z] 8a360267 tool result search_directory {"matches":[{"patient_id":"P00159","given_name":"Beatriz","first_surname":"Sánchez","second_surname":"Medina","national_id":"96546624F","date_of_birth":"1970-09-18","phone":"751213934","sex":"F","has_visited_before":true,"insurer":"cigna","referrals":[],"note":"Last seen December 2025. Four visits on the chart, spread across general practice and gynaecology. Asks whether they can be seen outside working hours.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T01:00:08.172Z] 0cff97b2 eleven agent_tool_response
+[2026-09-19T01:00:08.172Z] c24696b4 eleven agent_tool_response
+[2026-09-19T01:00:08.172Z] 8a360267 eleven agent_tool_response
+[2026-09-19T01:00:08.878Z] 4817bc34 tool result search_directory {"matches":[{"patient_id":"P00492","given_name":"Javier","first_surname":"Martín","second_surname":"Delgado","national_id":"68155424F","date_of_birth":"2004-10-20","phone":"611926767","sex":"M","has_visited_before":true,"insurer":"mapfre","referrals":["dermatology","physiotherapy"],"note":"Last seen November 2025. Coming here since January 2024 -- four visits. A GP referral for Dermatology is on file -- the gated specialties need one. Calling from somewhere busy; expect to repeat the date.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T01:00:08.955Z] 0cff97b2 agent One moment. thought
+Are you Miguel Fernández López?
+[2026-09-19T01:00:08.955Z] 0cff97b2 eleven agent_response
+[2026-09-19T01:00:08.981Z] 4817bc34 eleven agent_tool_response
+[2026-09-19T01:00:08.993Z] 8a360267 agent One moment. Are you Beatriz Sánchez Medina?
+[2026-09-19T01:00:08.993Z] 8a360267 eleven agent_response
+[2026-09-19T01:00:09.105Z] c24696b4 eleven agent_response
+[2026-09-19T01:00:09.105Z] c24696b4 agent One moment. Are you Concepción Molina Suárez?
+[2026-09-19T01:00:10.045Z] 4817bc34 agent I can help you with that. Are you Javier Martín Delgado?
+[2026-09-19T01:00:10.045Z] 4817bc34 eleven agent_response
+[2026-09-19T01:00:17.389Z] 0cff97b2 user Uh, Miguel Fernandez.
+[2026-09-19T01:00:17.389Z] 0cff97b2 tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-03","patient_id":"P00476","specialty_id":"orthopaedics","insurer":"privado"}
+[2026-09-19T01:00:17.389Z] 0cff97b2 eleven client_tool_call
+[2026-09-19T01:00:17.389Z] 0cff97b2 eleven user_transcript
+[2026-09-19T01:00:18.128Z] 0cff97b2 tool result search_availability {"soonest":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"orthopaedic_review"},"outside_hours_offer":{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},"later_saturday":[],"saturday":[],"after_work":[{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},{"start_time":"2026-09-25T15:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"A
+[2026-09-19T01:00:18.445Z] 0cff97b2 eleven agent_tool_response
+[2026-09-19T01:00:18.450Z] c24696b4 eleven user_transcript
+[2026-09-19T01:00:18.450Z] c24696b4 user Yes, Concepción Molina Suárez.
+[2026-09-19T01:00:18.627Z] 4f7b8b39 user Uh, 2nd September, 1990.
+[2026-09-19T01:00:18.627Z] 4f7b8b39 eleven user_transcript
+[2026-09-19T01:00:18.627Z] 4f7b8b39 tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-03","patient_id":"P00625","specialty_id":"gynecology","insurer":"axa"}
+[2026-09-19T01:00:18.627Z] 4f7b8b39 eleven client_tool_call
+[2026-09-19T01:00:18.634Z] c24696b4 agent To confirm, could you please tell me your date of birth?
+[2026-09-19T01:00:18.634Z] c24696b4 eleven agent_response
+[2026-09-19T01:00:18.768Z] 8a360267 eleven user_transcript
+[2026-09-19T01:00:18.768Z] 8a360267 user Ah, yes, Beatriz Sánchez Medina.
+[2026-09-19T01:00:18.772Z] 8a360267 eleven client_tool_call
+[2026-09-19T01:00:18.772Z] 8a360267 tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-02","patient_id":"P00159","specialty_id":"general_practice","insurer":"cigna"}
+[2026-09-19T01:00:19.031Z] 4f7b8b39 tool result search_availability {"soonest":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR11","provider_name":"Dra. Isabel Montoro","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"gynaecology_review"},"outside_hours_offer":null,"later_saturday":[],"saturday":[],"after_work":[],"slots":[{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR11","provider_name":"Dra. Isabel Montoro","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"gynaecology_review"},{"start_time":"2026-09-23T09:00:00+02:00","provider_id":"PR11","provider_name":"Dra. Isabel Montoro","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"gynaecology_review"},{"start_time":"2026-09-24T11:15:00+02:00","provider_id":"PR11","provider_name":"Dra. Isabel Montoro","l
+[2026-09-19T01:00:19.135Z] 4f7b8b39 eleven agent_tool_response
+[2026-09-19T01:00:19.482Z] 8a360267 tool result search_availability {"soonest":{"start_time":"2026-09-19T11:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"},"outside_hours_offer":{"start_time":"2026-09-19T12:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"},"later_saturday":[{"start_time":"2026-09-19T12:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"}],"saturday":[{"start_time":"2026-09-19T11:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro",
+[2026-09-19T01:00:19.587Z] 8a360267 eleven agent_tool_response
+[2026-09-19T01:00:19.651Z] 4817bc34 eleven user_transcript
+[2026-09-19T01:00:19.651Z] 4817bc34 user Yes, Javier Martín Delgado.
+[2026-09-19T01:00:19.651Z] 4817bc34 tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-02","patient_id":"P00492","specialty_id":"orthopedics","insurer":"mapfre"}
+[2026-09-19T01:00:19.651Z] 4817bc34 eleven client_tool_call
+[2026-09-19T01:00:19.732Z] 0cff97b2 eleven agent_response
+[2026-09-19T01:00:19.732Z] 0cff97b2 agent The soonest slot is on Monday, September twenty-first at nine thirty in the morning with Doctor Nuria Peral at Arenal Sur. Does that work for you?
+[2026-09-19T01:00:19.831Z] 4817bc34 tool result search_availability {"soonest":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"orthopaedic_review"},"outside_hours_offer":{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},"later_saturday":[],"saturday":[],"after_work":[{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},{"start_time":"2026-09-25T15:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"A
+[2026-09-19T01:00:19.941Z] 4817bc34 eleven agent_tool_response
+[2026-09-19T01:00:20.405Z] 4f7b8b39 eleven agent_response
+[2026-09-19T01:00:20.405Z] 4f7b8b39 agent I have an appointment available with Doctor Isabel Montoro at Arenal Centro on Monday, September twenty-first at nine thirty in the morning. Would that work for you?
+[2026-09-19T01:00:21.026Z] 8a360267 eleven agent_response
+[2026-09-19T01:00:21.026Z] 8a360267 agent I have an appointment available with Doctor Carmen Ortiz Vidal at our Centro location on Saturday, September nineteenth, at eleven in the morning. Would that work for you?
+[2026-09-19T01:00:21.192Z] 4817bc34 agent The soonest appointment is on Monday, September twenty-first at nine thirty in the morning with Doctor Nuria Peral at Arenal Sur. Would you like to book this slot?
+[2026-09-19T01:00:21.192Z] 4817bc34 eleven agent_response
+[2026-09-19T01:00:26.667Z] 0cff97b2 eleven interruption
+[2026-09-19T01:00:26.667Z] 0cff97b2 eleven agent_response_correction
+[2026-09-19T01:00:27.333Z] 4f7b8b39 eleven interruption
+[2026-09-19T01:00:27.333Z] 4f7b8b39 eleven agent_response_correction
+[2026-09-19T01:00:27.984Z] c24696b4 user Um, 1967-08-10.
+[2026-09-19T01:00:27.984Z] c24696b4 eleven user_transcript
+[2026-09-19T01:00:27.984Z] 8a360267 eleven interruption
+[2026-09-19T01:00:27.986Z] 8a360267 eleven agent_response_correction
+[2026-09-19T01:00:28.029Z] 4817bc34 eleven interruption
+[2026-09-19T01:00:28.029Z] 4817bc34 eleven agent_response_correction
+[2026-09-19T01:00:28.224Z] c24696b4 agent Thank you. Let me look for the earliest available orthopedics appointment for you starting from tomorrow.
+[2026-09-19T01:00:28.224Z] c24696b4 eleven agent_response
+[2026-09-19T01:00:31.576Z] 4f7b8b39 eleven user_transcript
+[2026-09-19T01:00:31.576Z] 4f7b8b39 user Oh, yes, that's fine. I'll take it.
+[2026-09-19T01:00:31.576Z] 4f7b8b39 eleven client_tool_call
+[2026-09-19T01:00:31.576Z] 0cff97b2 eleven user_transcript
+[2026-09-19T01:00:31.576Z] 4f7b8b39 tool submit_book {"patient_id":"P00625","provider_id":"PR11","location_id":"centro","appointment_type_id":"gynaecology_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"axa"}
+[2026-09-19T01:00:31.576Z] 0cff97b2 user Ah, yeah. Nine thirty with Doctor Nuria Peral is fine.
+[2026-09-19T01:00:31.576Z] 0cff97b2 tool submit_book {"patient_id":"P00476","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"privado"}
+[2026-09-19T01:00:31.576Z] 0cff97b2 eleven client_tool_call
+[2026-09-19T01:00:33.813Z] 0cff97b2 tool result submit_book {"call_id":"0cff97b2-5a2d-5861-b61a-741c5b0da913","received_at":"2026-09-19T01:00:33.676630Z","record":{"actions":[{"action":"BOOK","patient_id":"P00476","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"privado"}]}}
+[2026-09-19T01:00:33.918Z] 0cff97b2 eleven agent_tool_response
+[2026-09-19T01:00:34.241Z] c24696b4 eleven interruption
+[2026-09-19T01:00:34.241Z] c24696b4 eleven agent_response_correction
+[2026-09-19T01:00:34.269Z] 4f7b8b39 tool result submit_book {"call_id":"4f7b8b39-03d9-55f3-ad52-c000da8ed1fa","received_at":"2026-09-19T01:00:33.875579Z","record":{"actions":[{"action":"BOOK","patient_id":"P00625","provider_id":"PR11","location_id":"centro","appointment_type_id":"gynaecology_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"axa"}]}}
+[2026-09-19T01:00:34.376Z] 4f7b8b39 eleven agent_tool_response
+[2026-09-19T01:00:35.105Z] 0cff97b2 eleven agent_response
+[2026-09-19T01:00:35.105Z] 0cff97b2 agent One moment. Your appointment is booked for Monday, September twenty-first at nine thirty in the morning at Arenal Sur.
+[2026-09-19T01:00:35.336Z] 4817bc34 user Oh, yeah. Yes, please book that one.
+[2026-09-19T01:00:35.336Z] 4817bc34 eleven client_tool_call
+[2026-09-19T01:00:35.336Z] 4817bc34 eleven user_transcript
+[2026-09-19T01:00:35.336Z] 4817bc34 tool submit_book {"patient_id":"P00492","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"mapfre"}
+[2026-09-19T01:00:35.357Z] 8a360267 eleven user_transcript
+[2026-09-19T01:00:35.357Z] 8a360267 user Hmm. Is that the soonest you have? And is there anything outside working hours?
+[2026-09-19T01:00:35.469Z] 4f7b8b39 agent One moment. Your appointment is booked for Monday, September twenty-first at nine thirty in the morning at Arenal Centro. Goodbye.
+[2026-09-19T01:00:35.469Z] 4f7b8b39 eleven agent_response
+[2026-09-19T01:00:35.679Z] 8a360267 agent I have an appointment with Doctor Carmen Ortiz Vidal at our Centro location on Saturday, September nineteenth, at twelve o'clock. Would that work for you?
+[2026-09-19T01:00:35.679Z] 8a360267 eleven agent_response
+[2026-09-19T01:00:36.277Z] 4817bc34 tool result submit_book {"call_id":"4817bc34-c616-507b-8061-ef72dc17e7c4","received_at":"2026-09-19T01:00:35.963033Z","record":{"actions":[{"action":"BOOK","patient_id":"P00492","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"mapfre"}]}}
+[2026-09-19T01:00:36.380Z] 4817bc34 eleven agent_tool_response
+[2026-09-19T01:00:37.613Z] 4817bc34 eleven agent_response
+[2026-09-19T01:00:37.613Z] 4817bc34 agent Your appointment has been booked for Monday, September twenty-first at nine thirty in the morning with Doctor Nuria Peral at our Sur clinic. Goodbye.
+[2026-09-19T01:00:38.505Z] c24696b4 eleven user_transcript
+[2026-09-19T01:00:38.505Z] c24696b4 user Okay. Thank you.
+[2026-09-19T01:00:38.506Z] c24696b4 tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-03","patient_id":"P00480","specialty_id":"orthopaedics","insurer":"sanitas"}
+[2026-09-19T01:00:38.506Z] c24696b4 eleven client_tool_call
+[2026-09-19T01:00:38.969Z] c24696b4 tool result search_availability {"soonest":{"start_time":"2026-09-21T09:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"sur","location_name":"Arenal Sur","appointment_type_id":"orthopaedic_review"},"outside_hours_offer":{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},"later_saturday":[],"saturday":[],"after_work":[{"start_time":"2026-09-25T14:00:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"Arenal Norte","appointment_type_id":"orthopaedic_review"},{"start_time":"2026-09-25T15:30:00+02:00","provider_id":"PR10","provider_name":"Dra. Nuria Peral","location_id":"norte","location_name":"A
+[2026-09-19T01:00:39.077Z] c24696b4 eleven agent_tool_response
+[2026-09-19T01:00:40.249Z] c24696b4 agent I have an appointment available with Doctor Nuria Peral on Monday, September twenty-first at nine thirty in the morning at Arenal Sur. Would that work for you?
+[2026-09-19T01:00:40.249Z] c24696b4 eleven agent_response
+[2026-09-19T01:00:43.908Z] 8a360267 eleven interruption
+[2026-09-19T01:00:43.908Z] 8a360267 eleven agent_response_correction
+[2026-09-19T01:00:47.278Z] 4f7b8b39 elevenlabs closed 1006 
+[2026-09-19T01:00:48.738Z] c24696b4 eleven interruption
+[2026-09-19T01:00:48.738Z] c24696b4 eleven agent_response_correction
+[2026-09-19T01:00:48.933Z] 8a360267 eleven user_transcript
+[2026-09-19T01:00:48.932Z] 8a360267 user Ah, right. Saturday at twelve is fine, yes.
+[2026-09-19T01:00:48.935Z] 8a360267 eleven client_tool_call
+[2026-09-19T01:00:48.935Z] 8a360267 tool submit_book {"patient_id":"P00159","provider_id":"PR01","location_id":"centro","appointment_type_id":"review","slot":"2026-09-19T12:00:00+02:00","policy_id":"cigna"}
+[2026-09-19T01:00:49.515Z] 8a360267 tool result submit_book {"call_id":"8a360267-caf5-5dd8-a030-d2575d83001d","received_at":"2026-09-19T01:00:49.459064Z","record":{"actions":[{"action":"BOOK","patient_id":"P00159","provider_id":"PR01","location_id":"centro","appointment_type_id":"review","slot":"2026-09-19T12:00:00+02:00","policy_id":"cigna"}]}}
+[2026-09-19T01:00:49.624Z] 8a360267 eleven agent_tool_response
+[2026-09-19T01:00:50.980Z] 8a360267 agent I have booked your appointment for Saturday, September nineteenth, at twelve o'clock at our Centro location. Goodbye.
+[2026-09-19T01:00:50.980Z] 8a360267 eleven agent_response
+[2026-09-19T01:00:51.647Z] 4817bc34 elevenlabs closed 1005 
+[2026-09-19T01:00:53.236Z] c24696b4 eleven user_transcript
+[2026-09-19T01:00:53.236Z] c24696b4 user Oh, no, I need it at Arenal Sur. Do you have anything there?
+[2026-09-19T01:00:53.565Z] c24696b4 eleven agent_response
+[2026-09-19T01:00:53.565Z] c24696b4 agent Yes, that appointment on Monday, September twenty-first at nine thirty in the morning is indeed at Arenal Sur. Would you like to book it?
+[2026-09-19T01:00:58.539Z] socket open 3 live
+[2026-09-19T01:00:58.716Z] call start 8dab5b7a-84f1-5c0a-9cd3-a3ef4f59f9c3 +34751213934
+[2026-09-19T01:00:59.198Z] directory hint 8dab5b7a-84f1-5c0a-9cd3-a3ef4f59f9c3 [{"patient_id":"P00159","name":"Beatriz Sánchez Medina","insurer":"cigna","has_visited_before":true}]
+[2026-09-19T01:00:59.554Z] 8dab5b7a eleven conversation_initiation_metadata
+[2026-09-19T01:00:59.910Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:00:59.910Z] 8dab5b7a agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T01:01:03.644Z] 8a360267 elevenlabs closed 1005 
+[2026-09-19T01:01:05.062Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:01:05.062Z] 8dab5b7a user Hello.
+[2026-09-19T01:01:05.139Z] 8dab5b7a agent Hello. How can I help you today?
+[2026-09-19T01:01:05.139Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:01:08.728Z] c24696b4 tool submit_book {"patient_id":"P00480","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"sanitas"}
+[2026-09-19T01:01:08.728Z] c24696b4 eleven user_transcript
+[2026-09-19T01:01:08.728Z] c24696b4 user Ah, right. Yes, please book me for September twenty-first at nine thirty.
+[2026-09-19T01:01:08.728Z] c24696b4 eleven client_tool_call
+[2026-09-19T01:01:14.893Z] c24696b4 tool result submit_book {"call_id":"c24696b4-fcaa-56ff-a473-8bcf7b4174c4","received_at":"2026-09-19T01:01:13.396081Z","record":{"actions":[{"action":"BOOK","patient_id":"P00480","provider_id":"PR10","location_id":"sur","appointment_type_id":"orthopaedic_review","slot":"2026-09-21T09:30:00+02:00","policy_id":"sanitas"}]}}
+[2026-09-19T01:01:15.629Z] c24696b4 eleven agent_tool_response
+[2026-09-19T01:01:16.980Z] c24696b4 eleven agent_response
+[2026-09-19T01:01:16.980Z] c24696b4 agent One moment. I have successfully booked your appointment for Monday, September twenty-first at nine thirty in the morning at Arenal Sur.
+[2026-09-19T01:01:20.869Z] 8dab5b7a user Yeah. So, um, I need a general practice appointment about a cough that's been hanging on for three weeks.
+[2026-09-19T01:01:20.869Z] 8dab5b7a eleven client_tool_call
+[2026-09-19T01:01:20.869Z] 8dab5b7a tool search_directory {"phone":"+34751213934"}
+[2026-09-19T01:01:20.869Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:01:21.032Z] 8dab5b7a tool result search_directory {"matches":[{"patient_id":"P00159","given_name":"Beatriz","first_surname":"Sánchez","second_surname":"Medina","national_id":"96546624F","date_of_birth":"1970-09-18","phone":"751213934","sex":"F","has_visited_before":true,"insurer":"cigna","referrals":[],"note":"Last seen December 2025. Four visits on the chart, spread across general practice and gynaecology. Asks whether they can be seen outside working hours.","match_score":1,"matched_fields":["phone"]}]}
+[2026-09-19T01:01:21.138Z] 8dab5b7a eleven agent_tool_response
+[2026-09-19T01:01:22.888Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:01:22.888Z] 8dab5b7a agent Are you Beatriz Sánchez Medina?
+[2026-09-19T01:01:23.834Z] 0cff97b2 elevenlabs closed 1005 
+[2026-09-19T01:01:30.470Z] c24696b4 elevenlabs closed 1005 
+[2026-09-19T01:01:31.388Z] 8dab5b7a user Mm, it's Beatriz Sánchez Medina.
+[2026-09-19T01:01:31.388Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:01:31.479Z] 8dab5b7a agent To confirm, could you please tell me your date of birth?
+[2026-09-19T01:01:31.479Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:01:35.255Z] 8dab5b7a eleven interruption
+[2026-09-19T01:01:35.256Z] 8dab5b7a eleven agent_response_correction
+[2026-09-19T01:01:41.531Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:01:41.531Z] 8dab5b7a user 1970-09-18.
+[2026-09-19T01:01:41.566Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:01:41.566Z] 8dab5b7a agent Thank you. Let me look for the earliest general practice appointment for you. Please hold on.
+[2026-09-19T01:01:47.094Z] 8dab5b7a eleven interruption
+[2026-09-19T01:01:47.094Z] 8dab5b7a eleven agent_response_correction
+[2026-09-19T01:01:51.339Z] 8dab5b7a eleven client_tool_call
+[2026-09-19T01:01:51.339Z] 8dab5b7a tool search_availability {"date_from":"2026-09-19","date_to":"2026-10-02","patient_id":"P00159","specialty_id":"general_practice","insurer":"cigna"}
+[2026-09-19T01:01:51.339Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:01:51.339Z] 8dab5b7a user Okay. Um, I'll hold.
+[2026-09-19T01:01:51.715Z] 8dab5b7a tool result search_availability {"soonest":{"start_time":"2026-09-19T11:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"},"outside_hours_offer":{"start_time":"2026-09-19T12:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"},"later_saturday":[{"start_time":"2026-09-19T12:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro","appointment_type_id":"review"}],"saturday":[{"start_time":"2026-09-19T11:00:00+02:00","provider_id":"PR01","provider_name":"Dra. Carmen Ortiz Vidal","location_id":"centro","location_name":"Arenal Centro",
+[2026-09-19T01:01:51.821Z] 8dab5b7a eleven agent_tool_response
+[2026-09-19T01:01:53.082Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:01:53.082Z] 8dab5b7a agent I have an appointment available with Doctor Carmen Ortiz Vidal at Arenal Centro on Saturday, September nineteenth at eleven in the morning. Does that work for you?
+[2026-09-19T01:02:00.257Z] 8dab5b7a eleven agent_response_correction
+[2026-09-19T01:02:00.257Z] 8dab5b7a eleven interruption
+[2026-09-19T01:02:03.861Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:02:03.860Z] 8dab5b7a user Ah, okay. Is there anything available outside working hours?
+[2026-09-19T01:02:04.197Z] 8dab5b7a agent I have an appointment available with Doctor Carmen Ortiz Vidal at Arenal Centro on Saturday, September nineteenth at twelve o'clock. Would that work for you?
+[2026-09-19T01:02:04.197Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:02:11.842Z] 8dab5b7a eleven agent_response_correction
+[2026-09-19T01:02:11.842Z] 8dab5b7a eleven interruption
+[2026-09-19T01:02:17.368Z] 8dab5b7a user Hmm, twelve on Saturday? Is that outside working hours?
+[2026-09-19T01:02:17.368Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:02:17.375Z] 8dab5b7a agent Yes, we have twelve o'clock on Saturday, September nineteenth with Doctor Carmen Ortiz Vidal at Arenal Centro. Would you like to book that?
+[2026-09-19T01:02:17.375Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:02:33.881Z] 8dab5b7a eleven client_tool_call
+[2026-09-19T01:02:33.881Z] 8dab5b7a user Well, uh, yes. Please book the Saturday the nineteenth at 12:00 with Doctor Carmen Ortiz Vidal.
+[2026-09-19T01:02:33.881Z] 8dab5b7a eleven user_transcript
+[2026-09-19T01:02:33.881Z] 8dab5b7a tool submit_book {"patient_id":"P00159","provider_id":"PR01","location_id":"centro","appointment_type_id":"review","slot":"2026-09-19T12:00:00+02:00","policy_id":"cigna"}
+[2026-09-19T01:02:34.464Z] 8dab5b7a tool result submit_book {"call_id":"8dab5b7a-84f1-5c0a-9cd3-a3ef4f59f9c3","received_at":"2026-09-19T01:02:34.424942Z","record":{"actions":[{"action":"BOOK","patient_id":"P00159","provider_id":"PR01","location_id":"centro","appointment_type_id":"review","slot":"2026-09-19T12:00:00+02:00","policy_id":"cigna"}]}}
+[2026-09-19T01:02:34.569Z] 8dab5b7a eleven agent_tool_response
+[2026-09-19T01:02:36.126Z] 8dab5b7a eleven agent_response
+[2026-09-19T01:02:36.126Z] 8dab5b7a agent Your appointment is booked for Saturday, September nineteenth at twelve o'clock with Doctor Carmen Ortiz Vidal at Arenal Centro. Goodbye.
+[2026-09-19T01:02:49.983Z] 8dab5b7a elevenlabs closed 1005 

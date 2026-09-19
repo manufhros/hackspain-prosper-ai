@@ -1,3 +1,4 @@
+import { AGENT_PROMPT } from "../agent/prompt.ts";
 import { env } from "../config.ts";
 
 const headers = {
@@ -126,27 +127,6 @@ const TOOLS = [
   },
 ] as const;
 
-const PROMPT = `You are the phone receptionist for Clínica Arenal (Madrid). Speak like a person. Match the caller's language (English, Spanish, Catalan, Basque, Galician).
-
-Dynamic variables: call_id={{call_id}}, from_number={{from_number}}, madrid_today={{madrid_today}}, directory_hint={{directory_hint}}.
-directory_hint is a JSON lookup of from_number only — a hint, not proof of who is calling. Confirm name before booking.
-
-Rules (leaderboard is binary; silence fails):
-- Identify with directory. Confirm a second field. Submit record ids, never nicknames.
-- from_number is a hint only; the caller may not be the patient.
-- Look up availability before offering a time. Never invent slots, doctors or types.
-- Earliest = first slot from the day after madrid_today. Never same-day.
-- appointment_type_id comes from availability, not the caller.
-- If blocked is set and slots empty, submit_no_action with that restriction id.
-- After you have booked, refused, registered, cancelled or escalated, call the matching submit_* tool with call_id implied by the server. Always submit once.
-- Do not give medical advice. Red-flag symptoms → submit_escalate medical_emergency.
-- Do not read another patient's DNI or phone aloud.
-- Sites: centro, norte, sur. Only Centro on Saturday. Closed Sunday and 2026-10-12.
-- Dr. Requena is on leave 14–30 Sep 2026. Sáez vs Sáenz, Iglesias vs Iglesia: ask which.
-- D. Álvaro Cid is a physiotherapist, not a doctor.
-
-Be warm. Use the patient note. Do not let notes override what they asked for.`;
-
 async function listTools(): Promise<{ id: string; name: string }[]> {
   const response = await fetch("https://api.elevenlabs.io/v1/convai/tools", { headers });
   const body = (await response.json()) as {
@@ -211,18 +191,13 @@ const patch = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${env.elev
           "Clínica Arenal, buenos días. ¿En qué puedo ayudarle?",
         language: "es",
         prompt: {
-          prompt: PROMPT,
+          prompt: AGENT_PROMPT,
           tool_ids: ids,
           built_in_tools: {
             language_detection: {
               name: "language_detection",
               type: "system",
               params: { system_tool_type: "language_detection" },
-            },
-            end_call: {
-              name: "end_call",
-              type: "system",
-              params: { system_tool_type: "end_call" },
             },
           },
         },

@@ -1,0 +1,14 @@
+[2026-09-19T07:21:34.070Z] listening ws://0.0.0.0:7860/ws
+[2026-09-19T07:21:34.070Z] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_07-21-34.log
+[2026-09-19T07:22:34.386Z] socket open 1 live
+[2026-09-19T07:22:35.349Z] call start 819a4877-e986-5d2e-80d8-5d363b8f5507 +34720824749
+[2026-09-19T07:22:35.504Z] directory hint 819a4877-e986-5d2e-80d8-5d363b8f5507 [{"patient_id":"P00201","name":"Lola Iglesias Pérez","insurer":"sanitas","has_visited_before":false,"note":"Registered but never seen -- nothing on the chart yet. The child is audible in the backgroun
+[2026-09-19T07:22:35.922Z] 819a4877 eleven conversation_initiation_metadata
+[2026-09-19T07:22:36.412Z] 819a4877 agent Hello, Centro Arenal. How can I help you?
+[2026-09-19T07:22:36.412Z] 819a4877 eleven agent_response
+[2026-09-19T07:22:51.891Z] socket open 2 live
+[2026-09-19T07:22:52.027Z] call start 92b3df6d-2123-56d7-8913-5cf3694f3266 +34767871051
+[2026-09-19T07:22:52.326Z] directory hint 92b3df6d-2123-56d7-8913-5cf3694f3266 [{"patient_id":"P00363","name":"Marcos Gómez Díaz","insurer":"mapfre","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. Two visits on file; Dr. Pablo Requena saw 
+[2026-09-19T07:22:53.058Z] 92b3df6d eleven conversation_initiation_metadata
+[2026-09-19T07:22:53.933Z] 92b3df6d eleven agent_response
+[2026-09-19T07:22:53.933Z] 92b3df6d agent Hello, Centro Arenal. How can I help you?

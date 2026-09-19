@@ -9,3 +9,6 @@ data/*.json
 *.tsbuildinfo
 .idea/
 .vscode/
+logs/*.log
+!logs/.gitkeep
+

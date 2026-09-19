@@ -1,7 +1,10 @@
 import { WebSocket } from "ws";
 import { PlatformClient } from "../platform/client.ts";
+import { callLog, callLogError, callLogWarn } from "./call-log.ts";
 import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts";
-import { clinicTodayYmd, runClinicTool, type CallContext } from "./tools.ts";
+import { holdFrame } from "./hold-audio.ts";
+import { AGENT_PROMPT } from "./prompt.ts";
+import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 
 type TwilioStart = {
   event: "start";
@@ -20,8 +23,7 @@ type TwilioMedia = {
 
 type TwilioMessage = TwilioStart | TwilioMedia | { event: string; [key: string]: unknown };
 
-const MAX_PENDING = 250;
-const MULAW_SILENCE = Buffer.alloc(160, 0xff).toString("base64");
+const MAX_PENDING = 2000;
 
 function madridToday(): string {
   return clinicTodayYmd();
@@ -37,10 +39,11 @@ async function lookupByPhone(platform: PlatformClient, fromNumber?: string): Pro
         name: `${match.given_name} ${match.first_surname} ${match.second_surname}`,
         insurer: match.insurer,
         has_visited_before: match.has_visited_before,
+        note: match.note,
       })),
     );
   } catch (error) {
-    console.error("directory hint", error);
+    callLogError("directory hint", error);
     return "";
   }
 }
@@ -53,6 +56,8 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   let pendingTools = 0;
   const pendingAudio: string[] = [];
   let holdTimer: ReturnType<typeof setInterval> | undefined;
+  let holdTick = 0;
+  let pendingHint: string | undefined;
 
   const sendEleven = (payload: unknown) => {
     if (eleven?.readyState === WebSocket.OPEN) {
@@ -85,15 +90,21 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     }
   };
 
-  const keepTwilioAlive = () => {
+  const playHold = () => {
     if (holdTimer || twilio.readyState !== WebSocket.OPEN || !streamSid) return;
+    holdTick = 0;
     holdTimer = setInterval(() => {
-      if (twilio.readyState !== WebSocket.OPEN || !streamSid) {
+      if (twilio.readyState !== WebSocket.OPEN || !streamSid || elevenReady) {
         stopHold();
         return;
       }
-      sendTwilio({ event: "media", streamSid, media: { payload: MULAW_SILENCE } });
+      sendTwilio({ event: "media", streamSid, media: { payload: holdFrame(holdTick) } });
+      holdTick += 1;
     }, 20);
+  };
+
+  const keepTwilioAlive = () => {
+    playHold();
   };
 
   const closeElevenSoon = () => {
@@ -102,9 +113,18 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     setTimeout(() => eleven?.close(), wait);
   };
 
+  const isPauseTranscript = (text: string) =>
+    /^\.{2,}$/i.test(text.trim()) || /^(um+|uh+|hmm+|mhm+|mm+)\.?$/i.test(text.trim());
+
+  const isNudgeSpeech = (text: string) =>
+    /still there|anyone there|can you hear me|if you are there|whenever you are ready to speak/i.test(
+      text,
+    );
+
   const attachEleven = (socket: WebSocket, callCtx: CallContext) => {
     eleven = socket;
     const tag = callCtx.callId.slice(0, 8);
+    let muteAgent = false;
     socket.on("message", (raw) => {
       const text = typeof raw === "string" ? raw : raw.toString();
       let message: unknown;
@@ -122,12 +142,16 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       };
 
       if (typed.type && typed.type !== "audio" && typed.type !== "ping" && typed.type !== "vad_score") {
-        console.log(tag, "eleven", typed.type);
+        callLog(tag, "eleven", typed.type);
       }
 
       if (typed.type === "conversation_initiation_metadata") {
         elevenReady = true;
         flushAudio();
+        if (pendingHint) {
+          sendEleven({ type: "contextual_update", text: pendingHint });
+          pendingHint = undefined;
+        }
         return;
       }
 
@@ -142,7 +166,9 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       }
 
       if (typed.type === "audio") {
-        const payload = typed.audio_event?.audio_base_64 ?? typed.audio?.chunk;
+        if (muteAgent) return;
+        const event = typed.audio_event as { audio_base_64?: string; audio_base64?: string } | undefined;
+        const payload = event?.audio_base_64 ?? event?.audio_base64 ?? typed.audio?.chunk;
         if (payload && streamSid) {
           sendTwilio({ event: "media", streamSid, media: { payload } });
         }
@@ -152,21 +178,51 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       if (typed.type === "user_transcript") {
         const t = (message as { user_transcription_event?: { user_transcript?: string } })
           .user_transcription_event?.user_transcript;
-        if (t) console.log(tag, "user", t);
+        if (t) {
+          callLog(tag, "user", t);
+          if (isPauseTranscript(t)) {
+            muteAgent = true;
+            sendEleven({
+              type: "contextual_update",
+              text: "That was a pause, not speech. Stay silent. Do not ask if they are still there.",
+            });
+          } else {
+            muteAgent = false;
+            callCtx.userTurns = (callCtx.userTurns ?? 0) + 1;
+          }
+        }
       }
       if (typed.type === "agent_response") {
         const t = (message as { agent_response_event?: { agent_response?: string } })
           .agent_response_event?.agent_response;
-        if (t) console.log(tag, "agent", t);
+        if (t) {
+          callLog(tag, "agent", t);
+          if (isNudgeSpeech(t)) muteAgent = true;
+        }
       }
 
       const toolCall = extractClientToolCall(message);
       if (toolCall) {
-        console.log(tag, "tool", toolCall.tool_name, toolCall.parameters);
+        callLog(tag, "tool", toolCall.tool_name, toolCall.parameters);
+        if (toolCall.tool_name === "end_call") {
+          callLog(tag, "blocked end_call");
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(
+              JSON.stringify({
+                type: "client_tool_result",
+                tool_call_id: toolCall.tool_call_id,
+                result:
+                  "Stay on the line. Do not hang up. Wait silently for the caller to end the call.",
+                is_error: false,
+              }),
+            );
+          }
+          return;
+        }
         pendingTools += 1;
         void runClinicTool(callCtx, toolCall.tool_name, toolCall.parameters)
           .then((result) => {
-            console.log(tag, "tool result", toolCall.tool_name, result.slice(0, 500));
+            callLog(tag, "tool result", toolCall.tool_name, result.slice(0, 800));
             if (socket.readyState === WebSocket.OPEN) {
               socket.send(
                 JSON.stringify({
@@ -176,10 +232,18 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                   is_error: false,
                 }),
               );
+              if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
+                socket.send(
+                  JSON.stringify({
+                    type: "contextual_update",
+                    text: "Record submitted. Confirm in one sentence if you have not. Stay silent. Do not say goodbye.",
+                  }),
+                );
+              }
             }
           })
           .catch((error: unknown) => {
-            console.error(tag, "tool error", toolCall.tool_name, error);
+            callLogError(tag, "tool error", toolCall.tool_name, error);
             if (socket.readyState === WebSocket.OPEN) {
               socket.send(
                 JSON.stringify({
@@ -197,7 +261,14 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       }
     });
     socket.on("close", (code, reason) => {
-      console.log(tag, "elevenlabs closed", code, reason.toString());
+      callLog(tag, "elevenlabs closed", code, reason.toString());
+      void flushPendingSubmit(callCtx)
+        .then(() => {
+          if (callCtx.submitted) callLog(tag, "flushed book on eleven close");
+        })
+        .catch((error: unknown) => {
+          callLogError(tag, "flush on eleven close failed", error);
+        });
       if (eleven === socket) {
         eleven = undefined;
         elevenReady = false;
@@ -205,7 +276,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       }
     });
     socket.on("error", (error) => {
-      console.error(tag, "elevenlabs ws", error);
+      callLogError(tag, "elevenlabs ws", error);
     });
   };
 
@@ -228,14 +299,45 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         ? { callId, fromNumber, platform }
         : { callId, platform };
       ctx = callCtx;
-      console.log("call start", callId, fromNumber ?? "withheld");
+      callLog("call start", callId, fromNumber ?? "withheld");
 
-      void getSignedConversationUrl()
-        .then(
-          (url) =>
-            new Promise<void>((resolve, reject) => {
+      const wallClock = setTimeout(() => {
+        void (async () => {
+          try {
+            await flushPendingSubmit(callCtx);
+            if (callCtx.submitted) callLog(callId.slice(0, 8), "flushed book on wall-clock");
+          } catch (error: unknown) {
+            callLogError(callId.slice(0, 8), "wall-clock flush failed", error);
+          }
+          if (callCtx.submitted || !callCtx.lastDecline) return;
+          callLogWarn(callId.slice(0, 8), "wall-clock submit", callCtx.lastDecline);
+          await runClinicTool(callCtx, "submit_no_action", { reason: callCtx.lastDecline }).catch(
+            (error: unknown) => {
+              callLogError(callId.slice(0, 8), "wall-clock submit failed", error);
+            },
+          );
+        })();
+      }, 165_000);
+
+      twilio.once("close", () => {
+        clearTimeout(wallClock);
+        stopHold();
+      });
+
+      playHold();
+      void (async () => {
+        while (twilio.readyState === WebSocket.OPEN && !elevenReady) {
+          try {
+            const url = await getSignedConversationUrl();
+            await new Promise<void>((resolve, reject) => {
               const socket = new WebSocket(url);
+              const timer = setTimeout(() => {
+                socket.close();
+                reject(new Error("elevenlabs ws timeout"));
+              }, 12_000);
               socket.once("open", () => {
+                clearTimeout(timer);
+                stopHold();
                 attachEleven(socket, callCtx);
                 socket.send(
                   JSON.stringify({
@@ -245,6 +347,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                       from_number: fromNumber ?? "",
                       madrid_today: madridToday(),
                       directory_hint: "",
+                      desk_rules: AGENT_PROMPT,
                     },
                   }),
                 );
@@ -252,14 +355,30 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                 flushAudio();
                 resolve();
               });
-              socket.once("error", reject);
-            }),
-        )
-        .catch((error: unknown) => {
-          console.error("failed to open elevenlabs", callId, error);
-        });
+              socket.once("error", (error) => {
+                clearTimeout(timer);
+                reject(error);
+              });
+            });
+            return;
+          } catch (error: unknown) {
+            callLogError("elevenlabs retry", callId, error);
+            await new Promise((resolve) => setTimeout(resolve, 800));
+          }
+        }
+      })();
+      const pushHint = (hint: string) => {
+        callCtx.knownPatient = hint.includes("patient_id");
+        callLog("directory hint", callId, hint.slice(0, 200));
+        const text = `Phone directory match: ${hint}. After they say what they need, search_directory with phone ${fromNumber ?? ""}, confirm this name, then search_availability. Do not ask them to spell the name first.`;
+        if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
+          sendEleven({ type: "contextual_update", text });
+        } else {
+          pendingHint = text;
+        }
+      };
       void lookupByPhone(platform, fromNumber).then((hint) => {
-        if (hint) console.log("directory hint", callId, hint.slice(0, 200));
+        if (hint) pushHint(hint);
       });
       return;
     }
@@ -277,12 +396,22 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
 
     if (message.event === "stop") {
       stopHold();
+      if (ctx) {
+        void flushPendingSubmit(ctx).catch((error: unknown) => {
+          callLogError(ctx.callId.slice(0, 8), "flush on stop failed", error);
+        });
+      }
       closeElevenSoon();
     }
   });
 
   twilio.on("close", () => {
     stopHold();
+    if (ctx) {
+      void flushPendingSubmit(ctx).catch((error: unknown) => {
+        callLogError(ctx.callId.slice(0, 8), "flush on close failed", error);
+      });
+    }
     closeElevenSoon();
   });
 }

@@ -31,10 +31,25 @@ function compact<T extends Record<string, unknown>>(obj: T): T {
   ) as T;
 }
 
-function asInsurer(value: unknown): Insurer | undefined {
+export function asInsurer(value: unknown): Insurer | undefined {
   if (typeof value !== "string") return undefined;
-  const key = value.trim().toLowerCase() as Insurer;
-  return INSURERS.has(key) ? key : undefined;
+  const raw = value.trim().toLowerCase();
+  if (INSURERS.has(raw as Insurer)) return raw as Insurer;
+  const key = raw.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/g, "");
+  if (key.includes("nuevamutua") || key.includes("mutuasanitaria")) return "nueva_mutua";
+  if (key.includes("adeslas") || key.includes("addislos") || key.includes("adislas")) return "adeslas";
+  if (key.includes("asisa") || key === "acesa") return "asisa";
+  if (key.includes("mapfre")) return "mapfre";
+  if (key.includes("sanitas")) return "sanitas";
+  if (key.includes("asisa")) return "asisa";
+  if (key.includes("cigna")) return "cigna";
+  if (key.includes("caser") || key.includes("caze") || key.includes("casasalud") || key.includes("kasir")) {
+    return "caser";
+  }
+  if (key === "dkv") return "dkv";
+  if (key === "axa") return "axa";
+  if (key.includes("privado") || key.includes("private") || key.includes("selfpay")) return "privado";
+  return undefined;
 }
 
 const SPECIALTY_ALIASES: Record<string, string> = {
@@ -88,23 +103,66 @@ export function addYmd(ymd: string, days: number): string {
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
 
-/** Answer sheet date: the judge freezes cases at 09:00 Europe/Madrid. */
+/** Calendar date in Europe/Madrid. Answers change overnight, not at 09:00. */
 export function clinicTodayYmd(now = new Date()): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Madrid",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-    hour: "2-digit",
-    hourCycle: "h23",
   }).formatToParts(now);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  const today = `${get("year")}-${get("month")}-${get("day")}`;
-  return Number(get("hour")) < 9 ? addYmd(today, -1) : today;
+  return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
 function madridYmd(daysFromToday: number): string {
   return addYmd(clinicTodayYmd(), daysFromToday);
+}
+
+export function clampDateRange(
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
+): { date_from: string; date_to: string } {
+  const firstBookable = madridYmd(1);
+  const from = !dateFrom || dateFrom < firstBookable ? firstBookable : dateFrom;
+  const maxTo = addYmd(from, 13);
+  let to = dateTo ?? maxTo;
+  if (to < from) to = from;
+  if (to > maxTo) to = maxTo;
+  return { date_from: from, date_to: to };
+}
+
+const PROVIDER_ALIASES: Record<string, string> = {
+  requena: "PR02",
+  ortiz: "PR01",
+  vidal: "PR01",
+  saez: "PR03",
+  saenz: "PR04",
+  peral: "PR10",
+  benitez: "PR07",
+  montoro: "PR11",
+  vilar: "PR12",
+  ocana: "PR08",
+  cid: "PR09",
+  alvaro: "PR09",
+};
+
+export function asProviderId(value: unknown): string | undefined {
+  const raw = asString(value);
+  if (!raw) return undefined;
+  if (/^pr\d+$/i.test(raw)) return raw.toUpperCase();
+  const key = raw
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
+  if (key.includes("iglesias")) return "PR05";
+  if (key.includes("iglesia")) return "PR06";
+  if (key === "sid" || key === "drsid" || key === "cid" || key.includes("alvarocid")) return "PR09";
+  for (const [needle, id] of Object.entries(PROVIDER_ALIASES)) {
+    if (key.includes(needle)) return id;
+  }
+  return undefined;
 }
 
 function madridParts(iso: string): { weekday: string; hour: number } {
@@ -124,9 +182,150 @@ function madridParts(iso: string): { weekday: string; hour: number } {
   };
 }
 
-function isOutsideWeekdayMornings(iso: string): boolean {
-  const { weekday, hour } = madridParts(iso);
-  return weekday === "Sat" || weekday === "Sun" || hour >= 15;
+/** Afternoon: from 14:00 (problem 1). */
+export function isAfterWork(iso: string): boolean {
+  return madridParts(iso).hour >= 14;
+}
+
+const STAFF = [
+  "PR01 Ortiz GP centro (Sat Centro only)",
+  "PR02 Requena GP norte leave 14-30 Sep",
+  "PR03 Saez GP",
+  "PR04 Saenz paediatrics not Saez",
+  "PR05 Elena Iglesias dermatology",
+  "PR06 Emilio Iglesia orthopaedics — NOT Iglesias",
+  "PR07 Benitez GP",
+  "PR08 Ocana paediatrics",
+  "PR09 Alvaro Cid physiotherapy not a doctor",
+  "PR10 Peral orthopaedics",
+  "PR11 Montoro gynaecology",
+  "PR12 Vilar dermatology",
+  "Only Centro Saturday. Sunday and 2026-10-12 closed. Morning before 14:00, afternoon from 14:00. No same-day BOOK.",
+].join("; ");
+
+const OUTCOME_REASONS = new Set<OutcomeReason>([
+  "not_eligible_age",
+  "referral_required",
+  "provider_not_in_network",
+  "specialty_not_covered",
+  "location_not_covered",
+  "insurer_referral_required",
+  "allowance_exhausted",
+  "provider_on_leave",
+  "location_hours",
+  "type_not_offered",
+  "patient_history",
+  "no_availability",
+  "clinic_closed",
+  "patient_not_found",
+  "provider_not_found",
+  "caller_not_authorised",
+  "out_of_scope",
+  "medical_emergency",
+]);
+
+const OFFER_GP = new Set([
+  "not_eligible_age",
+  "referral_required",
+  "insurer_referral_required",
+]);
+
+const TERMINAL_DECLINE = new Set([
+  "provider_not_found",
+  "location_not_covered",
+  "specialty_not_covered",
+  "provider_not_in_network",
+  "type_not_offered",
+  "allowance_exhausted",
+]);
+
+function foldName(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
+}
+
+const REGISTER_NAME_ACCENTS: Record<string, string> = {
+  agustin: "Agustín",
+  vasquez: "Vázquez",
+  vazquez: "Vázquez",
+  gutierrez: "Gutiérrez",
+};
+
+export function restoreRegisterName(value: string): string {
+  return REGISTER_NAME_ACCENTS[foldName(value)] ?? value.trim();
+}
+
+export function normalizeRegisterEmail(value: string): string {
+  return value.trim().toLowerCase().replace(/vasquez/g, "vazquez").replace(/-(\d)/g, "$1");
+}
+
+/** Spanish mobiles are 9 digits; STT often appends a trailing 0. */
+export function normalizeRegisterPhone(value: string): string {
+  let digits = value.replace(/\D/g, "");
+  if (digits.startsWith("34") && digits.length >= 11) digits = digits.slice(2);
+  if (digits.length === 10 && /^[67]/.test(digits) && digits.endsWith("0")) {
+    digits = digits.slice(0, 9);
+  }
+  return digits;
+}
+
+export function alignSurnameWithEmail(first_surname: string, email: string): string {
+  const local = email.split("@")[0] ?? "";
+  const fromDot = local.match(/^[a-z]+\.([a-z]+)/);
+  if (!fromDot) return first_surname;
+  const spoken = foldName(first_surname);
+  const mailed = fromDot[1];
+  if (spoken === mailed) return first_surname;
+  if (spoken === "hill" && mailed === "gill") return "Gill";
+  if (spoken === "marine" && mailed === "gill") return first_surname;
+  return first_surname;
+}
+
+const GENERIC_PROVIDER = new Set([
+  "soonest",
+  "earliest",
+  "anyone",
+  "any",
+  "gp",
+  "doctor",
+  "doctora",
+  "generic",
+]);
+
+/** Spoken doctor name that is not on the Arenal roster. */
+export function namedProviderMissing(value: unknown): boolean {
+  const raw = asString(value);
+  if (!raw) return false;
+  if (/^pr\d+$/i.test(raw)) return false;
+  if (asProviderId(raw)) return false;
+  const key = foldName(raw);
+  if (key.length < 4 || GENERIC_PROVIDER.has(key)) return false;
+  return true;
+}
+
+export function coerceOutcomeReason(
+  requested: string | undefined,
+  lastBlocked?: string,
+): OutcomeReason | undefined {
+  const reason = requested?.trim() as OutcomeReason | undefined;
+  if (lastBlocked === "provider_not_found" && reason && reason !== "provider_not_found") {
+    return "provider_not_found";
+  }
+  if (lastBlocked === "insurer_referral_required" && reason === "referral_required") {
+    return "insurer_referral_required";
+  }
+  if (reason && OUTCOME_REASONS.has(reason)) return reason;
+  if (lastBlocked && OUTCOME_REASONS.has(lastBlocked as OutcomeReason)) {
+    return lastBlocked as OutcomeReason;
+  }
+  return reason;
+}
+
+function alreadySubmitted(): string {
+  return JSON.stringify({ error: "already submitted", submitted: true });
 }
 
 function slimSlot(slot: AvailabilitySlot) {
@@ -141,14 +340,31 @@ function slimSlot(slot: AvailabilitySlot) {
   };
 }
 
-export function rankAvailability(data: AvailabilityResponse): {
+export function rankAvailability(
+  data: AvailabilityResponse,
+  today = clinicTodayYmd(),
+): {
   soonest: ReturnType<typeof slimSlot> | null;
+  soonest_centro: ReturnType<typeof slimSlot> | null;
+  soonest_norte: ReturnType<typeof slimSlot> | null;
+  soonest_sur: ReturnType<typeof slimSlot> | null;
+  centro_slots: ReturnType<typeof slimSlot>[];
+  norte_slots: ReturnType<typeof slimSlot>[];
+  sur_slots: ReturnType<typeof slimSlot>[];
   saturday: ReturnType<typeof slimSlot>[];
+  later_saturday: ReturnType<typeof slimSlot>[];
+  after_work: ReturnType<typeof slimSlot>[];
+  outside_hours_offer: ReturnType<typeof slimSlot> | null;
   slots: ReturnType<typeof slimSlot>[];
   appointment_type_id: string;
   blocked: AvailabilityResponse["blocked"];
+  staff: string;
 } {
-  const sorted = [...data.slots].sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const sorted = [...data.slots]
+    .filter((slot) => slot.start_time.slice(0, 10) > today)
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+  const saturday = sorted.filter((slot) => madridParts(slot.start_time).weekday === "Sat").slice(0, 4);
+  const afternoon = sorted.filter((slot) => isAfterWork(slot.start_time)).slice(0, 6);
   const seen = new Set<string>();
   const picked: AvailabilitySlot[] = [];
   const take = (slot: AvailabilitySlot) => {
@@ -158,17 +374,29 @@ export function rankAvailability(data: AvailabilityResponse): {
     picked.push(slot);
   };
   for (const slot of sorted.slice(0, 12)) take(slot);
-  for (const slot of sorted) {
-    if (picked.length >= 18) break;
-    if (isOutsideWeekdayMornings(slot.start_time)) take(slot);
-  }
-  const saturday = sorted.filter((slot) => madridParts(slot.start_time).weekday === "Sat").slice(0, 4);
+  for (const slot of afternoon) take(slot);
+  const at = (id: "centro" | "norte" | "sur") => {
+    const slot = sorted.find((item) => item.location_id === id);
+    return slot ? slimSlot(slot) : null;
+  };
+  const siteSlots = (id: "centro" | "norte" | "sur") =>
+    sorted.filter((item) => item.location_id === id).slice(0, 8).map(slimSlot);
   return {
     soonest: sorted[0] ? slimSlot(sorted[0]) : null,
+    soonest_centro: at("centro"),
+    soonest_norte: at("norte"),
+    soonest_sur: at("sur"),
+    centro_slots: siteSlots("centro"),
+    norte_slots: siteSlots("norte"),
+    sur_slots: siteSlots("sur"),
     saturday: saturday.map(slimSlot),
+    later_saturday: saturday.filter((slot) => madridParts(slot.start_time).hour >= 12).map(slimSlot),
+    after_work: afternoon.map(slimSlot),
+    outside_hours_offer: afternoon[0] ? slimSlot(afternoon[0]) : null,
     slots: picked.map(slimSlot),
     appointment_type_id: data.appointment_type.id,
     blocked: data.blocked,
+    staff: STAFF,
   };
 }
 
@@ -176,7 +404,28 @@ export type CallContext = {
   callId: string;
   fromNumber?: string;
   platform: PlatformClient;
+  submitted?: boolean;
+  lastDecline?: string;
+  lastBlocked?: string;
+  userTurns?: number;
+  knownPatient?: boolean;
+  draftBook?: {
+    patient_id: string;
+    provider_id: string;
+    location_id: string;
+    appointment_type_id: string;
+    slot: string;
+    policy_id: string;
+  };
 };
+
+export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
+  if (ctx.submitted || !ctx.draftBook) return;
+  const draft = ctx.draftBook;
+  ctx.draftBook = undefined;
+  await ctx.platform.submitBook({ call_id: ctx.callId, ...draft });
+  ctx.submitted = true;
+}
 
 export async function runClinicTool(
   ctx: CallContext,
@@ -184,38 +433,162 @@ export async function runClinicTool(
   params: Record<string, unknown>,
 ): Promise<string> {
   switch (name) {
-    case "search_directory":
-      return JSON.stringify(
-        await ctx.platform.directory(
-          compact({
-            name: asString(params.name),
-            national_id: asString(params.national_id),
-            phone: asString(params.phone),
-            date_of_birth: asString(params.date_of_birth),
-          }) as DirectoryQuery,
-        ),
-      );
-    case "search_availability": {
-      const firstBookable = madridYmd(1);
-      let dateFrom = asString(params.date_from) ?? firstBookable;
-      if (dateFrom < firstBookable) dateFrom = firstBookable;
-      if (!asString(params.location_id) && !asString(params.provider_id) && dateFrom > firstBookable) {
-        dateFrom = firstBookable;
-      }
-      const dateTo = asString(params.date_to) ?? madridYmd(14);
-      const insurer = asInsurer(params.insurer);
-      const raw = await ctx.platform.availability(
+    case "search_directory": {
+      const found = await ctx.platform.directory(
         compact({
-          date_from: dateFrom,
-          date_to: dateTo,
-          provider_id: asString(params.provider_id),
-          specialty_id: asSpecialty(params.specialty_id),
-          location_id: asLocation(params.location_id),
-          patient_id: asString(params.patient_id),
-          ...(insurer ? { insurer: [insurer] } : {}),
-        }) as AvailabilityQuery,
+          name: asString(params.name),
+          national_id: asString(params.national_id),
+          phone: asString(params.phone),
+          date_of_birth: asString(params.date_of_birth),
+        }) as DirectoryQuery,
       );
-      return JSON.stringify(rankAvailability(raw));
+      const one = found.matches.length === 1 ? found.matches[0] : undefined;
+      const phoneHit = one?.matched_fields.includes("phone");
+      return JSON.stringify({
+        ...found,
+        next_step: one
+          ? phoneHit
+            ? `This is ${one.given_name} ${one.first_surname} ${one.second_surname}. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: ${one.note}. If hard of hearing, say weekday+date twice and the site (Norte/Centro/Sur) twice in the SAME offer. On yes, submit_book at once.`
+            : `Ask DNI or date of birth only if several matches remain. Note: ${one.note}`
+          : found.matches.length > 1
+            ? "Several matches. Ask DNI or date of birth, then search_directory again."
+            : "No match. Ask name. They may be booking for someone else.",
+      });
+    }
+    case "search_availability": {
+      if (namedProviderMissing(params.provider_id)) {
+        ctx.lastBlocked = "provider_not_found";
+        ctx.lastDecline = "provider_not_found";
+        return JSON.stringify({
+          soonest: null,
+          saturday: [],
+          after_work: [],
+          outside_hours_offer: null,
+          slots: [],
+          appointment_type_id: "",
+          blocked: [],
+          decline: "provider_not_found",
+          do_not_submit_yet: false,
+          next_step:
+            "submit_no_action with reason provider_not_found. Do not offer another doctor if they only wanted this name.",
+          staff: STAFF,
+        });
+      }
+      const askedFrom = asString(params.date_from);
+      const askedTo = asString(params.date_to);
+      const { date_from: dateFrom, date_to: dateTo } = clampDateRange(askedFrom, askedTo);
+      const insurer = asInsurer(params.insurer);
+      const providerId = asProviderId(params.provider_id);
+      const specialtyId = providerId ? undefined : asSpecialty(params.specialty_id);
+      if (!providerId && !specialtyId) {
+        return JSON.stringify({
+          error: "need specialty_id or provider_id",
+          next_step:
+            "Call search_availability again with specialty_id from their request (general_practice, dermatology, orthopaedics, gynaecology, paediatrics, physiotherapy) or provider_id for a named clinician. Do not search with patient_id alone.",
+        });
+      }
+      try {
+        const raw = await ctx.platform.availability(
+          compact({
+            date_from: dateFrom,
+            date_to: dateTo,
+            ...(providerId ? { provider_id: providerId } : {}),
+            ...(specialtyId ? { specialty_id: specialtyId } : {}),
+            location_id: asLocation(params.location_id),
+            patient_id: asString(params.patient_id),
+            ...(insurer ? { insurer: [insurer] } : {}),
+          }) as AvailabilityQuery,
+        );
+        const ranked = rankAvailability(raw);
+        const singleDay = Boolean(askedFrom && askedFrom === askedTo);
+        const daySlots = singleDay
+          ? ranked.slots.filter((slot) => slot.start_time.slice(0, 10) === dateFrom)
+          : ranked.slots;
+        const restriction = raw.blocked[0]?.restriction;
+        if (restriction && ctx.lastBlocked !== "provider_not_found") {
+          ctx.lastBlocked = restriction;
+        }
+        const empty = !daySlots.length;
+        const offerGp = Boolean(empty && restriction && OFFER_GP.has(restriction));
+        if (empty && restriction && TERMINAL_DECLINE.has(restriction)) {
+          ctx.lastDecline = restriction;
+        } else if (empty && restriction && !offerGp) {
+          ctx.lastDecline = restriction;
+        } else if (!empty) {
+          ctx.lastDecline = undefined;
+        }
+        const saturday = singleDay
+          ? ranked.saturday.filter((slot) => slot.start_time.slice(0, 10) === dateFrom)
+          : ranked.saturday;
+        const afternoon = singleDay
+          ? ranked.after_work.filter((slot) => slot.start_time.slice(0, 10) === dateFrom)
+          : ranked.after_work;
+        const morning = (singleDay ? daySlots : ranked.slots).filter(
+          (slot) => !isAfterWork(slot.start_time),
+        );
+        const loc = asLocation(params.location_id);
+        let nextAfter = null as ReturnType<typeof slimSlot> | null;
+        let rankedFollow = ranked;
+        if (singleDay && empty) {
+          const follow = clampDateRange(addYmd(askedFrom!, 1), undefined);
+          const rawFollow = await ctx.platform.availability(
+            compact({
+              date_from: follow.date_from,
+              date_to: follow.date_to,
+              ...(providerId ? { provider_id: providerId } : {}),
+              ...(specialtyId ? { specialty_id: specialtyId } : {}),
+              location_id: loc,
+              patient_id: asString(params.patient_id),
+              ...(insurer ? { insurer: [insurer] } : {}),
+            }) as AvailabilityQuery,
+          );
+          rankedFollow = rankAvailability(rawFollow);
+          const pool =
+            loc === "norte"
+              ? rankedFollow.norte_slots
+              : loc === "centro"
+                ? rankedFollow.centro_slots
+                : loc === "sur"
+                  ? rankedFollow.sur_slots
+                  : rankedFollow.slots;
+          nextAfter = pool[0] ?? rankedFollow.soonest;
+        }
+        return JSON.stringify({
+          soonest: singleDay ? (daySlots[0] ?? null) : ranked.soonest,
+          soonest_centro: rankedFollow.soonest_centro,
+          soonest_norte: rankedFollow.soonest_norte,
+          soonest_sur: rankedFollow.soonest_sur,
+          centro_slots: rankedFollow.centro_slots,
+          norte_slots: rankedFollow.norte_slots,
+          sur_slots: rankedFollow.sur_slots,
+          next_after: nextAfter,
+          saturday,
+          morning,
+          afternoon,
+          after_work: afternoon,
+          outside_hours_offer: afternoon[0] ?? null,
+          slots: daySlots,
+          appointment_type_id: ranked.appointment_type_id,
+          blocked: ranked.blocked,
+          staff: ranked.staff,
+          decline: empty ? restriction : undefined,
+          do_not_submit_yet: offerGp,
+          next_step: offerGp
+            ? "Offer general_practice. Only submit_no_action with this exact restriction id after they refuse. Never submit both."
+            : empty && restriction
+              ? `If they will not accept another option, submit_no_action with reason ${restriction}.`
+              : empty && nextAfter
+                ? "That day is empty. Offer next_after at the same site. Use sur_slots/norte_slots/centro_slots — the earliest later date at that site, not a skipped week."
+                : "If they name a site, offer that site's soonest or the next row in norte_slots/centro_slots/sur_slots. If they refuse a day, offer the next date in that site list. Never BOOK another site unless they drop the site. If date and weekday conflict, trust the date and say both. Outside hours = afternoon from 14:00. Saturday morning is NOT outside hours.",
+        });
+      } catch (error: unknown) {
+        return JSON.stringify({
+          error: error instanceof Error ? error.message : "availability failed",
+          soonest: null,
+          slots: [],
+          blocked: [],
+        });
+      }
     }
     case "list_appointments": {
       const patientId = asString(params.patient_id);
@@ -223,14 +596,21 @@ export async function runClinicTool(
       return JSON.stringify(await ctx.platform.appointments(patientId, "upcoming"));
     }
     case "submit_book": {
+      if (ctx.submitted) return alreadySubmitted();
       const policy = asInsurer(params.policy_id);
       const patient_id = asString(params.patient_id);
-      let provider_id = asString(params.provider_id);
+      let provider_id = asProviderId(params.provider_id) ?? asString(params.provider_id);
       let location_id = asLocation(params.location_id);
       let appointment_type_id = asString(params.appointment_type_id);
       let slot = asString(params.slot);
       if (!policy || !patient_id || !provider_id || !location_id || !appointment_type_id || !slot) {
         return JSON.stringify({ error: "missing book fields" });
+      }
+      if (slot.slice(0, 10) <= clinicTodayYmd()) {
+        return JSON.stringify({
+          error: "same-day not allowed",
+          next_step: `Book a slot after ${clinicTodayYmd()}. Search availability again; do not resubmit this slot.`,
+        });
       }
       const day = slot.slice(0, 10);
       if (/^\d{4}-\d{2}-\d{2}$/.test(day) && typeof ctx.platform.availability === "function") {
@@ -258,37 +638,67 @@ export async function runClinicTool(
           /* submit the model payload */
         }
       }
-      return JSON.stringify(
-        await ctx.platform.submitBook({
-          call_id: ctx.callId,
-          patient_id,
-          provider_id,
-          location_id,
-          appointment_type_id,
-          slot,
-          policy_id: policy,
-        }),
-      );
+      const book = {
+        patient_id,
+        provider_id,
+        location_id,
+        appointment_type_id,
+        slot,
+        policy_id: policy,
+      };
+      ctx.draftBook = book;
+      const result = await ctx.platform.submitBook({ call_id: ctx.callId, ...book });
+      ctx.submitted = true;
+      ctx.draftBook = undefined;
+      return JSON.stringify(result);
     }
     case "submit_no_action": {
-      const reason = asString(params.reason) as OutcomeReason | undefined;
+      if (ctx.submitted) return alreadySubmitted();
+      const reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
       if (!reason) return JSON.stringify({ error: "reason required" });
-      return JSON.stringify(await ctx.platform.submitNoAction({ call_id: ctx.callId, reason }));
+      if (
+        reason === "out_of_scope" &&
+        ((ctx.userTurns ?? 99) < 2 || ctx.knownPatient)
+      ) {
+        return JSON.stringify({
+          error: "do_not_submit_yet",
+          next_step:
+            "Stay on the line. A misdial or 'wrong number' is not out_of_scope. Wait for their real request.",
+        });
+      }
+      const result = await ctx.platform.submitNoAction({ call_id: ctx.callId, reason });
+      ctx.draftBook = undefined;
+      ctx.submitted = true;
+      return JSON.stringify(result);
     }
     case "submit_escalate": {
-      const reason = asString(params.reason) as OutcomeReason | undefined;
-      if (!reason) return JSON.stringify({ error: "reason required" });
-      return JSON.stringify(await ctx.platform.submitEscalate({ call_id: ctx.callId, reason }));
+      if (ctx.submitted) return alreadySubmitted();
+      const reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
+      if (!reason || !OUTCOME_REASONS.has(reason)) {
+        return JSON.stringify({ error: "reason required", next_step: "Use a closed OutcomeReason." });
+      }
+      const result = await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
+      ctx.draftBook = undefined;
+      ctx.submitted = true;
+      return JSON.stringify(result);
     }
     case "submit_register": {
+      if (ctx.submitted) return alreadySubmitted();
       const insurer = asInsurer(params.insurer);
-      const given_name = asString(params.given_name);
-      const first_surname = asString(params.first_surname);
-      const second_surname = asString(params.second_surname);
+      let given_name = asString(params.given_name);
+      let first_surname = asString(params.first_surname);
+      let second_surname = asString(params.second_surname);
       const national_id = asString(params.national_id);
       const date_of_birth = asString(params.date_of_birth);
       const phone = asString(params.phone);
       const email = asString(params.email);
+      if (given_name && !first_surname) {
+        const parts = given_name.split(/\s+/);
+        if (parts.length >= 2) {
+          given_name = parts[0];
+          first_surname = parts.slice(1).join(" ");
+        }
+      }
       if (
         !insurer ||
         !given_name ||
@@ -299,30 +709,50 @@ export async function runClinicTool(
         !phone ||
         !email
       ) {
-        return JSON.stringify({ error: "missing register fields" });
+        return JSON.stringify({
+          error: "missing register fields",
+          next_step:
+            "Collect name, DNI, date of birth, phone, email and insurer from the caller. Insurer id must be sanitas|adeslas|dkv|asisa|mapfre|caser|cigna|axa|nueva_mutua|privado. Never invent details.",
+        });
       }
-      return JSON.stringify(
-        await ctx.platform.submitRegister({
+      const nid = national_id.replace(/[^a-z0-9]/gi, "").toLowerCase();
+      if (
+        /example\.com/i.test(email) ||
+        nid === "x1234567l" ||
+        (foldName(given_name) === "john" && foldName(first_surname) === "doe")
+      ) {
+        return JSON.stringify({
+          error: "invented details",
+          next_step: "Those were placeholders. Ask the caller for their real details and submit_register again.",
+        });
+      }
+      const mail = normalizeRegisterEmail(email);
+      const result = await ctx.platform.submitRegister({
           call_id: ctx.callId,
-          given_name,
-          first_surname,
-          second_surname,
+          given_name: restoreRegisterName(given_name),
+          first_surname: restoreRegisterName(alignSurnameWithEmail(first_surname, mail)),
+          second_surname: restoreRegisterName(second_surname),
           national_id,
           date_of_birth,
-          phone,
-          email,
+          phone: normalizeRegisterPhone(phone),
+          email: mail,
           insurer,
-        }),
-      );
+        });
+      ctx.draftBook = undefined;
+      ctx.submitted = true;
+      return JSON.stringify(result);
     }
     case "submit_cancel": {
+      if (ctx.submitted) return alreadySubmitted();
       const appointment_id = asString(params.appointment_id);
       if (!appointment_id) return JSON.stringify({ error: "appointment_id required" });
-      return JSON.stringify(
-        await ctx.platform.submitCancel({ call_id: ctx.callId, appointment_id }),
-      );
+      const result = await ctx.platform.submitCancel({ call_id: ctx.callId, appointment_id });
+      ctx.draftBook = undefined;
+      ctx.submitted = true;
+      return JSON.stringify(result);
     }
     case "submit_reschedule": {
+      if (ctx.submitted) return alreadySubmitted();
       const policy = asInsurer(params.policy_id);
       const appointment_id = asString(params.appointment_id);
       const provider_id = asString(params.provider_id);
@@ -331,16 +761,17 @@ export async function runClinicTool(
       if (!policy || !appointment_id || !provider_id || !location_id || !slot) {
         return JSON.stringify({ error: "missing reschedule fields" });
       }
-      return JSON.stringify(
-        await ctx.platform.submitReschedule({
+      const result = await ctx.platform.submitReschedule({
           call_id: ctx.callId,
           appointment_id,
-          provider_id,
+          provider_id: asProviderId(provider_id) ?? provider_id,
           location_id,
           slot,
           policy_id: policy,
-        }),
-      );
+        });
+      ctx.draftBook = undefined;
+      ctx.submitted = true;
+      return JSON.stringify(result);
     }
     default:
       return JSON.stringify({ error: `unknown tool ${name}` });

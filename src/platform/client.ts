@@ -105,22 +105,29 @@ export class PlatformClient {
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     let lastError: unknown;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 4; attempt++) {
       if (attempt > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 150 * 2 ** (attempt - 1)));
+        await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
       }
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        ...init,
-        headers: {
-          "X-Api-Key": this.apiKey,
-          ...init.headers,
-        },
-      });
-      const payload: unknown = await response.json().catch(() => null);
-      if (response.ok) return payload as T;
-      lastError = new PlatformApiError(response.status, path, payload);
-      if (response.status !== 429 && response.status !== 502 && response.status !== 503) {
-        throw lastError;
+      try {
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          ...init,
+          headers: {
+            "X-Api-Key": this.apiKey,
+            ...init.headers,
+          },
+        });
+        const payload: unknown = await response.json().catch(() => null);
+        if (response.ok) return payload as T;
+        lastError = new PlatformApiError(response.status, path, payload);
+        if (response.status !== 429 && response.status !== 502 && response.status !== 503) {
+          throw lastError;
+        }
+      } catch (error) {
+        lastError = error;
+        if (error instanceof PlatformApiError && error.status !== 429 && error.status !== 502 && error.status !== 503) {
+          throw error;
+        }
       }
     }
     throw lastError;

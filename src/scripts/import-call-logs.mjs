@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parseArgs } from "node:util";
+import { directoryIdentity, eventIdentity, spokenIdentity } from "../agent/caller-identity.ts";
 import { auditPayload } from "../worker/audit.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -46,7 +47,7 @@ export function buildImport(files, { org } = {}) {
   const ensure = (id) => {
     if (!calls.has(id)) calls.set(id, { id, org: null, start: null, last: null, close: null,
       turns: new Map(), events: new Map(), sources: new Set(), toolCalls: 0, toolErrors: 0,
-      outcome: "sin_cierre", reason: null, site: null });
+      outcome: "sin_cierre", reason: null, site: null, identities: [] });
     return calls.get(id);
   };
   const touch = (call, at, source) => {
@@ -114,12 +115,24 @@ export function buildImport(files, { org } = {}) {
         if (["centro", "norte", "sur"].includes(params?.location_id)) call.site = params.location_id;
       }
       if (level === "ERROR" && message.startsWith("tool error ")) call.toolErrors++;
+      if (message.startsWith("tool result search_directory ")) {
+        const raw = message.slice("tool result search_directory ".length);
+        // Logs truncate at 800 characters, often after the complete matches array.
+        // Recover only a closed array, never a possibly incomplete candidate list.
+        const closed = raw.match(/^\{"matches":(\[.*\])(?:,|\})/);
+        const identity = directoryIdentity(json(raw) ?? (closed ? json(`{"matches":${closed[1]}}`) : null));
+        if (identity) call.identities.push({ at, identity });
+      }
       const result = message.match(/^tool result (submit_\w+) (\{.*)$/);
       const payload = result && json(result[2]);
       // Tool requests are not evidence of a successful action.
       const action = payload?.record?.actions?.find((item) => item.action === result[1].slice(7).toUpperCase());
       const received = payload?.call_id === call.id && typeof payload.received_at === "string" && action;
       if ((payload?.accepted === true || received) && !payload.error && !payload.held && OUTCOMES[result[1]] && (!call.outcomeAt || at >= call.outcomeAt)) {
+        if (action?.action === "REGISTER") {
+          const identity = directoryIdentity({ matches: [action.new_patient] });
+          if (identity) call.identities.push({ at, identity });
+        }
         call.outcomeAt = at;
         call.outcome = OUTCOMES[result[1]];
         call.reason = typeof (action?.reason ?? payload.reason) === "string" ? (action?.reason ?? payload.reason) : null;
@@ -145,6 +158,8 @@ export function buildImport(files, { org } = {}) {
       setOrg(call, event.payload.orgSlug);
       const eventId = event.eventId || `log-event-${hash(line)}`;
       call.events.set(eventId, { ...event, eventId, occurredAt: at });
+      const identity = eventIdentity(event.type, event.payload);
+      if (identity) call.identities.push({ at, identity });
       if (event.type === "conversation.user" || event.type === "conversation.agent") {
         addTurn(call, at, event.type === "conversation.user" ? "caller" : "agent", event.payload.text, eventId);
       }
@@ -172,7 +187,16 @@ export function buildImport(files, { org } = {}) {
     if (org && call.org !== org) continue;
     const endedAt = ended?.occurredAt ?? (call.close && call.close >= call.last ? call.close : null);
     if (!endedAt) stats.incompleteCalls++;
+    const turns = [...call.turns.values()].sort((a, b) => a.at.localeCompare(b.at));
+    let spoken;
+    let previousAgent = "";
+    for (const turn of turns) {
+      if (turn.speaker === "agent") previousAgent = turn.text;
+      else spoken = spokenIdentity(turn.text, previousAgent) ?? spoken;
+    }
+    const identity = call.identities.sort((a, b) => a.at.localeCompare(b.at)).at(-1)?.identity ?? spoken;
     const summary = {
+      ...identity,
       callId: call.id, orgSlug: call.org, configVersion: ended?.configVersion ?? events.at(-1)?.configVersion ?? "log-import",
       outcome: typeof end.outcome === "string" ? end.outcome : call.outcome,
       reason: typeof end.reason === "string" ? end.reason : call.reason,
@@ -208,6 +232,10 @@ export function importSql(plan) {
     // Existing live call records are authoritative. Imported records can be safely rerun.
     const owned = `EXISTS (SELECT 1 FROM voice_calls WHERE call_id = ${sql(call.id)} AND org_slug = ${sql(call.org)} AND json_extract(summary, '$.importSource') = ${sql(IMPORT_SOURCE)})`;
     statements.push(`INSERT INTO voice_calls (call_id, org_slug, started_at, ended_at, summary) VALUES (${[call.id, call.org, call.startedAt, call.endedAt, JSON.stringify(call.summary)].map(sql).join(", ")}) ON CONFLICT(call_id) DO NOTHING;`);
+    if (call.summary.patientName) {
+      const identity = Object.fromEntries(["patientName", "patientId", "insurer"].filter(key => call.summary[key]).map(key => [key, call.summary[key]]));
+      statements.push(`UPDATE voice_calls SET summary = json_patch(COALESCE(summary, '{}'), ${sql(JSON.stringify(identity))}) WHERE ${owned} AND NULLIF(json_extract(summary, '$.patientName'), '') IS NULL;`);
+    }
     call.turns.forEach((turn, index) => {
       statements.push(`INSERT INTO voice_transcript_entries (event_id, call_id, org_slug, occurred_at, sequence, speaker, text) SELECT ${[turn.id, call.id, call.org, turn.at, index + 1, turn.speaker, turn.text].map(sql).join(", ")} WHERE ${owned} ON CONFLICT(event_id) DO NOTHING;`);
     });

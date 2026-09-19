@@ -136,3 +136,32 @@ test("joins a rotated log to a unique full call ID from an earlier file", () => 
   assert.equal(plan.calls[0].turns.length, 2);
   assert.equal(plan.calls[0].summary.durationMs, 2000);
 });
+
+test("imports names from complete and truncated directory results, never ambiguous candidates", (t) => {
+  const patient = { given_name: "María", first_surname: "García", patient_id: "P01", insurer: "sanitas" };
+  for (const result of [JSON.stringify({ matches: [patient] }), `{"matches":[${JSON.stringify(patient)}],"next_step":"truncated`]) {
+    const plan = buildImport(sources(raw([line(`12345678 tool result search_directory ${result}`)])));
+    assert.equal(plan.calls[0].summary.patientName, "María García");
+    const sqlite = database(t);
+    const oldPlan = structuredClone(plan);
+    delete oldPlan.calls[0].summary.patientName;
+    delete oldPlan.calls[0].summary.patientId;
+    sqlite.exec(importSql(oldPlan));
+    sqlite.exec(importSql(plan));
+    sqlite.exec(importSql(plan));
+    assert.equal(JSON.parse(sqlite.prepare("SELECT summary FROM voice_calls").get().summary).patientName, "María García");
+  }
+  for (const result of [JSON.stringify({ matches: [patient, patient] }), `{"matches":[${JSON.stringify(patient)},`]) {
+    const plan = buildImport(sources(raw([line(`12345678 tool result search_directory ${result}`)])));
+    assert.equal(plan.calls[0].summary.patientName, undefined);
+  }
+});
+
+test("successful registrations recover the accepted patient's full name", () => {
+  const result = { call_id: id, received_at: "2026-09-19T08:00:00Z", record: { actions: [{ action: "REGISTER", new_patient: {
+    given_name: "Antonio", first_surname: "Ramírez", second_surname: "Jiménez", insurer: "cigna",
+  } }] } };
+  const plan = buildImport(sources(raw([line(`12345678 tool result submit_register ${JSON.stringify(result)}`)])));
+  assert.equal(plan.calls[0].summary.patientName, "Antonio Ramírez Jiménez");
+  assert.equal(plan.calls[0].summary.insurer, "cigna");
+});

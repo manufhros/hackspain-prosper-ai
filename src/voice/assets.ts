@@ -2,13 +2,14 @@ export const MODEL = "qwen3.5:4b";
 const whisper = "https://huggingface.co/mlx-community/whisper-small-mlx/resolve/45f3915923c7a79a5a5b5a7d909d39aeb0e5630e";
 const piper = "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117";
 export interface Asset { path: string; url: string; size?: number; sha256?: string }
-// Same Q4_K_M GGUF already pulled by the private Ollama runtime; embedded Jinja template included.
-const qwenDigest = "81fb60c7daa80fc1123380b98970b320ae233409f0f71a72ed7b9b0d62f40490";
+// llama.cpp conversion: four RoPE sections [11, 11, 10, 0]. The Ollama
+// conversion uses three and a different tensor layout; never share its cache.
+const qwenRevision = "e87f176479d0855a907a41277aca2f8ee7a09523";
 export const qwenAsset: Asset = {
-  path: "models/qwen3.5-4b-q4_k_m.gguf", size: 3389971840, sha256: qwenDigest,
-  url: `https://registry.ollama.ai/v2/library/qwen3.5/blobs/sha256:${qwenDigest}`,
+  path: `models/unsloth-${qwenRevision}/Qwen3.5-4B-Q4_K_M.gguf`, size: 2740937888,
+  sha256: "00fe7986ff5f6b463e62455821146049db6f9313603938a70800d1fb69ef11a4",
+  url: `https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/${qwenRevision}/Qwen3.5-4B-Q4_K_M.gguf`,
 };
-export const qwenOllamaBlob = `ollama/blobs/sha256-${qwenDigest}`;
 export const assets: Asset[] = [
   { path: "whisper/config.json", url: `${whisper}/config.json`, size: 266 },
   { path: "whisper/weights.npz", url: `${whisper}/weights.npz`, size: 481307592, sha256: "55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5" },

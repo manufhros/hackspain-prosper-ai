@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { createServer } from "node:net";
 import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
-import { speechAssets, vadAsset, qwenAsset, qwenOllamaBlob, MODEL, type Asset } from "./assets";
+import { speechAssets, vadAsset, qwenAsset, MODEL, type Asset } from "./assets";
 import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
 import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
@@ -66,7 +66,7 @@ export class LocalRuntime implements Inference {
   private workers: Worker[] = [];
   readonly settings = localSettings();
   private local?: OllamaChat | LlamaChat;
-  modelRuntime?: { backend: string; slots: number; context_per_slot: number; build?: string };
+  modelRuntime?: { backend: string; slots: number; context_per_slot: number; build?: string; model_asset?: string; model_sha256?: string };
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
@@ -172,12 +172,8 @@ export class LocalRuntime implements Inference {
     this.update(`Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
   }
   private async startLlama(executable: string) {
-    let modelPath = join(voiceDir, qwenAsset.path);
-    const cached = Bun.file(join(voiceDir, qwenOllamaBlob));
-    if (await cached.exists() && cached.size === qwenAsset.size && await cached.slice(0, 4).text() === "GGUF") {
-      modelPath = cached.name!;
-      this.update("Reusing Qwen GGUF from the private Ollama cache.");
-    } else await this.download(qwenAsset);
+    const modelPath = join(voiceDir, qwenAsset.path);
+    await this.download(qwenAsset);
     const port = await freePort();
     this.origin = `http://127.0.0.1:${port}`;
     this.update("Starting private llama-server with continuous batching…");
@@ -195,7 +191,7 @@ export class LocalRuntime implements Inference {
     let available = false;
     for (let attempt = 0; attempt < 480; attempt++) {
       this.stopSignal.signal.throwIfAborted();
-      if (llm.exitCode !== null) throw new Error(`llama-server exited. Try brew upgrade llama.cpp. ${tail}`);
+      if (llm.exitCode !== null) throw new Error(`llama-server exited while loading ${qwenAsset.path}. ${tail}`);
       try { available = (await fetch(`${this.origin}/health`, { signal: AbortSignal.any([this.stopSignal.signal, AbortSignal.timeout(500)]) })).ok; } catch { /* loading */ }
       if (available) break;
       await Bun.sleep(250);
@@ -203,7 +199,7 @@ export class LocalRuntime implements Inference {
     if (!available) throw new Error(`llama-server startup timed out. ${tail}`);
     const props = await fetch(`${this.origin}/props`, { signal: AbortSignal.any([this.stopSignal.signal, AbortSignal.timeout(5000)]) });
     if (!props.ok) throw new Error(`Cannot verify llama-server capacity: HTTP ${props.status}`);
-    this.modelRuntime = llamaCapacity(await props.json(), this.settings);
+    this.modelRuntime = { ...llamaCapacity(await props.json(), this.settings), model_asset: qwenAsset.path, model_sha256: qwenAsset.sha256 };
     this.local = new LlamaChat(this.origin, this.settings);
     this.update(`llama-server reports ${this.modelRuntime.slots} slots, ${this.modelRuntime.context_per_slot} context tokens per slot.`);
   }

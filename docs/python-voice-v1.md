@@ -2,7 +2,7 @@
 
 ## Qué cambia
 
-Base: `feature/lucia-work`, commit `37d4a32`. El baseline TypeScript y su configuración de ElevenLabs siguen intactos. Esta implementación no modifica ningún agente remoto ni cambia el endpoint del evaluator.
+Base funcional: `feature/lucia-work`, commit `37d4a32`. Esta rama conserva únicamente el nuevo sistema Python y su panel web: se han retirado el backend TypeScript, sus tests, scripts y configuración npm. La implementación anterior se puede consultar o recuperar desde aquella rama o el historial de Git. No se modifica ningún agente remoto de ElevenLabs.
 
 ```mermaid
 flowchart TD
@@ -77,7 +77,7 @@ Los motivos de escalado y la interpretación de preferencias siguen dependiendo 
 |---|---|
 | `PLATFORM_API_KEY`, `PLATFORM_API_BASE_URL` | API clínica/evaluator |
 | `OPENAI_API_KEY` | LLM y STT por defecto |
-| `LLM_MODEL` | `gpt-4.1-mini`; admite también el antiguo `OPENAI_TEXT_MODEL` |
+| `LLM_MODEL` | `gpt-4.1-mini`; admite `OPENAI_TEXT_MODEL` como alias de configuración |
 | `OPENAI_BASE_URL` | Endpoint del LLM compatible con OpenAI; no cambia STT/TTS |
 | `STT_PROVIDER` | `openai` o `deepgram` |
 | `STT_MODEL` | Vacío selecciona `gpt-4o-transcribe` o `nova-3` |
@@ -128,7 +128,7 @@ Archivos: `DATA_DIR/events.sqlite3` (WAL) y `events.jsonl` (10 MB + 5 rotaciones
 
 ## Ejecución y despliegue
 
-Python 3.11, dependencias fijadas por `uv.lock`. Un único proceso de Uvicorn; no usar `--workers 2` con este almacén/registro en memoria. Persistir `DATA_DIR`. El mismo puerto no puede estar ocupado por el baseline TypeScript.
+Python 3.11, dependencias fijadas por `uv.lock`. No requiere Node.js ni npm; el JavaScript del panel se ejecuta exclusivamente en el navegador. Un único proceso de Uvicorn; no usar `--workers 2` con este almacén/registro en memoria. Persistir `DATA_DIR` y elegir un puerto libre.
 
 ```bash
 uv sync --python 3.11 --frozen
@@ -161,5 +161,4 @@ Smoke opcional de proveedores: `RUN_LIVE_VOICE_SMOKE=1 uv run pytest tests/test_
 - 37 pruebas Python offline superadas; smoke facturable excluido por defecto.
 - Smoke real OpenAI + ElevenLabs + Smart Turn superado: primer audio en 4,96 s incluyendo arranque en frío. No es un benchmark de latencia conversacional.
 - Ruff, compilación Python y revisión visual del panel con eventos simulados: correctos.
-- 11 tests del baseline TypeScript superados usando `ELEVENLABS_AGENT_ID=offline-test` solo para las pruebas. `npm run typecheck` mantiene errores preexistentes en `src/agent/tools.ts` y `tools.test.ts`; esos archivos no se han modificado.
 - Pendientes: Docker en entorno Linux, carga de inferencia concurrente y batería conversacional del evaluator.

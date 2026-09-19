@@ -1,6 +1,6 @@
 # HackSpain 2026 — Prosper track
 
-Agente de voz inbound para **Clínica Arenal**. Esta rama añade la **v1 Python** (FastAPI + Pipecat/Flows), conservando el agente TypeScript de `feature/lucia-work` para comparación.
+Agente de voz inbound para **Clínica Arenal**, implementado en **Python** con FastAPI + Pipecat/Flows. Esta rama contiene únicamente el nuevo sistema; la implementación anterior permanece en `feature/lucia-work` y en el historial de Git.
 
 ## V1 Python
 
@@ -24,29 +24,20 @@ Las pruebas locales **no certifican** que esta versión pase el evaluator: hay q
 
 La clínica es de solo lectura. El leaderboard mira lo que POSTeáis a `/api/v1/submit/*`. Contrato: Twilio Media Streams sobre un WebSocket (`wss://…/ws`).
 
-## Layout del baseline TypeScript
+## Estructura
 
 ```
-src/
-  config.ts              # env
-  platform/              # cliente tipado de la API Prosper
-  scripts/               # fetch del catálogo y smoke
-  agent/                 # (próximo) servidor WS por llamada
-task/                    # documentación oficial del reto
-data/                    # cache local (gitignored)
+src/clinic_voice/        # backend Python: voz, conversación, dominio e integraciones
+  console/              # panel HTML/CSS/JavaScript servido por FastAPI, sin Node ni build
+tests/                  # pruebas Python
+task/                   # documentación y casos oficiales del reto
+docs/                   # arquitectura y guía de operación
+data/voice/             # eventos y logs locales (gitignored)
+pyproject.toml          # dependencias y herramientas Python
+uv.lock                 # versiones fijadas
+Dockerfile.voice        # despliegue del servidor Python
 ```
 
-## Setup del baseline TypeScript
-
-```bash
-cp .env.example .env
-npm install
-npm run typecheck
-npm run clinic:smoke
-npm run agent:configure   # una vez: tools + prompt en ElevenLabs
-npm run dev               # ws://127.0.0.1:7860/ws
-```
-
-Túnel: `ngrok http --region eu 7860` y en El Turno Settings el endpoint `wss://…/ws`.
+Túnel: `ngrok http 7860` y en El Turno Settings el endpoint `wss://…/ws`. Si arrancas Uvicorn en otro puerto (por ejemplo, `7861`), dirige ngrok a ese mismo puerto.
 
 Docs del reto en [`task/README.md`](task/README.md). API: https://hackspain.getprosperapp.com/api/redoc

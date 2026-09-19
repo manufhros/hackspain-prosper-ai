@@ -1,3 +1,4 @@
+import { speechChunks } from "./speech";
 import { type SpeechDetector } from "./silero";
 import { type Outcome } from "../data";
 import { decodeAudio, WireInspector } from "../protocol";
@@ -211,29 +212,46 @@ export class PlatformCall {
     const started = this.now();
     if (this.agent) this.language = this.agent.currentLanguage;
     try {
-      this.emit({ stage: "tts_start", elapsed_ms: 0, detail: "Speech synthesis queued" });
       const fixedPhrase = Object.values(callPhrases).some(phrases => Object.values(phrases).includes(text));
-      const reply = await this.options.audio.run("speak", { text, language: this.language, wire: true, play: false, cache: fixedPhrase }, AbortSignal.any([signal, AbortSignal.timeout(12000)]));
-      this.emit({ stage: "tts", elapsed_ms: reply.elapsed_ms, detail: "Speech synthesis ready", metrics: {
-        queue_ms: reply.queue_ms ?? 0, total_ms: reply.total_ms ?? reply.elapsed_ms, duration_ms: reply.duration_ms ?? 0, cache_hit: reply.cache_hit ? 1 : 0 } });
-      const bytes = decodeAudio(reply.payload);
-      if (!bytes || bytes.length > 480_000) throw new Error("Invalid synthesized mu-law audio");
-      for (let offset = 0; offset < bytes.length; offset += 160) {
+      const chunks = fixedPhrase ? [text] : speechChunks(text);
+      if (!chunks.length) throw new Error("Empty speech");
+      const synthesize = (index: number) => {
+        this.emit({ stage: "tts_start", elapsed_ms: 0, detail: "Speech synthesis queued", metrics: { chunk: index + 1, chunks: chunks.length } });
+        // Capture rejections immediately: a prefetched chunk can fail during current playback.
+        return this.options.audio.run("speak", { text: chunks[index]!, language: this.language, wire: true, play: false, cache: fixedPhrase },
+          AbortSignal.any([signal, AbortSignal.timeout(12000)]))
+          .then(reply => ({ reply, error: undefined }), error => ({ reply: undefined, error }));
+      };
+      let next = synthesize(0), durationBytes = 0, sentFrames = 0;
+      for (let index = 0; index < chunks.length; index++) {
+        const result = await next;
         signal.throwIfAborted();
-        const frame = Buffer.alloc(160, 255); bytes.copy(frame, 0, offset, offset + 160);
-        this.send({ event: "media", streamSid: this.inspector.streamSid, media: { payload: frame.toString("base64") } });
-        this.stats.outbound_frames++;
-        if (offset === 0) {
-          this.stats.output_turns++;
-          this.emit({ stage: kind, elapsed_ms: this.now() - started, detail: text });
-          this.emit({ stage: "audio_out", elapsed_ms: this.now() - started, detail: "First output audio frame sent" });
+        if (!result.reply) throw result.error;
+        const reply = result.reply;
+        this.emit({ stage: "tts", elapsed_ms: reply.elapsed_ms, detail: "Speech chunk ready", metrics: {
+          chunk: index + 1, chunks: chunks.length, queue_ms: reply.queue_ms ?? 0, total_ms: reply.total_ms ?? reply.elapsed_ms,
+          duration_ms: reply.duration_ms ?? 0, cache_hit: reply.cache_hit ? 1 : 0 } });
+        const bytes = decodeAudio(reply.payload);
+        if (!bytes || (durationBytes += bytes.length) > 480_000) throw new Error("Invalid synthesized mu-law audio");
+        // At most one chunk ahead per caller, so long answers cannot monopolize the worker pool.
+        if (index + 1 < chunks.length) next = synthesize(index + 1);
+        for (let offset = 0; offset < bytes.length; offset += 160) {
+          signal.throwIfAborted();
+          const frame = Buffer.alloc(160, 255); bytes.copy(frame, 0, offset, offset + 160);
+          this.send({ event: "media", streamSid: this.inspector.streamSid, media: { payload: frame.toString("base64") } });
+          this.stats.outbound_frames++;
+          if (sentFrames++ === 0) {
+            this.stats.output_turns++;
+            this.emit({ stage: kind, elapsed_ms: this.now() - started, detail: text });
+            this.emit({ stage: "audio_out", elapsed_ms: this.now() - started, detail: "First output audio frame sent" });
+          }
+          await this.sleep(20, signal);
         }
-        await this.sleep(20, signal);
       }
       const mark = crypto.randomUUID(); this.marks.set(mark, this.now());
       if (this.marks.size > 100) this.marks.delete(this.marks.keys().next().value!);
       this.send({ event: "mark", streamSid: this.inspector.streamSid, mark: { name: mark } });
-      this.emit({ stage: "output_sent", elapsed_ms: this.now() - started, detail: "All output frames sent; peer playback acknowledgement pending", metrics: { duration_ms: bytes.length / 8 } });
+      this.emit({ stage: "output_sent", elapsed_ms: this.now() - started, detail: "All output frames sent; peer playback acknowledgement pending", metrics: { duration_ms: durationBytes / 8, chunks: chunks.length } });
       return true;
     } catch (error) {
       this.emit({ stage: "output_incomplete", elapsed_ms: this.now() - started, detail: playback.signal.aborted ? "Output interrupted or socket closed" : "Output failed" });

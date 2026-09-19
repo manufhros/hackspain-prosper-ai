@@ -326,3 +326,35 @@ test("neural detector errors end only their call and never submit", async () => 
   expect(f.reports[0]!.errors.join()).toContain("Synthetic VAD failure");
   expect(f.requests).toHaveLength(0);
 });
+
+test("validated speech prefetches only the next chunk while current audio is playing", async () => {
+  const answer = "Puedo ayudarle a consultar los horarios de atención de nuestra clínica de Barcelona. ¿Qué día de la semana le interesa consultar?";
+  let releasePlayback!: () => void;
+  const playbackGate = new Promise<void>(resolve => releasePlayback = resolve);
+  let syntheses = 0;
+  const f = fixture([say("Hola"), say(answer)]);
+  const originalAudio = f.inference.audio;
+  f.inference.audio = async (op, fields, signal) => {
+    if (op === "speak" && fields.text !== "Clínica Arenal, ¿en qué puedo ayudarle?") syntheses++;
+    return originalAudio(op, fields, signal);
+  };
+  f.options.sleep = async (_ms, signal) => { signal.throwIfAborted(); };
+  // The call retains the original sleep function; use a second call with a controlled playback clock.
+  f.call.end(); await f.call.done;
+  const sent: ObjectValue[] = [];
+  const call = new PlatformCall({ ...f.options, sleep: async (_ms, signal) => {
+    if (syntheses) await playbackGate;
+    signal.throwIfAborted();
+  }, socket: { send(raw) { sent.push(JSON.parse(raw)); return raw.length; }, close() {} } });
+  const wire = wireMessages("chunk-test", "MZ-chunk");
+  call.receive(JSON.stringify(wire.connected)); call.receive(JSON.stringify(wire.start)); await tick();
+  for (let i = 0; i < 46; i++) {
+    const media = wire.media(i); media.media.payload = (i < 6 ? speech : silence).toString("base64"); call.receive(JSON.stringify(media));
+  }
+  await tick();
+  expect(syntheses).toBe(2);
+  expect(sent.filter(m => m.event === "mark")).toHaveLength(1); // only greeting has completed
+  releasePlayback(); await tick(); call.end(); await call.done;
+  expect(sent.filter(m => m.event === "mark")).toHaveLength(2);
+  expect(f.reports.at(-1)!.events.filter(e => e.stage === "audio_out")).toHaveLength(2);
+});

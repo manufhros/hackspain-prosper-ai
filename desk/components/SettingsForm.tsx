@@ -1,111 +1,102 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check } from "lucide-react";
+import { type DeskSettings, useDeskSettings } from "./useDeskSettings";
+import styles from "./SettingsForm.module.css";
 
-export type DeskSettings = {
-  zeroRetention: boolean;
-  keepDays: number;
-  recordCalls: boolean;
-  euOnly: boolean;
-};
+export { loadSettings, type DeskSettings } from "./useDeskSettings";
 
-const DEFAULTS: DeskSettings = {
-  zeroRetention: false,
-  keepDays: 30,
-  recordCalls: false,
-  euOnly: true,
-};
-
-export function loadSettings(org: string): DeskSettings {
-  if (typeof window === "undefined") return DEFAULTS;
-  try {
-    const raw = localStorage.getItem(`pupitre:${org}:settings`);
-    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
-  } catch {
-    return DEFAULTS;
-  }
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (value: boolean) => void; label: string }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={styles.toggle}
+      data-on={checked}
+      onClick={() => onChange(!checked)}
+    >
+      <i aria-hidden="true" />
+    </button>
+  );
 }
 
-function Row({
-  title,
-  copy,
-  children,
-}: {
-  title: string;
-  copy: string;
-  children: React.ReactNode;
-}) {
+function Row({ title, copy, children }: { title: string; copy: string; children: React.ReactNode }) {
   return (
-    <label className="set-row">
-      <span>
+    <div className={styles.row}>
+      <div className={styles.rowText}>
         <strong>{title}</strong>
-        <em>{copy}</em>
-      </span>
+        <p>{copy}</p>
+      </div>
       {children}
-    </label>
+    </div>
   );
 }
 
 export function SettingsForm({ org }: { org: string }) {
-  const [s, setS] = useState<DeskSettings>(DEFAULTS);
-  const [saved, setSaved] = useState(false);
+  const [settings, save] = useDeskSettings(org);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
-    setS(loadSettings(org));
-  }, [org]);
+    if (savedAt == null) return;
+    const timer = window.setTimeout(() => setSavedAt(null), 1600);
+    return () => window.clearTimeout(timer);
+  }, [savedAt]);
 
   function write(next: DeskSettings) {
-    setS(next);
-    localStorage.setItem(`pupitre:${org}:settings`, JSON.stringify(next));
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 1200);
+    save(next);
+    setSavedAt(Date.now());
   }
 
   return (
-    <form
-      className="set-list"
-      onSubmit={(e) => {
-        e.preventDefault();
-        write(s);
-      }}
-    >
-      <Row
-        title="Retención cero"
-        copy="No se guarda transcripción ni audio. El panel deja de mostrar el motivo de la llamada."
-      >
-        <input
-          type="checkbox"
-          checked={s.zeroRetention}
-          onChange={(e) => write({ ...s, zeroRetention: e.target.checked, keepDays: e.target.checked ? 0 : 30 })}
-        />
-      </Row>
-      <Row title="Días en archivo" copy="0 si retención cero. Solo metadatos de cita (quién, cuándo, sede).">
-        <select
-          value={s.keepDays}
-          disabled={s.zeroRetention}
-          onChange={(e) => write({ ...s, keepDays: Number(e.target.value) })}
-        >
-          <option value={0}>0</option>
-          <option value={1}>1</option>
-          <option value={7}>7</option>
-          <option value={30}>30</option>
-        </select>
-      </Row>
-      <Row title="Grabar audio" copy="Apagado por defecto. Independiente del modelo de voz.">
-        <input
-          type="checkbox"
-          checked={s.recordCalls}
-          onChange={(e) => write({ ...s, recordCalls: e.target.checked })}
-        />
-      </Row>
-      <Row title="Solo Unión Europea" copy="Los logs no salen de región EU.">
-        <input
-          type="checkbox"
-          checked={s.euOnly}
-          onChange={(e) => write({ ...s, euOnly: e.target.checked })}
-        />
-      </Row>
-      {saved ? <p className="saved">Guardado en este navegador. No cambia el agente en producción.</p> : null}
-    </form>
+    <div className={styles.form}>
+      <section className={styles.section}>
+        <header>
+          <h2>Datos de la llamada</h2>
+          <p>Transcripción, audio y motivo</p>
+        </header>
+        <Row title="Retención cero" copy="No se guarda transcripción ni audio. El panel deja de mostrar el motivo de cada llamada.">
+          <Toggle
+            label="Retención cero"
+            checked={settings.zeroRetention}
+            onChange={(value) => write({ ...settings, zeroRetention: value, keepDays: value ? 0 : 30 })}
+          />
+        </Row>
+        <Row title="Días en archivo" copy="Solo metadatos de cita: quién, cuándo y en qué sede. 0 si retención cero.">
+          <select
+            className={styles.select}
+            value={settings.keepDays}
+            disabled={settings.zeroRetention}
+            aria-label="Días en archivo"
+            onChange={(event) => write({ ...settings, keepDays: Number(event.target.value) })}
+          >
+            <option value={0}>0 días</option>
+            <option value={1}>1 día</option>
+            <option value={7}>7 días</option>
+            <option value={30}>30 días</option>
+          </select>
+        </Row>
+        <Row title="Grabar audio" copy="Apagado por defecto. Independiente del modelo de voz.">
+          <Toggle label="Grabar audio" checked={settings.recordCalls} onChange={(value) => write({ ...settings, recordCalls: value })} />
+        </Row>
+      </section>
+
+      <section className={styles.section}>
+        <header>
+          <h2>Residencia de los datos</h2>
+          <p>Dónde se procesan y almacenan los registros</p>
+        </header>
+        <Row title="Solo Unión Europea" copy="Los logs no salen de la región EU. Recomendado para cumplir el RGPD.">
+          <Toggle label="Solo Unión Europea" checked={settings.euOnly} onChange={(value) => write({ ...settings, euOnly: value })} />
+        </Row>
+      </section>
+
+      <p className={styles.saved} data-visible={savedAt != null} role="status" aria-live="polite">
+        <Check size={14} aria-hidden="true" />
+        Guardado en este navegador
+      </p>
+    </div>
   );
 }

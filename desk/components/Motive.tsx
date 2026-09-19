@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { loadSettings } from "./SettingsForm";
+import { useDeskSettings } from "./useDeskSettings";
 
+/**
+ * Shows what the patient said, honouring the workspace's zero-retention
+ * preference. Demo accounts never carry transcripts.
+ */
 export function Motive({ org, text, live }: { org: string; text: string; live: boolean }) {
-  const [hidden, setHidden] = useState(false);
-  useEffect(() => {
-    setHidden(loadSettings(org).zeroRetention);
-  }, [org]);
+  const [settings] = useDeskSettings(org);
   if (!live) return <span className="muted">Sin transcripción (cuenta demo)</span>;
-  if (hidden) return <span className="muted">Oculto · retención cero</span>;
-  return <span>{text || "—"}</span>;
+  if (settings.zeroRetention) return <span className="muted">Oculto · retención cero</span>;
+  return <span title={text}>{text || "—"}</span>;
 }

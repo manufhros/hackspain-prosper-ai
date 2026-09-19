@@ -146,18 +146,18 @@ export class PlatformCall {
   }
   private acceptFrame(frame: Buffer, rms: number, speech?: boolean) {
     const result = this.segmenter.push(frame, speech);
-        if (result.started) {
-          this.version++; this.stats.speech_starts++;
-          this.thinking?.abort(new Error("Superseded by caller speech"));
-          clearTimeout(this.idleTimer); this.idleNotice = false;
-          this.emit({ stage: "speech_start", elapsed_ms: 0, detail: "Caller speech detected", metrics: { rms, threshold: this.options.vad.threshold } });
-          if (this.playback) {
-            this.playback.abort();
-            this.send({ event: "clear", streamSid: this.inspector.streamSid });
-            this.emit({ stage: "interruption", elapsed_ms: 0, detail: "Stopped paced output on caller speech" });
-          }
-        }
-        if (result.utterance) this.enqueue(result.utterance);
+    if (result.started) {
+      this.version++; this.stats.speech_starts++;
+      this.thinking?.abort(new Error("Superseded by caller speech"));
+      clearTimeout(this.idleTimer); this.idleNotice = false;
+      this.emit({ stage: "speech_start", elapsed_ms: 0, detail: "Caller speech detected", metrics: { rms, threshold: this.options.vad.threshold } });
+      if (this.playback) {
+        this.playback.abort();
+        this.send({ event: "clear", streamSid: this.inspector.streamSid });
+        this.emit({ stage: "interruption", elapsed_ms: 0, detail: "Stopped paced output on caller speech" });
+      }
+    }
+    if (result.utterance) this.enqueue(result.utterance);
   }
   private enqueue(audio: Buffer) {
     if (this.inputs.length >= 3) { this.fail(new Error("Caller audio backlog exceeded three turns")); return; }

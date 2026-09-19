@@ -39,7 +39,7 @@ test("Ollama uses bounded local settings and exposes timing and token telemetry"
   const settings = localSettings({ LOCAL_LLM_PARALLEL: "4" });
   const model = new OllamaChat("http://127.0.0.1:1234", settings, async (_url, init) => {
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ model: "qwen3.5:4b", think: false, options: { num_ctx: 8192, num_predict: 512 } });
+    expect(body).toMatchObject({ model: "qwen3.5:4b", think: false, options: { num_ctx: 16384, num_predict: 512 } });
     expect(body).not.toHaveProperty("tools");
     return Response.json({ message: { role: "assistant", content: "Hola" }, done_reason: "stop",
       eval_duration: 100000000, prompt_eval_duration: 50000000, prompt_eval_count: 30, eval_count: 2 });

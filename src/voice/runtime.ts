@@ -165,7 +165,7 @@ export class LocalRuntime implements Inference {
     await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
     if (this.workers.some(worker => worker.process.exitCode !== null) || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
     this.state = "ready";
-    this.update(`Voice ready: ${this.modelLabel} (${this.settings.parallel} local slots) + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+    this.update(`Voice ready: ${this.modelLabel}${config.provider === "local" ? ` (${this.settings.parallel} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
   }
   private startWorker(python: string, role: Worker["role"]) {
     const child = this.launch([python, join(root, "local-voice/worker.py"), voiceDir, role], {
@@ -257,8 +257,13 @@ export class LocalRuntime implements Inference {
         settled = true; clearTimeout(timer); signal.removeEventListener("abort", abort);
         this.pending.delete(id); worker.pending--; return true;
       };
-      // Cancellation discards this caller's result, but retains native capacity until the reply.
-      const abort = () => reject(signal.reason ?? new Error("Voice operation cancelled"));
+      // Platform callers pass only the shared lifetime here; SharedAudio handles per-call cancellation.
+      // Direct TUI cancellation must also stop device playback / a pending microphone open.
+      const abort = () => {
+        if (!finish()) return;
+        reject(new Error("Voice operation cancelled; retry setup to restart local processes."));
+        this.stopProcesses(); this.state = "error";
+      };
       const timer = setTimeout(() => {
         if (!finish()) return;
         reject(new Error("Audio operation timed out; retry setup."));

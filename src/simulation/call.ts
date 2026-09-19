@@ -4,6 +4,7 @@ import { delay } from "../telephony/audio";
 import type { Inference } from "../voice/runtime";
 import type { PublicCase } from "../data";
 import { simulatedCallerMessages } from "./scenario";
+import type { AudioLane } from "./playback";
 
 export function localTarget(endpoint: string): { socket: string; health: string } {
   const url = new URL(endpoint);
@@ -27,7 +28,8 @@ export class CallerWire {
   private offset = 0;
   private received: Buffer[] = [];
   private receivedBytes = 0;
-  constructor(readonly callId: string, readonly streamSid: string, private send: (data: string) => void) {}
+  constructor(readonly callId: string, readonly streamSid: string, private send: (data: string) => void,
+    private monitor?: (role: AudioLane, audio: Buffer) => void) {}
   get playing() { return this.offset < this.speech.length; }
   start(phone?: string) {
     const messages = wireMessages(this.callId, this.streamSid);
@@ -47,6 +49,7 @@ export class CallerWire {
     const frame = Buffer.alloc(160, 0xff);
     if (this.playing) { this.speech.copy(frame, 0, this.offset, this.offset + 160); this.offset += 160; }
     this.message("media", { media: { track: "inbound", chunk: String(this.frames + 1), timestamp: String(this.frames * 20), payload: frame.toString("base64") } });
+    this.monitor?.("caller", frame);
     this.frames++;
   }
   receive(raw: unknown): Buffer | undefined {
@@ -55,6 +58,7 @@ export class CallerWire {
       const audio = decodeAudio(isObject(raw.media) ? raw.media.payload : undefined);
       if (!audio || (this.receivedBytes += audio.length) > 480000) throw new Error("Invalid or oversized receptionist audio");
       this.received.push(audio);
+      this.monitor?.("agent", audio);
     } else if (raw.event === "mark") {
       if (!isObject(raw.mark) || typeof raw.mark.name !== "string") throw new Error("Invalid receptionist mark");
       this.message("mark", { mark: { name: raw.mark.name } });
@@ -81,6 +85,7 @@ export async function runSimulatedCall(options: {
   endpoint: string; token?: string; callId: string; item: PublicCase; inference: Inference; signal: AbortSignal;
   update: (event: CallerEvent) => void;
   saveAudio: (role: string, audio: Buffer) => Promise<string[]>;
+  monitor?: (role: AudioLane, audio: Buffer) => void;
   connect?: (url: string, options: Bun.WebSocketOptions) => WebSocket;
 }): Promise<CallResult> {
   const { inference, item } = options;
@@ -98,7 +103,7 @@ export async function runSimulatedCall(options: {
   });
   const wire = new CallerWire(options.callId, `MS-${crypto.randomUUID()}`, data => {
     if (socket.readyState === WebSocket.OPEN) socket.send(data);
-  });
+  }, options.monitor);
   const history = simulatedCallerMessages(item);
   const emit = (event: CallerEvent) => { events.push(event); options.update(event); };
   const stop = () => {

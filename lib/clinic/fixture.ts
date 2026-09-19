@@ -1,6 +1,7 @@
 import { loadPublicCases } from "@/lib/cases/load";
 import { normalizeNationalId, normalizePhone } from "@/lib/cases/score";
 import { clinicTodayYmd, diffYmd, shiftIsoDays } from "@/lib/time";
+import { CLINIC_LOCATIONS, CLINIC_SPECIALTIES } from "./options";
 import type {
   Appointment,
   AvailabilityQuery,
@@ -17,16 +18,9 @@ import type {
   ReasonRequest,
   RegisterRequest,
   RescheduleRequest,
+  SubmittedAction,
   SubmitResponse,
 } from "./types";
-
-function emptySubmit(callId: string): SubmitResponse {
-  return {
-    call_id: callId,
-    received_at: new Date().toISOString(),
-    record: { actions: [] },
-  };
-}
 
 type IndexedPatient = PatientMatch & { expectedSlots: AvailabilitySlot[]; appointments: Appointment[] };
 type CaseItem = ReturnType<typeof loadPublicCases>[number];
@@ -197,9 +191,9 @@ export class FixtureClinicSource implements ClinicSource {
       clinic_name: "Fixture clinic (from public cases)",
       patient_count: this.index.patients.size,
       providers: [],
-      specialties: [],
+      specialties: CLINIC_SPECIALTIES.map((item) => ({ id: item.id, name: item.label })),
       appointment_types: [],
-      locations: [],
+      locations: CLINIC_LOCATIONS.map((item) => ({ id: item.id, name: item.label })),
       plans: [],
     };
   }
@@ -214,7 +208,10 @@ export class FixtureClinicSource implements ClinicSource {
       if (hit) matches.push(hit);
     } else if (query.name) {
       const needle = query.name.toLowerCase();
+      const seen = new Set<string>();
       for (const patient of this.index.patients.values()) {
+        if (seen.has(patient.patient_id)) continue;
+        seen.add(patient.patient_id);
         const full = `${patient.given_name} ${patient.first_surname} ${patient.second_surname}`.toLowerCase();
         if (full.includes(needle)) matches.push(patient);
       }
@@ -246,23 +243,122 @@ export class FixtureClinicSource implements ClinicSource {
     return { appointments: this.index.patients.get(patientId)?.appointments ?? [] };
   }
 
+  private records = new Map<string, SubmittedAction[]>();
+
+  private record(callId: string, action: SubmittedAction): SubmitResponse {
+    const id = callId || "desk";
+    const actions = this.records.get(id) ?? [];
+    actions.push(action);
+    this.records.set(id, actions);
+    return {
+      call_id: id,
+      received_at: new Date().toISOString(),
+      record: { actions },
+    };
+  }
+
+  private requirePatient(patientId: string) {
+    const patient = this.index.patients.get(patientId);
+    if (!patient) throw new Error(`Unknown patient ${patientId}`);
+    return patient;
+  }
+
   async submitBook(body: BookRequest) {
-    return emptySubmit(body.call_id);
+    const patient = this.requirePatient(body.patient_id);
+    patient.appointments.push({
+      appointment_id: `A-desk-${Date.now()}`,
+      patient_id: body.patient_id,
+      provider_id: body.provider_id,
+      location_id: body.location_id,
+      appointment_type_id: body.appointment_type_id,
+      start_time: body.slot,
+    });
+    return this.record(body.call_id, {
+      action: "BOOK",
+      patient_id: body.patient_id,
+      provider_id: body.provider_id,
+      location_id: body.location_id,
+      appointment_type_id: body.appointment_type_id,
+      slot: body.slot,
+      policy_id: body.policy_id,
+    });
   }
+
   async submitRegister(body: RegisterRequest) {
-    return emptySubmit(body.call_id);
+    const patientId = `P-desk-${normalizeNationalId(body.national_id)}`;
+    const patient: IndexedPatient = {
+      patient_id: patientId,
+      given_name: body.given_name,
+      first_surname: body.first_surname,
+      second_surname: body.second_surname,
+      national_id: body.national_id,
+      date_of_birth: body.date_of_birth,
+      phone: body.phone,
+      insurer: body.insurer,
+      has_visited_before: false,
+      expectedSlots: [],
+      appointments: [],
+    };
+    this.index.patients.set(patientId, patient);
+    this.index.byNationalId.set(normalizeNationalId(body.national_id), patient);
+    if (body.phone) this.index.byPhone.set(normalizePhone(body.phone), patient);
+    return this.record(body.call_id, {
+      action: "REGISTER",
+      new_patient: {
+        given_name: body.given_name,
+        first_surname: body.first_surname,
+        second_surname: body.second_surname,
+        national_id: body.national_id,
+        date_of_birth: body.date_of_birth,
+        phone: body.phone,
+        email: body.email,
+        insurer: body.insurer,
+      },
+    });
   }
+
   async submitReschedule(body: RescheduleRequest) {
-    return emptySubmit(body.call_id);
+    for (const patient of this.index.patients.values()) {
+      const found = patient.appointments.find(
+        (row) => row.appointment_id === body.appointment_id,
+      );
+      if (!found) continue;
+      found.provider_id = body.provider_id;
+      found.location_id = body.location_id;
+      found.start_time = body.slot;
+      return this.record(body.call_id, {
+        action: "RESCHEDULE",
+        appointment_id: body.appointment_id,
+        provider_id: body.provider_id,
+        location_id: body.location_id,
+        slot: body.slot,
+        policy_id: body.policy_id,
+      });
+    }
+    throw new Error(`Unknown appointment ${body.appointment_id}`);
   }
+
   async submitCancel(body: CancelRequest) {
-    return emptySubmit(body.call_id);
+    for (const patient of this.index.patients.values()) {
+      const index = patient.appointments.findIndex(
+        (row) => row.appointment_id === body.appointment_id,
+      );
+      if (index < 0) continue;
+      patient.appointments.splice(index, 1);
+      return this.record(body.call_id, {
+        action: "CANCEL",
+        appointment_id: body.appointment_id,
+      });
+    }
+    throw new Error(`Unknown appointment ${body.appointment_id}`);
   }
+
   async submitNoAction(body: ReasonRequest) {
-    return emptySubmit(body.call_id);
+    return this.record(body.call_id, { action: "NO_ACTION", reason: body.reason });
   }
+
   async submitEscalate(body: ReasonRequest) {
-    return emptySubmit(body.call_id);
+    return this.record(body.call_id, { action: "ESCALATE", reason: body.reason });
   }
 }
 

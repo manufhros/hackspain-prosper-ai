@@ -5,10 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const links = [
-  { href: "/", label: "Overview" },
-  { href: "/connectors", label: "Connector" },
-  { href: "/clinic", label: "Clinic data" },
-  { href: "/cases", label: "Public cases" },
+  { href: "/", label: "Mostrador" },
+  { href: "/tests", label: "Pruebas" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {

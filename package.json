@@ -10,7 +10,10 @@
     "cases:run": "bun run scripts/run-cases.ts"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.87",
     "@base-ui/react": "^1.8.0",
+    "@shadcn/react": "^0.3.1",
+    "ai": "^7.0.107",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.0",
     "lucide-react": "^1.47.0",
@@ -20,7 +23,8 @@
     "react-dom": "19.2.8",
     "shadcn": "^4.21.0",
     "sonner": "^2.0.8",
-    "tw-animate-css": "^1.4.0"
+    "tw-animate-css": "^1.4.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

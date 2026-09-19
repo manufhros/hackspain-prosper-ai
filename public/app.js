@@ -376,6 +376,8 @@ function renderDetail(first = false) {
       node.dataset.message = message.id;
     }
     node.classList.toggle("existing-message", oldNodes.has(message.id));
+    node.classList.toggle("message-agent", message.role === "agent");
+    node.classList.toggle("message-patient", message.role !== "agent");
     const signature = `${message.text}|${message.corrected}`;
     if (node.dataset.signature !== signature) {
       node.dataset.signature = signature;

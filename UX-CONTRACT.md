@@ -25,6 +25,7 @@
 - Selected opaque call ID is restorable in the URL. Search stays in memory because it can contain patient information.
 - A call update refreshes its summary and selected detail; other calls never take selection away.
 - Transcript follows only when follow is enabled and the operator is already at the bottom.
+- Patient bubbles align left and agent bubbles right in both themes. Speaker labels, chronological DOM order, correction markers and scroll-follow behavior remain available on narrow screens.
 - Backlog after reconnect comes from a fresh server snapshot. Offline means stale, never live.
 - Native details owns tool disclosure behavior; each run has a distinct ID, including repeats.
 - `public/tool-presentation.js` owns readable output for all nine tools. Results reflect the returned payload, never the requested outcome. Names resolve only from earlier successful results in the same call; unresolved IDs stay visible. Technical payloads remain available in a nested disclosure, whose open/focus state survives updates.

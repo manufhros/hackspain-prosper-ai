@@ -695,9 +695,26 @@ input[type="search"]::-webkit-search-cancel-button {
 .message {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 20px 0;
+  gap: 10px;
+  width: fit-content;
+  max-width: 88%;
+  padding: 12px 0;
   animation: arrive 240ms ease both;
+}
+.message-agent {
+  margin-left: auto;
+  flex-direction: row-reverse;
+}
+.message-patient {
+  margin-right: auto;
+}
+.message-agent .message-heading {
+  justify-content: flex-end;
+}
+.message-agent .message-body {
+  background: var(--sage);
+  border-color: transparent;
+  border-radius: 14px 3px 14px 14px;
 }
 .message.existing-message {
   animation: none;
@@ -725,6 +742,10 @@ input[type="search"]::-webkit-search-cancel-button {
 .message-body {
   min-width: 0;
   flex: 1;
+  padding: 12px 15px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 3px 14px 14px 14px;
 }
 .message-heading {
   display: flex;

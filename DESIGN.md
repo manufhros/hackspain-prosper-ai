@@ -101,6 +101,9 @@ runs append chronologically. Human-readable outcomes lead each disclosure: label
 fields, appointment options, recorded actions, and explicit errors/restrictions. Dates use
 Europe/Madrid; known names retain their identifiers. Raw payloads live in a secondary
 “Detalles técnicos” disclosure. Both disclosure levels preserve their open state.
+Patient messages sit on the left in neutral bubbles; Lucía sits on the right in sage
+bubbles, with mirrored avatar placement. Both retain speaker names and timestamps.
+Text stays left-aligned inside bubbles; source order remains chronological.
 
 ### Forms and overlays
 

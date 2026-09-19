@@ -51,112 +51,15 @@
 
 .page main {
   display: grid;
-  grid-template-columns: 1fr 430px;
-  gap: 90px;
-  align-items: center;
+  place-items: center;
   max-width: 1080px;
   min-height: calc(100svh - 82px);
   margin: auto;
   padding: 40px 32px 100px;
 }
 
-.intro > p:first-child {
-  margin: 0 0 18px;
-  color: var(--brand-2);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.intro h1 {
-  max-width: 650px;
-  margin: 0;
-  color: var(--brand);
-  font-size: clamp(48px, 6vw, 76px);
-  font-weight: 700;
-  line-height: 0.97;
-  letter-spacing: -0.06em;
-}
-
-.lead {
-  max-width: 510px;
-  margin: 28px 0 0;
-  color: var(--muted);
-  font-size: 17px;
-  line-height: 1.6;
-}
-
-.preview {
-  max-width: 530px;
-  margin-top: 50px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: var(--shadow-md);
-}
-
-.preview > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.preview > div > div {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.preview span,
-.preview dd {
-  color: var(--muted);
-  font-size: 11.5px;
-}
-
-.preview strong {
-  display: block;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.preview i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--success);
-  box-shadow: 0 0 0 5px var(--success-soft);
-}
-
-.preview dl {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  margin: 18px 0 0;
-}
-
-.preview dl div + div {
-  padding-left: 18px;
-  border-left: 1px solid var(--border);
-}
-
-.preview dt {
-  color: var(--ink);
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
-  font-variant-numeric: tabular-nums;
-}
-
-.preview dd {
-  margin: 1px 0 0;
-}
-
 .loginCard {
+  width: min(430px, 100%);
   padding: 34px;
   border: 1px solid var(--border);
   border-radius: 28px;
@@ -226,18 +129,6 @@
   font-weight: 700;
 }
 
-@media (max-width: 850px) {
-  .page main {
-    grid-template-columns: 1fr;
-    gap: 50px;
-    max-width: 600px;
-  }
-
-  .intro h1 {
-    font-size: 55px;
-  }
-}
-
 @media (max-width: 520px) {
   .page header {
     height: 70px;
@@ -246,14 +137,6 @@
 
   .page main {
     padding: 48px 18px 70px;
-  }
-
-  .intro h1 {
-    font-size: 44px;
-  }
-
-  .preview {
-    display: none;
   }
 
   .loginCard {

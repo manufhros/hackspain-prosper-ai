@@ -10,7 +10,7 @@ export type Account = { email: string; role: Role; label: string; note: string }
 
 export const ACCOUNTS: Account[] = [
   { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen y llamadas del centro" },
-  { email: "admin@turno.app", role: "admin", label: "Operador turno", note: "Hospitales, llamadas y agente" },
+  { email: "admin@turno.app", role: "admin", label: "Admin", note: "Hospitales, llamadas y agente" },
   { email: "voz@turno.app", role: "tester", label: "Tiempo real", note: "Monitor de llamadas en curso" },
 ];
 
@@ -19,7 +19,7 @@ export const LOGIN_ACCOUNTS = ACCOUNTS.filter((account) => account.role !== "tes
 export const COOKIE = "admision";
 
 export const ROLE_LABEL: Record<Role, string> = {
-  admin: "Operador turno",
+  admin: "Admin",
   clinic: "Admisión",
   tester: "Tiempo real",
 };

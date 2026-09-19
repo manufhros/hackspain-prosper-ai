@@ -33,7 +33,7 @@ export function LeadForm({ state }: { state?: "ok" | "bad" }) {
       </label>
       <label>
         Ciudad
-        <input name="city" type="text" autoComplete="address-level2" placeholder="Madrid" />
+        <input name="city" type="text" autoComplete="address-level2" placeholder="Murcia" />
       </label>
       <label>
         Teléfono

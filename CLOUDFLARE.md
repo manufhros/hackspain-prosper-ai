@@ -5,7 +5,7 @@ This repo deploys two Workers with the project-local Wrangler CLI:
 - `prosper-voice`: `/ws`, `/health`, and `/twiml/handoff`. Each connection gets a separate Durable Object. The existing Twilio/ElevenLabs call engine runs with Workers-native WebSockets.
 - `prosper-desk`: the Next.js app built with OpenNext. `/ws` forwards to the voice Worker through a service binding, so the browser simulator works on the desk's own HTTPS domain. Health checks also use that binding.
 
-Both bind `DB` to **the same D1 database**, `prosper-desk`. Published agent settings, organization settings, leads, provider webhook events, call summaries, and the agent audit trail persist there. New calls load the latest published settings. Local Node development continues using the existing JSON/log files.
+Both bind `prosper_desk` to **the same D1 database**, `prosper-desk`. Published agent settings, organization settings, leads, provider webhook events, call summaries, and the agent audit trail persist there. New calls load the latest published settings. Local Node development continues using the existing JSON/log files.
 
 ## Install and verify without starting an environment
 
@@ -32,10 +32,9 @@ Run these commands yourself when ready to create the deployment:
 
 ```sh
 npx wrangler login
-npx wrangler d1 create prosper-desk
 ```
 
-Copy the returned `database_id` into the `d1_databases[0]` entry in **both** `wrangler.jsonc` and `desk/wrangler.jsonc`. Do this before deploying either Worker; otherwise Wrangler's automatic provisioning could create separate databases. If using multiple accounts, set the same `account_id` in both configs.
+Both configurations already point to the existing database `prosper-desk` (`2d1a883d-639b-4246-a6cc-d6e0bc69c571`) with binding `prosper_desk`. Log in to the account that owns this database. If using multiple accounts, set the same `account_id` in both configs. Do not create another database for this deployment.
 
 Apply all three migrations once, through the desk configuration:
 
@@ -105,7 +104,7 @@ The endpoint returns up to 200 events per page and `nextCursor` when more remain
 You can query D1 directly with Wrangler:
 
 ```sh
-npx wrangler d1 execute DB --remote --command "SELECT call_id, type, occurred_at, payload FROM agent_events ORDER BY rowid DESC LIMIT 100"
+npx wrangler d1 execute prosper_desk --remote --command "SELECT call_id, type, occurred_at, payload FROM agent_events ORDER BY rowid DESC LIMIT 100"
 ```
 
 ## Runtime and data boundaries

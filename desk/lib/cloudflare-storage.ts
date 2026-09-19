@@ -7,8 +7,8 @@ export function usesCloudflareStorage() {
 }
 
 export function database() {
-  const db = getCloudflareContext().env.DB;
-  if (!db) throw new Error("Missing Cloudflare D1 binding: DB");
+  const db = getCloudflareContext().env.prosper_desk;
+  if (!db) throw new Error("Missing Cloudflare D1 binding: prosper_desk");
   return db;
 }
 

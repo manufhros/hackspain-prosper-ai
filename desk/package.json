@@ -13,8 +13,8 @@
     "cf:check": "npm run cf:build && wrangler deploy --dry-run",
     "cf:deploy": "npm run cf:build && wrangler deploy",
     "cf:preview": "npm run cf:build && wrangler dev",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:local": "wrangler d1 migrations apply prosper_desk --local",
+    "db:migrate:remote": "wrangler d1 migrations apply prosper_desk --remote",
     "prebuild": "npm run cf:types",
     "predev": "npm run cf:types"
   },

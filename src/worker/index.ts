@@ -20,9 +20,9 @@ export class VoiceCall extends DurableObject<Env> {
     const client = pair[0];
     const server = pair[1];
     const sessionId = this.ctx.id.toString();
-    await this.env.DB.batch([
-      this.env.DB.prepare("DELETE FROM voice_sessions WHERE expires_at <= ?").bind(Date.now()),
-      this.env.DB.prepare("INSERT INTO voice_sessions (id, expires_at) VALUES (?, ?)")
+    await this.env.prosper_desk.batch([
+      this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE expires_at <= ?").bind(Date.now()),
+      this.env.prosper_desk.prepare("INSERT INTO voice_sessions (id, expires_at) VALUES (?, ?)")
         .bind(sessionId, Date.now() + MAX_CALL_MS),
     ]);
     const socket = new WorkerSocket(server);
@@ -30,18 +30,18 @@ export class VoiceCall extends DurableObject<Env> {
     const timer = setTimeout(() => socket.close(1000, "Maximum call duration reached"), MAX_CALL_MS);
     socket.once("close", () => {
       clearTimeout(timer);
-      this.ctx.waitUntil(this.env.DB.prepare("DELETE FROM voice_sessions WHERE id = ?").bind(sessionId).run());
+      this.ctx.waitUntil(this.env.prosper_desk.prepare("DELETE FROM voice_sessions WHERE id = ?").bind(sessionId).run());
     });
     await handleCall(socket, {
       connect: connectWorkerSocket,
-      loadConfig: (orgSlug = "arenal") => readRuntimeConfig(this.env.DB, orgSlug),
+      loadConfig: (orgSlug = "arenal") => readRuntimeConfig(this.env.prosper_desk, orgSlug),
       emitEvent: async (type, callId, configVersion, payload = {}) => {
         const event = {
           eventId: crypto.randomUUID(), schemaVersion: 1 as const, type,
           occurredAt: new Date().toISOString(), callId, configVersion,
           payload: { ...payload, sequence: ++this.sequence },
         };
-        await storeCallEvent(this.env.DB, event);
+        await storeCallEvent(this.env.prosper_desk, event);
         return event;
       },
       waitUntil: (promise) => this.ctx.waitUntil(promise),
@@ -65,7 +65,7 @@ export default {
       return env.CALLS.get(env.CALLS.newUniqueId()).fetch(request);
     }
     if (url.pathname === "/health") {
-      const result = await env.DB.prepare("SELECT count(*) AS count FROM voice_sessions WHERE expires_at > ?")
+      const result = await env.prosper_desk.prepare("SELECT count(*) AS count FROM voice_sessions WHERE expires_at > ?")
         .bind(Date.now()).first<{ count: number }>();
       return Response.json({ ok: true, activeCalls: result?.count ?? 0, checkedAt: new Date().toISOString() });
     }

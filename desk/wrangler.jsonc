@@ -14,9 +14,9 @@
   ],
   "d1_databases": [
     {
-      "binding": "DB",
+      "binding": "prosper_desk",
       "database_name": "prosper-desk",
-      // Set database_id to the ID returned by `wrangler d1 create prosper-desk`.
+      "database_id": "2d1a883d-639b-4246-a6cc-d6e0bc69c571",
       "migrations_dir": "migrations"
     }
   ],

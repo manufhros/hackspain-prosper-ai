@@ -1,5 +1,6 @@
 import { type Action } from "../data";
 import { fold } from "../validation";
+import { acceptsRestatedOffer } from "./consent-details";
 
 export const needsConsent = (action: Action) => ["BOOK", "RESCHEDULE", "CANCEL", "REGISTER"].includes(action.action);
 export const actionKey = (action: Action): string => JSON.stringify(
@@ -67,9 +68,9 @@ function acceptsBookingDetails(text: string, actions: Action[], provider?: strin
 }
 
 export class Consent {
-  private pending?: { actions: Action[]; delivered: boolean; needsReoffer: boolean; provider?: string };
+  private pending?: { actions: Action[]; delivered: boolean; needsReoffer: boolean; provider?: string; location?: string };
   private accepted = new Map<string, Action>();
-  offer(actions: Action[], delivered: boolean, provider?: string) { this.pending = { actions: structuredClone(actions), delivered, needsReoffer: false, provider }; }
+  offer(actions: Action[], delivered: boolean, provider?: string, location?: string) { this.pending = { actions: structuredClone(actions), delivered, needsReoffer: false, provider, location }; }
   delivered() { if (this.pending && !this.pending.needsReoffer) this.pending.delivered = true; }
   interrupt() { this.pending = undefined; }
   get awaitingReoffer() { return this.pending?.needsReoffer ? structuredClone(this.pending) : undefined; }
@@ -82,6 +83,7 @@ export class Consent {
     }
     if (!this.pending) return;
     if (this.pending.delivered && (cancellation || acceptsOffer(text) || acceptsOfferedTime(text, this.pending.actions)
+      || acceptsRestatedOffer(text, this.pending.actions, this.pending.provider, this.pending.location)
       || acceptsBookingDetails(text, this.pending.actions, this.pending.provider))) {
       for (const action of this.pending.actions) this.accepted.set(actionKey(action), structuredClone(action));
       this.pending = undefined;

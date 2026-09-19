@@ -158,6 +158,32 @@ test("reported cancellation confirmations finish without replaying even a model-
   }
 });
 
+test("reported booking detail confirmations complete on the first acceptance without a repeated offer", async () => {
+  for (const text of [
+    "Sí, perfecto. Es exactamente lo que pedía. Confírmela, por favor, con facturación a mi plan de KV.",
+    "Me viene bien. Confírmela, por favor. Martes 29 de septiembre de 2026 a las 9.15 con la doctora Isabel Montoro en Arenal Centro y facturada Mi Plan DKV.",
+  ]) {
+    const offered = { ...action, provider_id: "PR11", slot: "2026-09-29T09:15:00+02:00", policy_id: "dkv" };
+    const record = { actions: [offered] };
+    const fixture = clinicFixture();
+    const clinic: ClinicReader = { async request(request, signal) {
+      if (!request.path.includes("/availability?")) return fixture.clinic.request(request, signal);
+      return { status: 200, elapsed_ms: 1, meaning: "OK", data: { slots: [{ ...offered,
+        start_time: offered.slot, payable_with: ["dkv"], provider_name: "Dra. Isabel Montoro" }] } };
+    } };
+    const inference = new FakeInference([directory(), call("availability", { patient_id: action.patient_id, provider_id: "PR11",
+      date_from: "2026-09-29", date_to: "2026-09-29", insurer: ["dkv"] }), offer(record), complete(record)]);
+    const agent = new Receptionist(inference, clinic, bookCase.reference_time, "es", () => {}, { mode: "platform" });
+    await agent.turn(identityText + "Quiero reservar una cita.", signal()); agent.markDelivered();
+    const closing = await agent.turn(text, signal());
+    expect(agent.record).toEqual(record);
+    expect(closing).not.toContain("¿");
+    expect(agent.messages.filter(m => m.tool_name === "offer_actions")).toHaveLength(1);
+    expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(2);
+    expect(inference.replies).toHaveLength(0);
+  }
+});
+
 test("unknown submission tools and clinic errors return recoverable tool errors", async () => {
   let count = 0;
   const clinic: ClinicReader = { async request() { count++; return { status: 403, meaning: "Invalid key", elapsed_ms: 1, data: {} }; } };

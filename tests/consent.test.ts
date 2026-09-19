@@ -5,6 +5,51 @@ import { type Action } from "../src/data";
 const action: Action = { action: "BOOK", patient_id: "P1", provider_id: "PR01", location_id: "centro", slot: "2026-09-19T11:00:00+02:00", appointment_type_id: "review", policy_id: "mapfre" };
 
 const cancellation: Action = { action: "CANCEL", appointment_id: "A2" };
+const montoro: Action = { ...action, provider_id: "PR11", slot: "2026-09-29T09:15:00+02:00", policy_id: "dkv" };
+const montoroReplies = [
+  "Sí, perfecto. Es exactamente lo que pedía. Confírmela, por favor, con facturación a mi plan de KV.",
+  "Me viene bien. Confírmela, por favor. Martes 29 de septiembre de 2026 a las 9.15 con la doctora Isabel Montoro en Arenal Centro y facturada Mi Plan DKV.",
+];
+test("composed confirmations validate every echoed offer detail instead of requiring a short yes", () => {
+  for (const text of [...montoroReplies,
+    "Yes, that's exactly what I wanted. Confirm it, please. Tuesday 29 September 2026 at 9:15 with Dr. Isabel Montoro at Arenal Centro billed to my plan DKV.",
+    "Sí, perfecte. És exactament el que demanava. Confirmi-la, si us plau. Dimarts 29 de setembre de 2026 a les 9:15 amb la doctora Isabel Montoro a Arenal Centro amb facturació a el meu pla DKV.",
+    "Me viene bien. Confírmela, por favor.",
+  ]) {
+    const consent = new Consent(); consent.offer([montoro], true, "Dra. Isabel Montoro", "Arenal Centro"); consent.hear(text);
+    expect(consent.hasAccepted([montoro])).toBe(true);
+    expect(consent.awaitingReoffer).toBeUndefined();
+  }
+});
+test("restatements never authorize a changed slot, provider, site, insurer, condition or additional intent", () => {
+  for (const text of [
+    montoroReplies[1]!.replace("9.15", "9.45"), montoroReplies[1]!.replace("29 de", "30 de"),
+    montoroReplies[1]!.replace("Martes", "Miércoles"), montoroReplies[1]!.replace("septiembre", "octubre"),
+    montoroReplies[1]!.replace("2026", "2027"), montoroReplies[1]!.replace("Isabel Montoro", "Carmen Ortiz"),
+    montoroReplies[1]!.replace("Centro", "Sur"), montoroReplies[1]!.replace("DKV", "AXA"),
+    montoroReplies[0]!.replace("de KV", "Sanitas"),
+    "Sí, perfecto, pero solo si no hay coste.", "Me viene bien. Confírmela y cancele mi otra cita.",
+    "Sí, perfecto. Confírmela para mi hija.", "Sí, perfecto. Confírmela, por favor, si está cubierta.",
+    "Por favor. Martes 29 de septiembre de 2026 a las 9.15.",
+    montoroReplies[1] + " ¿Es la primera disponible?",
+  ]) {
+    const consent = new Consent(); consent.offer([montoro], true, "Dra. Isabel Montoro", "Arenal Centro"); consent.hear(text);
+    expect(consent.hasAccepted([montoro])).toBe(false);
+  }
+});
+test("detailed acceptance still requires delivered offer and exact known labels", () => {
+  for (const text of montoroReplies) {
+    const consent = new Consent(); consent.offer([montoro], false, "Dra. Isabel Montoro", "Arenal Centro"); consent.hear(text);
+    expect(consent.hasAccepted([montoro])).toBe(false);
+    consent.delivered(); consent.hear(text); expect(consent.hasAccepted([montoro])).toBe(false);
+    consent.offer([montoro], true, "Dra. Isabel Montoro", "Arenal Centro"); consent.interrupt(); consent.hear(text);
+    expect(consent.hasAccepted([montoro])).toBe(false);
+  }
+  const unknownNames = new Consent(); unknownNames.offer([montoro], true); unknownNames.hear(montoroReplies[1]!);
+  expect(unknownNames.hasAccepted([montoro])).toBe(false);
+  const wrongPolicy = new Consent(); wrongPolicy.offer([{ ...montoro, policy_id: "axa" }], true); wrongPolicy.hear(montoroReplies[0]!);
+  expect(wrongPolicy.acceptedActions).toEqual([]);
+});
 const cancellationReplies = [
   "Sí, correcto. Esa es la cita que quiero cancelar.",
   "me viene bien. Confirmo la cancelación de esa cita.",

@@ -195,7 +195,7 @@ export class Receptionist {
           .replace(/¿?(?:(?:le|te|li|et) (?:reservo|reservem|confirmo)|quiere que le reserve|vol que li reservi|le viene bien|te viene bien|li va bé|et va bé)\b[^?]*\?\s*$/i, "").trim();
         if (!/[?¿]/.test(explanation)) {
           this.checkGrounding(pending.actions);
-          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider);
+          this.consent.offer(pending.actions, this.options.mode !== "platform", pending.provider, pending.location);
           answer = `${explanation} ${this.proposalSpeech(pending.actions[0]!)}`.trim();
         }
       }
@@ -213,7 +213,7 @@ export class Receptionist {
       this.checkGrounding(record.actions);
       if (this.consent.hasAccepted(record.actions)) return { already_accepted: true, instruction: "Do not ask again. Call complete_call with all accepted actions when all intents are resolved." };
       const action = record.actions[0]!;
-      this.consent.offer(record.actions, this.options.mode !== "platform", this.providers.get(String(action.provider_id)));
+      this.consent.offer(record.actions, this.options.mode !== "platform", this.providers.get(String(action.provider_id)), this.locations.get(String(action.location_id)));
       this.offerSpeech = this.proposalSpeech(action);
       return { proposal_ready: true, awaiting_caller_acceptance: true };
     }

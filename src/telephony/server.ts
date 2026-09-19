@@ -117,7 +117,7 @@ export async function runServer(args: string[]) {
   const lifetime = new AbortController();
   const voice = new LocalRuntime(message => console.log(message));
   const transcript = new LiveTranscript();
-  const handlers = serverHandlers(config, { inference: voice, audio: new SharedAudio(voice, lifetime.signal), clinic, lifetime: lifetime.signal,
+  const handlers = serverHandlers(config, { inference: voice, audio: new SharedAudio(voice, lifetime.signal, voice.settings.ttsWorkers), clinic, lifetime: lifetime.signal,
     onEvent: transcript.event,
     async report(report) {
       let saved: string | undefined;

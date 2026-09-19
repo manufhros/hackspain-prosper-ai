@@ -43,6 +43,7 @@ class WireAudioTests(unittest.TestCase):
         try:
             with patch.dict(sys.modules, modules), patch.object(sys, "stdin", io.StringIO()), patch.object(sys, "argv", ["worker.py", "/tmp/synthetic-voice"]):
                 self.worker = runpy.run_path(str(Path(__file__).parent.parent / "local-voice/worker.py"))
+                self.worker["voices"].update({key: SyntheticVoice() for key in ("en", "es", "ca")})
         finally:
             os.umask(old_mask)
 

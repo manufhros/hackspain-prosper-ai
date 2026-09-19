@@ -17,3 +17,14 @@ for (const [language, voice, hash] of [
   assets.push({ path: `voices/${name}.onnx.json`, url: `${directory}/${name}.onnx.json` });
   assets.push({ path: `voices/${name}.MODEL_CARD`, url: `${directory}/MODEL_CARD` });
 }
+
+/** Store variants separately: an A/B switch must never reuse another model's weights. */
+export function speechAssets(model: "small" | "large-v3-turbo"): Asset[] {
+  if (model === "small") return assets;
+  const base = "https://huggingface.co/mlx-community/whisper-large-v3-turbo/resolve/a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb";
+  return [...assets.filter(asset => !asset.path.startsWith("whisper/")),
+    { path: "whisper-large-v3-turbo/config.json", url: `${base}/config.json`, size: 268 },
+    { path: "whisper-large-v3-turbo/weights.safetensors", url: `${base}/weights.safetensors`, size: 1613977612,
+      sha256: "951ed3fc1203e6a62467abb2144a96ce7eafca8fa77e3704fdb8635ff3e7f8a6" },
+  ];
+}

@@ -14,15 +14,31 @@ import wave
 
 os.umask(0o077)
 ROOT = Path(sys.argv[1]).resolve()
+ROLE = sys.argv[2] if len(sys.argv) > 2 else "all"
+ASR_ROOT = ROOT / ("whisper-large-v3-turbo" if os.environ.get("LOCAL_ASR_MODEL") == "large-v3-turbo" else "whisper")
 VOICES = {"en": "en_US-lessac-medium", "es": "es_ES-davefx-medium", "ca": "ca_ES-upc_ona-medium"}
 
 with contextlib.redirect_stdout(sys.stderr):
     import numpy as np
-    import mlx_whisper
+    if ROLE != "tts":
+        import mlx_whisper
     import sounddevice as sd
     import soundfile as sf
-    from piper import PiperVoice
+    if ROLE != "asr":
+        from piper import PiperVoice
     from recording import Recording
+
+def load_voice(language):
+    # Construct the pinned Piper voice with bounded CPU threads, avoiding one thread pool per core per voice.
+    import onnxruntime as ort
+    from piper.config import PiperConfig
+    name = ROOT / "voices" / (VOICES[language] + ".onnx")
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = int(os.environ.get("LOCAL_TTS_THREADS", "2"))
+    options.inter_op_num_threads = 1
+    return PiperVoice(config=PiperConfig.from_dict(json.loads(Path(str(name) + ".json").read_text())),
+                      session=ort.InferenceSession(str(name), sess_options=options, providers=["CPUExecutionProvider"]))
+
 
 voices = {}
 recording = None
@@ -54,7 +70,7 @@ def transcribe(path, language):
 def transcribe_audio(audio, language):
     if len(audio) < 1600 or float(np.sqrt(np.mean(audio ** 2))) < 0.002:
         return {"text": "", "language": language or "unknown"}
-    result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(ROOT / "whisper"),
+    result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(ASR_ROOT),
                                     language=language or None, verbose=None,
                                     condition_on_previous_text=False, temperature=0.0)
     return {"text": result["text"].strip(), "language": result.get("language", language)}
@@ -64,11 +80,17 @@ def handle(request):
     global recording
     operation = request["operation"]
     if operation == "warmup":
-        from mlx_whisper.transcribe import ModelHolder
-        import mlx.core as mx
-        ModelHolder.get_model(str(ROOT / "whisper"), mx.float16)
-        for language, name in VOICES.items():
-            voices[language] = PiperVoice.load(str(ROOT / "voices" / (name + ".onnx")))
+        if ROLE != "tts":
+            from mlx_whisper.transcribe import ModelHolder
+            import mlx.core as mx
+            ModelHolder.get_model(str(ASR_ROOT), mx.float16)
+            # Loading weights alone does not compile the MLX transcription graph.
+            transcribe_audio(np.random.default_rng(0).normal(0, 0.01, 16000).astype(np.float32), "en")
+        if ROLE != "asr":
+            for language in VOICES:
+                voices[language] = load_voice(language)
+                with wave.open(io.BytesIO(), "wb") as output:
+                    voices[language].synthesize_wav({"en": "Ready.", "es": "Hola.", "ca": "Hola."}[language], output)
         return {"ready": True}
     if operation == "transcribe_mulaw":
         import audioop
@@ -89,7 +111,7 @@ def handle(request):
             raise ValueError("Speech text must contain 1–4000 characters")
         voice = voices.get(language)
         if voice is None:
-            voice = PiperVoice.load(str(ROOT / "voices" / (VOICES[language] + ".onnx")))
+            voice = load_voice(language)
             voices[language] = voice
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as output:

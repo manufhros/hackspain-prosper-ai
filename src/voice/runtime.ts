@@ -3,10 +3,13 @@ import { dirname, join } from "node:path";
 import { createServer } from "node:net";
 import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
-import { isObject } from "../validation";
-import { assets, MODEL, type Asset } from "./assets";
+import { speechAssets, MODEL, type Asset } from "./assets";
 import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
 import { OpenRouterChat } from "./openrouter";
+import { OllamaChat } from "./ollama";
+import { localSettings } from "./settings";
+
+type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; role: "asr" | "tts"; pending: number };
 
 export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; tool_call_id?: string; reasoning_details?: unknown[] }
 export interface ToolCall { id?: string; arguments_text?: string; function: { name: string; arguments: ObjectValue } }
@@ -59,7 +62,9 @@ export class LocalRuntime implements Inference {
   error = "";
   private children = new Set<ReturnType<typeof Bun.spawn>>();
   private stopSignal = new AbortController();
-  private worker?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
+  private workers: Worker[] = [];
+  readonly settings = localSettings();
+  private local?: OllamaChat;
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
@@ -150,40 +155,48 @@ export class LocalRuntime implements Inference {
       for (const command of installationCommands(uv!, python, voiceDir)) await this.command(command);
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
-    for (const asset of assets) await this.download(asset);
+    for (const asset of speechAssets(this.settings.asrModel)) await this.download(asset);
     if (config.provider === "local") await this.startOllama(ollama!);
-    this.worker = this.launch([python, join(root, "local-voice/worker.py"), voiceDir]);
-    const worker = this.worker;
-    let workerTail = "";
-    void streamLines(this.worker.stderr, line => { workerTail = (workerTail + "\n" + line).slice(-2000); }).catch(() => {});
-    void streamLines(this.worker.stdout, line => {
+    this.startWorker(python, "asr");
+    for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");
+    this.update("Warming recognition, speech workers and the language model…");
+    // Warm every worker explicitly; a pool request could otherwise reuse the first worker.
+    for (const worker of this.workers) await this.workerRequest(worker, "warmup", {}, this.stopSignal.signal);
+    await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
+    if (this.workers.some(worker => worker.process.exitCode !== null) || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
+    this.state = "ready";
+    this.update(`Voice ready: ${this.modelLabel} (${this.settings.parallel} local slots) + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+  }
+  private startWorker(python: string, role: Worker["role"]) {
+    const child = this.launch([python, join(root, "local-voice/worker.py"), voiceDir, role], {
+      LOCAL_ASR_MODEL: this.settings.asrModel, LOCAL_TTS_THREADS: String(this.settings.ttsThreads),
+      OMP_NUM_THREADS: String(this.settings.ttsThreads), OPENBLAS_NUM_THREADS: "1", HF_HUB_OFFLINE: "1",
+    });
+    const worker: Worker = { process: child, role, pending: 0 };
+    this.workers.push(worker);
+    let tail = "";
+    const fail = (message: string) => {
+      if (!this.workers.includes(worker)) return;
+      this.stopProcesses(); this.state = "error"; this.error = message; this.update(message);
+    };
+    void streamLines(child.stderr, line => { tail = (tail + "\n" + line).slice(-2000); }).catch(() => {});
+    void streamLines(child.stdout, line => {
       try {
-        const reply = JSON.parse(line);
-        const pending = this.pending.get(reply.id);
+        const reply = JSON.parse(line), pending = this.pending.get(reply.id);
         if (!pending) return;
-        this.pending.delete(reply.id);
         if (reply.error) pending.reject(new Error(String(reply.error)));
         else pending.resolve({ ...reply.result, elapsed_ms: reply.elapsed_ms });
-      } catch { /* Native libraries occasionally write diagnostic lines to stdout. */ }
-    }).catch(() => { if (this.worker === worker) for (const pending of [...this.pending.values()]) pending.reject(new Error("Audio worker protocol failed; retry setup.")); });
-    void worker.exited.then(() => {
-      if (this.worker !== worker) return;
-      for (const pending of [...this.pending.values()]) pending.reject(new Error(`Audio worker exited. ${workerTail}`));
-      this.pending.clear();
-      if (this.worker === worker && this.state === "ready") { this.state = "error"; this.error = "Audio worker exited; retry setup."; this.update(this.error); }
-    });
-    this.update("Warming Whisper, English/Spanish/Catalan voices and the language model…");
-    await this.audio("warmup", {}, this.stopSignal.signal);
-    await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
-    if (worker.exitCode !== null || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
-    this.state = "ready"; this.update(`Voice ready: ${this.modelLabel} + local Whisper small (MLX) + Piper.`);
+      } catch { /* Ignore native diagnostic lines. */ }
+    }).catch(() => fail(`${role} worker protocol failed; retry setup.`));
+    void child.exited.then(() => fail(`${role} worker exited. ${tail}`));
   }
   private async startOllama(ollama: string) {
     const port = await freePort();
     this.origin = `http://127.0.0.1:${port}`;
     this.update("Starting private Ollama process…");
-    const llm = this.launch([ollama, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: "1", OLLAMA_CONTEXT_LENGTH: "8192", OLLAMA_NO_CLOUD: "1" });
+    const llm = this.launch([ollama, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: String(this.settings.parallel), OLLAMA_CONTEXT_LENGTH: String(this.settings.context), OLLAMA_MAX_LOADED_MODELS: "1", OLLAMA_MAX_QUEUE: "64", OLLAMA_NO_CLOUD: "1" });
     this.llm = llm;
+    this.local = new OllamaChat(this.origin, this.settings);
     void llm.exited.then(() => {
       if (this.llm === llm && this.state === "ready") {
         this.state = "error"; this.error = "Local language model exited; retry setup."; this.update(this.error);
@@ -222,29 +235,44 @@ export class LocalRuntime implements Inference {
     const lifetime = AbortSignal.any([signal, this.stopSignal.signal]);
     lifetime.throwIfAborted();
     if (this.remote) return this.remote.chat(messages, tools, lifetime, format);
-    if (!this.origin) throw new Error("Start the voice runtime first");
-    const started = performance.now();
-    const response = await fetch(`${this.origin}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, messages, tools: tools.length ? tools : undefined, format, stream: false, think: false,
-        keep_alive: "30m", options: { temperature: 0.1, num_ctx: 16384, num_predict: 1024 } }),
-      signal: AbortSignal.any([signal, this.stopSignal.signal, AbortSignal.timeout(120000)]) });
-    if (!response.ok) throw new Error(`Local model: HTTP ${response.status}`);
-    const data = await response.json();
-    if (data.error || !isObject(data.message) || typeof data.message.content !== "string") throw new Error(String(data.error ?? "Malformed local model response"));
-    return { message: data.message as unknown as Message, elapsed_ms: Math.round(performance.now() - started) };
+    if (!this.local) throw new Error("Start the voice runtime first");
+    return this.local.chat(messages, tools, lifetime, format);
   }
   async audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
     signal.throwIfAborted();
-    if (!this.worker || this.worker.exitCode !== null) throw new Error("Audio worker is not running; retry local setup.");
-    const id = crypto.randomUUID();
+    const role = operation === "speak" ? "tts" : "asr";
+    const worker = this.workers.filter(worker => worker.role === role && worker.process.exitCode === null)
+      .sort((a, b) => a.pending - b.pending)[0];
+    if (!worker) throw new Error("Audio worker is not running; retry local setup.");
+    if (worker.pending >= 60) throw new Error("Native audio queue is full");
+    return this.workerRequest(worker, operation, fields, signal);
+  }
+  private workerRequest(worker: Worker, operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
+    signal.throwIfAborted();
+    const id = crypto.randomUUID(); worker.pending++;
     return new Promise((resolve, reject) => {
-      const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", abort); this.pending.delete(id); };
-      const abort = () => { finish(); this.stopProcesses(); this.state = "error"; reject(new Error("Voice operation cancelled; retry setup to restart local processes.")); };
-      const timer = setTimeout(() => { finish(); this.stopProcesses(); this.state = "error"; reject(new Error("Audio operation timed out; retry setup.")); }, 120000);
-      this.pending.set(id, { resolve: value => { finish(); resolve(value); }, reject: error => { finish(); reject(error); } });
+      let settled = false;
+      const finish = () => {
+        if (settled) return false;
+        settled = true; clearTimeout(timer); signal.removeEventListener("abort", abort);
+        this.pending.delete(id); worker.pending--; return true;
+      };
+      // Cancellation discards this caller's result, but retains native capacity until the reply.
+      const abort = () => reject(signal.reason ?? new Error("Voice operation cancelled"));
+      const timer = setTimeout(() => {
+        if (!finish()) return;
+        reject(new Error("Audio operation timed out; retry setup."));
+        this.stopProcesses(); this.state = "error";
+      }, 120000);
+      this.pending.set(id, {
+        resolve: value => { if (finish()) resolve(value); },
+        reject: error => { if (finish()) reject(error); },
+      });
       signal.addEventListener("abort", abort, { once: true });
-      this.worker!.stdin.write(JSON.stringify({ ...fields, operation, id }) + "\n");
-      this.worker!.stdin.flush();
+      try {
+        worker.process.stdin.write(JSON.stringify({ ...fields, operation, id }) + "\n");
+        worker.process.stdin.flush();
+      } catch (error) { this.pending.get(id)?.reject(error instanceof Error ? error : new Error(String(error))); }
     });
   }
   async removeAudio(file: string) { if (/^[\w-]+\.wav$/.test(file)) await rm(join(voiceDir, "audio", file), { force: true }); }
@@ -255,7 +283,7 @@ export class LocalRuntime implements Inference {
       const timer = setTimeout(() => { if (child.exitCode === null) { try { process.kill(-child.pid, "SIGKILL"); } catch {} } }, 1500);
       timer.unref();
     }
-    this.children.clear(); this.worker = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
+    this.children.clear(); this.workers = []; this.local = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
     for (const pending of [...this.pending.values()]) pending.reject(new Error("Local runtime stopped"));
     this.pending.clear();
   }

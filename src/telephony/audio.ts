@@ -1,3 +1,4 @@
+import { WorkQueue } from "../voice/queue";
 import { type ObjectValue } from "../data";
 import { type AudioReply, type Inference } from "../voice/runtime";
 
@@ -59,12 +60,14 @@ export function delay(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** The native worker is serial. Call cancellation must never kill other calls. */
+/** Independent bounded ASR/TTS lanes. Caller cancellation never kills shared native work. */
 export class SharedAudio {
-  private tail: Promise<unknown> = Promise.resolve();
-  private queued = 0;
+  private recognition = new WorkQueue(1);
+  private synthesis: WorkQueue;
   private speechCache = new Map<string, Promise<AudioReply>>();
-  constructor(private inference: Pick<Inference, "audio">, private lifetime: AbortSignal) {}
+  constructor(private inference: Pick<Inference, "audio">, private lifetime: AbortSignal, ttsWorkers = 1) {
+    this.synthesis = new WorkQueue(ttsWorkers);
+  }
   run(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply> {
     signal.throwIfAborted(); this.lifetime.throwIfAborted();
     const queuedAt = performance.now();
@@ -74,17 +77,14 @@ export class SharedAudio {
     const cached = cacheKey ? this.speechCache.get(cacheKey) : undefined;
     if (cached) return abortable(cached.then(reply => ({ ...reply, elapsed_ms: 0,
       queue_ms: Math.round(performance.now() - queuedAt), total_ms: Math.round(performance.now() - queuedAt), cache_hit: true })), signal);
-    if (this.queued >= 60) return Promise.reject(new Error("Audio queue is full"));
-    this.queued++;
-    const work = this.tail.then(async () => {
-      if (!cacheKey) signal.throwIfAborted();
+    const lane = operation === "speak" ? this.synthesis : this.recognition;
+    const work = lane.run(async queue_ms => {
       this.lifetime.throwIfAborted();
-      const queue_ms = Math.round(performance.now() - queuedAt);
-      // Cancellation releases the caller immediately without killing another call's worker.
+      // A started native request retains its slot until it finishes, even after caller cancellation.
       const reply = await this.inference.audio(operation, fields, this.lifetime);
-      return { ...reply, queue_ms, total_ms: Math.round(performance.now() - queuedAt), cache_hit: false };
-    }).finally(() => { this.queued--; });
-    this.tail = work.catch(() => {});
+      return { ...reply, queue_ms: queue_ms + (reply.queue_ms ?? 0),
+        total_ms: Math.round(performance.now() - queuedAt), cache_hit: false };
+    }, cacheKey ? this.lifetime : AbortSignal.any([signal, this.lifetime]));
     if (cacheKey) {
       if (this.speechCache.size >= 24) this.speechCache.delete(this.speechCache.keys().next().value!);
       this.speechCache.set(cacheKey, work);

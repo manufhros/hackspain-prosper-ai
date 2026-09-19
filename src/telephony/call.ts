@@ -359,7 +359,9 @@ export class PlatformCall {
       if (!this.signal.aborted) {
         if (!this.ended && !this.finalizing && error instanceof Error && /timed out/.test(error.message)) {
           this.emit({ stage: "timeout", elapsed_ms: 0, detail: error.message });
-          await this.speak(callPhrases[this.agent.currentLanguage].failure, "service", AbortSignal.timeout(5000)).catch(() => {});
+          // Allow the bounded synthesis request (12s) plus the complete fixed apology
+          // (about 7s). The expired model deadline must not clip this recovery speech.
+          await this.speak(callPhrases[this.agent.currentLanguage].failure, "service", AbortSignal.timeout(20000)).catch(() => {});
         }
         this.fail(error);
       }

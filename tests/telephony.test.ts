@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { wireMessages } from "../src/protocol";
-import { defaultVad, SharedAudio } from "../src/telephony/audio";
+import { defaultVad, delay, SharedAudio } from "../src/telephony/audio";
 import { PlatformCall, type CallOptions, type PlatformCallReport } from "../src/telephony/call";
 import { ResolutionSubmitter } from "../src/telephony/submission";
 import { LiveTranscript } from "../src/telephony/transcript";
@@ -265,6 +265,34 @@ test("slow model work gets one wait notice and a spoken timeout without submitti
   expect(f.output.some(line => line.includes("STATUS: Lo siento"))).toBe(true);
   expect(f.requests).toHaveLength(0);
 });
+
+test("a timeout apology longer than five seconds finishes before the error closes the call", async () => {
+  let apologizing = false;
+  const f = fixture(undefined, false, 200, { waitNoticeMs: 5, turnTimeoutMs: 40,
+    sleep: async (ms, signal) => { if (apologizing) await delay(ms, signal); else signal.throwIfAborted(); },
+  });
+  const audio = f.inference.audio;
+  f.inference.audio = async (op, fields, signal) => {
+    if (op === "speak" && String(fields.text).startsWith("Lo siento")) {
+      apologizing = true;
+      return { payload: Buffer.alloc(53_600, 160).toString("base64"), duration_ms: 6700, elapsed_ms: 1 };
+    }
+    return audio(op, fields, signal);
+  };
+  f.inference.chat = async (_messages, _tools, signal) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+  });
+  const wire = f.start("workbench-timeout"); await tick(); f.utterance(wire); await f.call.done;
+  const report = f.reports[0]!;
+  expect(report.errors).toEqual(["Voice turn timed out"]);
+  expect(report.status).toBe("error");
+  expect(report.end_reason).toBe("error");
+  expect(report.events.some(e => e.stage === "output_incomplete")).toBe(false);
+  expect(report.events.filter(e => e.stage === "output_sent").at(-1)!.metrics!.duration_ms).toBe(6700);
+  expect(f.sent.filter(m => m.event === "media")).toHaveLength(337); // Greeting, wait notice, 335 apology frames.
+  expect(f.sent.at(-1)!.event).toBe("mark");
+  expect(f.requests).toHaveLength(0);
+}, 12_000);
 
 
 test("reported clarification and natural confirmation produce exactly one platform booking", async () => {

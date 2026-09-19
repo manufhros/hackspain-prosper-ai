@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { COOKIE, canOpen, homeFor, originUrl, sectionOf, sessionFromCookie } from "@/lib/auth";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = sessionFromCookie(req.cookies.get(COOKIE)?.value ?? "");
 

@@ -34,10 +34,41 @@ export type CallContext = {
  * allí se subían a ElevenLabs, aquí son tools locales del AI SDK.
  */
 export function clinicTools(ctx: CallContext) {
+  // Ids que han aparecido de verdad en resultados de tools de ESTA llamada.
+  // El guard anti-alucinación no deja enviar un id que no esté aquí.
+  const seen = {
+    patient: new Set<string>(),
+    provider: new Set<string>(),
+    apptType: new Set<string>(),
+    slot: new Set<string>(),
+    appt: new Set<string>(),
+  };
+
+  const harvest = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) harvest(item);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (typeof v === "string") {
+        if (k === "patient_id") seen.patient.add(v);
+        else if (k === "provider_id") seen.provider.add(v);
+        else if (k === "appointment_type_id") seen.apptType.add(v);
+        else if (k === "appointment_id") seen.appt.add(v);
+        else if (k === "slot" || k === "start_time") seen.slot.add(v);
+      } else {
+        harvest(v);
+      }
+    }
+  };
+
   const trace = async (name: string, input: unknown, run: () => Promise<unknown>) => {
     let output: string;
     try {
-      output = JSON.stringify(await run());
+      const result = await run();
+      harvest(result); // recoge ids reales antes de serializar
+      output = JSON.stringify(result);
     } catch (error) {
       output = JSON.stringify({
         error: error instanceof Error ? error.message : "tool failed",
@@ -45,6 +76,21 @@ export function clinicTools(ctx: CallContext) {
     }
     ctx.onTool?.(name, input, output);
     return output;
+  };
+
+  /**
+   * Guard anti-alucinación. Devuelve un mensaje de error si algún id no salió
+   * de una búsqueda, para forzar al modelo a re-buscar en vez de inventar.
+   */
+  const checkIds = (checks: [string, string, Set<string>][]): string | null => {
+    const bad = checks.filter(([, value, set]) => value && !set.has(value));
+    if (bad.length === 0) return null;
+    return JSON.stringify({
+      error: "unverified_ids",
+      detail: `These ids never appeared in a search result — do not invent ids. Re-run search_directory / search_availability and use the exact ids it returns: ${bad
+        .map(([field, value]) => `${field}=${value}`)
+        .join(", ")}`,
+    });
   };
 
   const markSubmitted = (action: string) => {
@@ -143,6 +189,13 @@ export function clinicTools(ctx: CallContext) {
           const policy = asInsurer(input.policy_id);
           const location_id = asLocation(input.location_id);
           if (!policy || !location_id) return { error: "bad policy_id or location_id" };
+          const bad = checkIds([
+            ["patient_id", input.patient_id, seen.patient],
+            ["provider_id", input.provider_id, seen.provider],
+            ["appointment_type_id", input.appointment_type_id, seen.apptType],
+            ["slot", input.slot, seen.slot],
+          ]);
+          if (bad) return JSON.parse(bad);
           const action = {
             action: "BOOK",
             patient_id: input.patient_id,
@@ -206,6 +259,8 @@ export function clinicTools(ctx: CallContext) {
       inputSchema: z.object({ appointment_id: z.string().describe("From list_appointments") }),
       execute: (input) =>
         trace("submit_cancel", input, async () => {
+          const bad = checkIds([["appointment_id", input.appointment_id, seen.appt]]);
+          if (bad) return JSON.parse(bad);
           return submit({ action: "CANCEL", appointment_id: input.appointment_id }, () =>
             ctx.platform.submitCancel({ call_id: ctx.callId, appointment_id: input.appointment_id }));
         }),
@@ -226,6 +281,12 @@ export function clinicTools(ctx: CallContext) {
           const policy = asInsurer(input.policy_id);
           const location_id = asLocation(input.location_id);
           if (!policy || !location_id) return { error: "bad policy_id or location_id" };
+          const bad = checkIds([
+            ["appointment_id", input.appointment_id, seen.appt],
+            ["provider_id", input.provider_id, seen.provider],
+            ["slot", input.slot, seen.slot],
+          ]);
+          if (bad) return JSON.parse(bad);
           const action = {
             action: "RESCHEDULE",
             appointment_id: input.appointment_id,

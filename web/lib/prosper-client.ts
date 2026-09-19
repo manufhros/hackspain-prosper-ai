@@ -40,6 +40,19 @@ export const prosper = {
   patients: (offset = 0, limit = 50) => get<PatientsPage>(`clinic/patients?offset=${offset}&limit=${limit}`),
 
   audioUrl: (callId: string) => `/api/prosper/audio/${callId}`,
+
+  // Dispara un Call de un caso público contra un endpoint override (mutación
+  // acotada: ver web/app/api/prosper/call/route.ts).
+  triggerCall: async (body: { problem_id: string; case_id: string; endpoint: string; headers?: string }) => {
+    const res = await fetch("/api/prosper/call", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new ProsperError(data?.detail ?? data?.data?.message ?? data?.error ?? `HTTP ${res.status}`, res.status);
+    return data as { run_id: string };
+  },
 };
 
 // Con TanStack Query, en el polling de runs:

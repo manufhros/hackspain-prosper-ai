@@ -9,6 +9,7 @@ const ITEMS = [
   { href: "/leaderboard", label: "Ranking" },
   { href: "/run-all", label: "Run All" },
   { href: "/tests", label: "Tests" },
+  { href: "/call", label: "Probar" },
   { href: "/problems", label: "Problemas" },
   { href: "/clinic", label: "Clínica" },
 ];

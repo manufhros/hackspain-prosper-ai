@@ -25,6 +25,12 @@ The stack is sized for your M4 Pro / 48 GB Mac. The first Ollama benchmark expos
 
 For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
 
+## Optional reception screen
+
+Run `bun run serve --edge` to serve a touch-friendly voice kiosk at `http://127.0.0.1:7860/edge/` on the backend device. Omitting `--edge` keeps the server headless. The screen and voice backend run in one Bun process, with no separate frontend server or build step. Spanish, Catalan and English controls support start, microphone pause, end and directions to in-person help.
+
+Kiosk conversations are explicitly **practice only**: they reuse the voice agent but never submit synthetic calls to Prosper, and their reports/transcripts are not saved by the kiosk transport. The existing backend is a test-call integration, not a hospital booking system. Kiosk access is loopback-only and stays outside the public telephony tunnel. See [kiosk deployment and transport](src/edge/README.md).
+
 ## Local inference and concurrency
 
 Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVIDER=local`. Other `OPENROUTER_*` settings are ignored in local mode. The local stack makes no cloud model requests or automatic provider fallbacks. Prosper clinic reads and official test submissions still use its API. The setup phase downloads dependencies/model assets; inference uses cached local files.

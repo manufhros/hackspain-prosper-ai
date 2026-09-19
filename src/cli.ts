@@ -10,6 +10,7 @@ bun start                         TUI + automatic local voice setup/start
 bun start --offline               TUI without downloads or local processes
 bun run serve                    Prosper-compatible /ws endpoint + real test submissions
 bun run serve --dry-run          Endpoint with local-only results
+bun run serve --edge             Add the local reception screen at /edge/
 bun run serve --help             Server/tunnel configuration; no startup
 bun src/cli.ts cases               List all 73 archived public cases
 bun src/cli.ts case <id>           Inspect one complete public fixture

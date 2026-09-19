@@ -9,11 +9,13 @@ import { LocalRuntime, voiceDir } from "../voice/runtime";
 import { defaultVad, SharedAudio } from "./audio";
 import { PlatformCall, type CallOptions } from "./call";
 import { LiveTranscript } from "./transcript";
+import { edgeAllowed, edgeAsset, edgeEvent } from "../edge/http";
 
 export const serverHelp = `Prosper / Twilio-compatible voice endpoint
 
 bun run serve                     Listen on 127.0.0.1:7860, submit real test resolutions
 bun run serve --dry-run           Same audio protocol; never submit results
+bun run serve --edge              Also serve the local reception kiosk at /edge/
 bun run serve --port 7861         Override VOICE_PORT
 bun run serve --help              Show this help without starting services
 
@@ -30,13 +32,17 @@ Then start your tunnel yourself: ngrok http 7860
 Set Prosper Settings > Integration > Endpoint to wss://<tunnel-host>/ws.
 Set its Authorization header too if VOICE_SERVER_TOKEN is configured.
 GET /healthz reports readiness. Per-call reports: .workbench/platform-*.json.
+--edge adds a browser kiosk on this device at http://127.0.0.1:<port>/edge/.
+Kiosk sessions always use practice mode, never submit to Prosper, and are not saved.
+Open the kiosk locally, not through the tunnel. /ws authentication remains unchanged.
 Live transcripts print with numbered conversation labels and start/end separators.
 No Twilio account, phone number, TwiML endpoint or signature is required by this track.
 `;
 export function serverConfig(env: Record<string, string | undefined>, args: string[]) {
-  let port = env.VOICE_PORT || "7860", live = true;
+  let port = env.VOICE_PORT || "7860", live = true, edge = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--dry-run") live = false;
+    else if (args[i] === "--edge") edge = true;
     else if (args[i] === "--port" && args[i + 1]) port = args[++i]!;
     else throw new Error(`Unknown or incomplete serve option: ${args[i]}`);
   }
@@ -54,7 +60,7 @@ export function serverConfig(env: Record<string, string | undefined>, args: stri
   if (!Number.isFinite(vadProbability) || vadProbability < 0.1 || vadProbability > 0.9) throw new Error("VOICE_VAD_PROBABILITY must be 0.1–0.9");
   const token = env.VOICE_SERVER_TOKEN?.trim() || undefined;
   if (token && (token.length < 16 || token.length > 256 || /\s/.test(token))) throw new Error("VOICE_SERVER_TOKEN must be 16–256 characters without whitespace");
-  return { hostname: env.VOICE_HOST || "127.0.0.1", port: integer(port, 1, 65535, "Port"), live, language, token, vadEngine, vadProbability,
+  return { hostname: env.VOICE_HOST || "127.0.0.1", port: integer(port, 1, 65535, "Port"), live, edge, language, token, vadEngine, vadProbability,
     turnTimeoutMs: integer(env.VOICE_TURN_TIMEOUT_MS || "25000", 1000, 120000, "VOICE_TURN_TIMEOUT_MS"),
     waitNoticeMs: integer(env.VOICE_WAIT_NOTICE_MS || "4000", 500, 10000, "VOICE_WAIT_NOTICE_MS"),
     callTimeoutMs: integer(env.VOICE_CALL_TIMEOUT_MS || "180000", 30000, 600000, "VOICE_CALL_TIMEOUT_MS"),
@@ -66,8 +72,8 @@ export function authorized(request: Request, token?: string): boolean {
   const actual = Buffer.from(request.headers.get("authorization") ?? ""), expected = Buffer.from(`Bearer ${token}`);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-export interface SocketData { call?: PlatformCall }
-type UpgradeServer = Pick<Server<SocketData>, "upgrade">;
+export interface SocketData { call?: PlatformCall; edge?: boolean; language?: string; lifetime?: AbortController }
+type UpgradeServer = Pick<Server<SocketData>, "upgrade"> & Partial<Pick<Server<SocketData>, "requestIP">>;
 
 /** Export handlers for finite transport tests; constructing them opens no port. */
 export function serverHandlers(config: ReturnType<typeof serverConfig>, dependencies: Omit<CallOptions, "socket" | "claim" | "live" | "language" | "vad">,
@@ -86,12 +92,21 @@ export function serverHandlers(config: ReturnType<typeof serverConfig>, dependen
       const url = new URL(request.url);
       if (request.method !== "GET") return new Response("Method not allowed", { status: 405 });
       if (url.pathname === "/healthz") return Response.json({ ready: ready(), active_calls: calls.size, mode: config.live ? "platform" : "dry_run" }, { status: ready() ? 200 : 503 });
-      if (url.pathname !== "/ws" || url.search) return new Response("Not found", { status: 404 });
-      if (!authorized(request, config.token)) return new Response("Unauthorized", { status: 401 });
+      const edge = config.edge && url.pathname === "/edge/ws";
+      if (config.edge) {
+        const asset = edgeAsset(request, server.requestIP?.(request)?.address);
+        if (asset) return asset;
+      }
+      if (!edge && (url.pathname !== "/ws" || url.search)) return new Response("Not found", { status: 404 });
+      const language = edge ? url.searchParams.get("language") ?? config.language : config.language;
+      if (edge) {
+        if (!edgeAllowed(request, server.requestIP?.(request)?.address)) return new Response("Local same-origin kiosk only", { status: 403 });
+        if (!["en", "es", "ca"].includes(language) || [...url.searchParams.keys()].some(key => key !== "language")) return new Response("Invalid kiosk options", { status: 400 });
+      } else if (!authorized(request, config.token)) return new Response("Unauthorized", { status: 401 });
       if (!ready()) return new Response("Voice runtime not ready", { status: 503 });
       if (reserved >= config.maxCalls) return new Response("Call capacity reached", { status: 503 });
       reserved++;
-      try { if (server.upgrade(request, { data: {} })) return; }
+      try { if (server.upgrade(request, { data: { edge, language } })) return; }
       catch (error) { reserved--; throw error; }
       reserved--;
       return new Response("WebSocket upgrade required", { status: 426 });
@@ -103,7 +118,13 @@ export function serverHandlers(config: ReturnType<typeof serverConfig>, dependen
       closeOnBackpressureLimit: true,
       idleTimeout: 60,
       open(socket: ServerWebSocket<SocketData>) {
-        const call = new PlatformCall({ ...dependencies, live: config.live, language: config.language, vad: config.vad, claim,
+        const lifetime = new AbortController(); socket.data.lifetime = lifetime;
+        const call = new PlatformCall({ ...dependencies, live: socket.data.edge ? false : config.live, language: socket.data.language ?? config.language, vad: config.vad, claim,
+          ...(socket.data.edge ? {
+            lifetime: AbortSignal.any([dependencies.lifetime, lifetime.signal]),
+            onEvent: (_identity, event) => { const message = edgeEvent(event); if (message) socket.send(JSON.stringify(message)); },
+            report: async () => {},
+          } satisfies Partial<CallOptions> : {}),
           turnTimeoutMs: config.turnTimeoutMs, waitNoticeMs: config.waitNoticeMs, callTimeoutMs: config.callTimeoutMs,
           socket: { send: message => {
             if (socket.getBufferedAmount() > 32 * 1024) throw new Error("Socket output is too far behind real time");
@@ -113,7 +134,11 @@ export function serverHandlers(config: ReturnType<typeof serverConfig>, dependen
         void call.done.finally(() => { calls.delete(call); reserved--; });
       },
       message(socket: ServerWebSocket<SocketData>, message: string | Buffer) { socket.data.call?.receive(message); },
-      close(socket: ServerWebSocket<SocketData>, code?: number) { if (socket.data.call) socket.data.call.end("socket_closed", code); else reserved--; },
+      close(socket: ServerWebSocket<SocketData>, code?: number) {
+        // A kiosk dismissal discards pending work instead of draining a final confirmation.
+        if (socket.data.edge) socket.data.lifetime?.abort(new Error("Kiosk session ended"));
+        if (socket.data.call) socket.data.call.end("socket_closed", code); else reserved--;
+      },
     },
   };
 }
@@ -146,6 +171,7 @@ export async function runServer(args: string[]) {
     lifetime.signal.throwIfAborted();
     server = Bun.serve({ hostname: config.hostname, port: config.port, fetch: handlers.fetch, websocket: handlers.websocket });
     console.log(`Ready: ws://${config.hostname}:${server.port}/ws · ${config.live ? "REAL test submissions" : "dry run, no submissions"} · ${config.token ? "Bearer authentication required" : "no endpoint authentication"}`);
+    if (config.edge) console.log(`Reception kiosk: http://127.0.0.1:${server.port}/edge/ · local browser only · practice, no submissions`);
     console.log("Start your tunnel separately and set the public wss://<host>/ws URL in Prosper Settings → Integration.");
     await new Promise<void>(resolve => { if (lifetime.signal.aborted) resolve(); else lifetime.signal.addEventListener("abort", () => resolve(), { once: true }); });
   } finally {

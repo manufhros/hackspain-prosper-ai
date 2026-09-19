@@ -4,6 +4,8 @@ import { saveLocal } from "../storage";
 import { isObject } from "../validation";
 import { modelConfig } from "./model";
 import { LocalRuntime, type Inference } from "./runtime";
+import { benchmarkInputEvidence, benchmarkInputs, benchmarkPhrases } from "./benchmark-inputs";
+export { benchmarkPhrases } from "./benchmark-inputs";
 
 export const benchmarkHelp = `Local inference capacity benchmark (synthetic speech; no clinic API or submissions)
 
@@ -15,6 +17,7 @@ Quit the TUI/server first: this command owns its own local inference processes.
 Requires LLM_PROVIDER=local. LOCAL_* settings select capacity and ASR model.
 Setup may download dependencies/models. Ctrl-C stops owned processes.
 Reports .workbench/benchmark-*.json with worker/queue timings, WER and intent accuracy.
+Reuses fixed audio from .workbench/benchmark-inputs-v1.json; reports include input hashes.
 These are synchronized synthetic ASR → intent extraction → TTS jobs, NOT 20 live calls.
 No endpointing, paced playback, clinic tools, consent, background noise or human accents
 are exercised. Use actual platform calls and their reports to validate those separately.
@@ -32,11 +35,6 @@ export function benchmarkOptions(args: string[]) {
   if (rounds < 1 || rounds > 20) throw new Error("Rounds must be 1–20");
   return { concurrency, rounds };
 }
-export const benchmarkPhrases = [
-  { language: "en", action: "BOOK", text: "I would like to book an appointment next Tuesday morning." },
-  { language: "es", action: "CANCEL", text: "Quiero cancelar mi cita del próximo martes por la mañana." },
-  { language: "ca", action: "INFO", text: "Voldria saber a quina hora obre la clínica els dilluns." },
-] as const;
 export function wordErrorRate(expected: string, actual: string): number {
   const words = (text: string) => text.toLowerCase().normalize("NFKC").replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/).filter(Boolean);
   const a = words(expected), b = words(actual);
@@ -64,18 +62,19 @@ export interface BenchmarkSample {
   prefill_ms?: number; decode_ms?: number; tts_ms?: number; tts_queue_ms?: number;
 }
 export async function measureInference(inference: Inference, audio: SharedAudio, options: ReturnType<typeof benchmarkOptions>,
-  signal: AbortSignal, progress: (message: string) => void = () => {}) {
+  signal: AbortSignal, progress: (message: string) => void = () => {}, fixedRecordings?: readonly string[]) {
+  if (fixedRecordings && fixedRecordings.length !== benchmarkPhrases.length) throw new Error("Benchmark requires one recording per phrase");
   const samples: BenchmarkSample[] = [], recordings: string[] = [];
   const transcriptionDiagnostics = [];
   progress("Preparing synthetic English, Spanish and Catalan telephone audio; warmup excluded.");
-  for (const phrase of benchmarkPhrases) {
-    const speech = await audio.run("speak", { text: phrase.text, language: phrase.language, wire: true }, signal);
-    if (!speech.payload) throw new Error("Benchmark source synthesis returned no audio");
-    recordings.push(speech.payload);
+  for (const [index, phrase] of benchmarkPhrases.entries()) {
+    const payload = fixedRecordings?.[index] ?? (await audio.run("speak", { text: phrase.text, language: phrase.language, wire: true }, signal)).payload;
+    if (!payload) throw new Error("Benchmark source synthesis returned no audio");
+    recordings.push(payload);
     // Compare detection and recognition separately, outside measured batches. These
     // known-language hints are diagnostic only; real calls still allow language switches.
-    const automatic = await audio.run("transcribe_mulaw", { payload: speech.payload }, signal);
-    const hinted = await audio.run("transcribe_mulaw", { payload: speech.payload, language: phrase.language }, signal);
+    const automatic = await audio.run("transcribe_mulaw", { payload }, signal);
+    const hinted = await audio.run("transcribe_mulaw", { payload, language: phrase.language }, signal);
     const score = (heard: typeof automatic) => ({ recognized_text: heard.text ?? "", detected_language: heard.language ?? null,
       wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms, decoder: heard.decoder });
     transcriptionDiagnostics.push({ language: phrase.language, expected_text: phrase.text, automatic: score(automatic), explicit_language: score(hinted) });
@@ -153,8 +152,12 @@ export async function runBenchmark(args: string[]) {
   try {
     console.log("Starting an owned local stack for the benchmark. Keep other voice servers/TUIs stopped.");
     await runtime.start();
-    const report = await measureInference(runtime, new SharedAudio(runtime, lifetime.signal, runtime.settings.ttsWorkers), options, lifetime.signal, console.log);
-    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, settings: runtime.settings, model: runtime.modelLabel, model_runtime: runtime.modelRuntime });
+    const audio = new SharedAudio(runtime, lifetime.signal, runtime.settings.ttsWorkers);
+    const inputs = await benchmarkInputs(audio, lifetime.signal);
+    const evidence = benchmarkInputEvidence(inputs);
+    console.log(`Fixed input audio SHA-256: ${evidence.sha256}`);
+    const report = await measureInference(runtime, audio, options, lifetime.signal, console.log, inputs.recordings.map(row => row.payload));
+    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, input_audio: evidence, settings: runtime.settings, model: runtime.modelLabel, model_runtime: runtime.modelRuntime });
     console.log(JSON.stringify(report.summaries, null, 2)); console.log(`Saved: ${file}`);
     if (report.samples.some(sample => sample.wer !== undefined && sample.wer > 0))
       console.log("Transcription errors detected; inspect recognized_text and transcription_diagnostics even when intent is correct.");

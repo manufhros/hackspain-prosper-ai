@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { LeadForm } from "@/components/LeadForm";
-import { SITES } from "@/lib/clinic";
 import styles from "./landing.module.css";
 
 export default async function Home({
@@ -23,7 +22,7 @@ export default async function Home({
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>La recepción que nunca pone en espera</p>
-          <h1>Siempre hay alguien.</h1>
+          <h1>No Esperes Tu <span className={styles.heroAccent}>Turno</span></h1>
           <p className={styles.heroLead}>
             turno atiende cada llamada, consulta vuestra agenda y deja la cita cerrada mientras vuestro equipo cuida a
             quien ya está en la clínica.
@@ -31,11 +30,6 @@ export default async function Home({
           <div className={styles.actions}>
             <a className={styles.primary} href="#demo">Verlo con mi agenda</a>
             <a className={styles.secondary} href="#producto">Ver una llamada</a>
-          </div>
-          <div className={styles.trust}>
-            <span>Registro de llamadas y resultados</span>
-            <span><b>{SITES.length}</b> centros configurados</span>
-            <span><b>24/7</b> sin ampliar turnos</span>
           </div>
         </div>
 
@@ -69,9 +63,7 @@ export default async function Home({
 
       <section className={styles.story} id="producto">
         <div className={styles.stickyTitle}>
-          <p>De llamada a cita</p>
           <h2>Una conversación.<br />Todo resuelto.</h2>
-          <span>Desplázate para ver el recorrido</span>
         </div>
         <div className={styles.steps}>
           <article>
@@ -100,12 +92,6 @@ export default async function Home({
           <p>Actividad que puedes consultar</p>
           <h2>No promete que devolverá la llamada.<br />La resuelve.</h2>
         </div>
-        <dl>
-          <div><dt>Citas</dt><dd>reservas, cambios y cancelaciones</dd></div>
-          <div><dt>Altas</dt><dd>registros de pacientes</dd></div>
-          <div><dt>Escalados</dt><dd>solicitudes de atención humana</dd></div>
-        </dl>
-        <small>Consulta los resultados y la transcripción de cada llamada en el panel.</small>
       </section>
 
       <section className={styles.finalCta} id="demo">
@@ -141,7 +127,7 @@ export default async function Home({
         </div>
         <div className={styles.footerBottom}>
           <span>© 2026 turno</span>
-          <span>Madrid, España</span>
+          <span>Murcia, España</span>
           <span>Datos alojados en la UE</span>
         </div>
       </footer>

@@ -1,0 +1,20 @@
+[2026-09-19T22:10:00,424 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_22-10-00_CEST.log
+[2026-09-19T22:10:00,424 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T22:12:12,157 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:12:12,157 CEST] stream start 764402f9-874b-4e80-86e1-e52be7d0c800 {"call_id":"764402f9-874b-4e80-86e1-e52be7d0c800","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:12:12,158 CEST] call start 764402f9-874b-4e80-86e1-e52be7d0c800 +34600000000
+[2026-09-19T22:12:12,158 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:12:12,341 CEST] directory hint 764402f9-874b-4e80-86e1-e52be7d0c800 []
+[2026-09-19T22:12:12,798 CEST] 764402f9 eleven conversation_initiation_metadata
+[2026-09-19T22:12:13,127 CEST] 764402f9 eleven agent_response
+[2026-09-19T22:12:13,128 CEST] 764402f9 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:12:20,273 CEST] 764402f9 eleven user_transcript
+[2026-09-19T22:12:20,274 CEST] 764402f9 user Eh, hola, por favor, pásame con un agente.
+[2026-09-19T22:12:20,274 CEST] 764402f9 eleven client_tool_call
+[2026-09-19T22:12:20,275 CEST] 764402f9 tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T22:12:21,896 CEST] 764402f9 tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true},"next_step":"A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable."}
+[2026-09-19T22:12:22,000 CEST] 764402f9 eleven agent_tool_response
+[2026-09-19T22:12:22,960 CEST] 764402f9 eleven agent_response
+[2026-09-19T22:12:22,961 CEST] 764402f9 agent Le paso inmediatamente con un compañero que le atenderá en un momento. Por favor, no cuelgue.
+[2026-09-19T22:12:25,539 CEST] twiml live 764402f9 wss://b5f4-86-127-225-103.ngrok-free.app/ws
+[2026-09-19T22:12:46,464 CEST] 764402f9 simulator closed, keeping live session

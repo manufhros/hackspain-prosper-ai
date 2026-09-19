@@ -1,0 +1,62 @@
+[2026-09-19T22:04:02,329 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_22-04-02_CEST.log
+[2026-09-19T22:04:02,329 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T22:05:09,189 CEST] stream start 0d0fd23d-59a3-43a4-9fec-5012ec3be4fd {"call_id":"0d0fd23d-59a3-43a4-9fec-5012ec3be4fd","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:05:09,189 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:05:09,189 CEST] call start 0d0fd23d-59a3-43a4-9fec-5012ec3be4fd +34600000000
+[2026-09-19T22:05:09,189 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:05:09,370 CEST] directory hint 0d0fd23d-59a3-43a4-9fec-5012ec3be4fd []
+[2026-09-19T22:05:09,816 CEST] 0d0fd23d eleven conversation_initiation_metadata
+[2026-09-19T22:05:10,599 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:05:10,600 CEST] 0d0fd23d agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:05:15,458 CEST] 0d0fd23d eleven user_transcript
+[2026-09-19T22:05:15,459 CEST] 0d0fd23d user Es de Quirurillo.
+[2026-09-19T22:05:15,658 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:05:15,659 CEST] 0d0fd23d agent ¿Se refiere a la Clínica Quirón? Dígame, por favor, ¿en qué puedo ayudarle hoy?
+[2026-09-19T22:05:16,450 CEST] 0d0fd23d eleven agent_response_correction
+[2026-09-19T22:05:22,720 CEST] 0d0fd23d eleven user_transcript
+[2026-09-19T22:05:22,721 CEST] 0d0fd23d user ¿Hola? Es reyó, pero yo no he tocado nada. ¿Hola?
+[2026-09-19T22:05:22,721 CEST] 0d0fd23d agent Buenos días. Le escucho perfectamente. ¿En qué puedo ayudarle hoy?
+[2026-09-19T22:05:22,722 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:05:45,265 CEST] 0d0fd23d eleven user_transcript
+[2026-09-19T22:05:45,266 CEST] 0d0fd23d user ¿Por qué está fuerte mi putavoz? ¿Has la-- le has cambiado la configuración de Eleven Labs? Es una voz que la has despertado por la noche. Sí, sí te da. Creo que era de nuestras voces y el operador es uno de nosotros. Eso, eso veía, de verdad.
+[2026-09-19T22:05:45,392 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:05:45,392 CEST] 0d0fd23d agent Disculpe, no he realizado ningún cambio de configuración. ¿Desea solicitar o gestionar alguna cita médica en la Clínica Quirón?
+[2026-09-19T22:05:45,900 CEST] 0d0fd23d eleven agent_response_correction
+[2026-09-19T22:05:55,795 CEST] 0d0fd23d eleven user_transcript
+[2026-09-19T22:05:55,796 CEST] 0d0fd23d user Es que la madre es la que no tiene muy buena locución. Fíjate, yo sí parece que me acabo de levantar. Y lo hice un día- ¿Tú te quieres casar un día después de la unida que me hiciste tú y ahora ya-
+[2026-09-19T22:05:55,797 CEST] 0d0fd23d agent ...
+[2026-09-19T22:05:55,796 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:06:00,180 CEST] 0d0fd23d eleven user_transcript
+[2026-09-19T22:06:00,181 CEST] 0d0fd23d user Eh, eh, ella hace la llamada, pero es- ¿Es verdad?
+[2026-09-19T22:06:00,399 CEST] 0d0fd23d agent Disculpe, ¿desea solicitar una cita médica en la Clínica Quirón? Si me facilita su número de teléfono o su nombre, puedo buscarle en nuestro sistema.
+[2026-09-19T22:06:00,399 CEST] 0d0fd23d eleven agent_response
+[2026-09-19T22:06:01,223 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:06:01,223 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:06:01,224 CEST] stream start 4aee3daa-15c4-482e-8edc-6e6905bcec36 {"call_id":"4aee3daa-15c4-482e-8edc-6e6905bcec36","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:06:01,224 CEST] call start 4aee3daa-15c4-482e-8edc-6e6905bcec36 +34600000000
+[2026-09-19T22:06:03,104 CEST] 4aee3daa eleven conversation_initiation_metadata
+[2026-09-19T22:06:03,427 CEST] 4aee3daa agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:06:03,428 CEST] 4aee3daa eleven agent_response
+[2026-09-19T22:06:05,793 CEST] 0d0fd23d elevenlabs closed 1005 
+[2026-09-19T22:06:09,271 CEST] 4aee3daa user Pásame con un agente, por favor.
+[2026-09-19T22:06:09,271 CEST] 4aee3daa eleven client_tool_call
+[2026-09-19T22:06:09,272 CEST] 4aee3daa tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T22:06:09,272 CEST] 4aee3daa eleven user_transcript
+[2026-09-19T22:06:10,663 CEST] 4aee3daa tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true},"next_step":"A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable."}
+[2026-09-19T22:06:10,771 CEST] 4aee3daa eleven agent_tool_response
+[2026-09-19T22:06:11,829 CEST] 4aee3daa eleven agent_response
+[2026-09-19T22:06:11,830 CEST] 4aee3daa agent Le comunico de inmediato con un compañero para que le atienda personalmente. Por favor, manténgase a la espera.
+[2026-09-19T22:06:16,070 CEST] twiml live 4aee3daa wss://b5f4-86-127-225-103.ngrok-free.app/ws
+[2026-09-19T22:06:28,941 CEST] 4aee3daa patient reply Sí, esa hora me viene muy bien. Gracias.
+[2026-09-19T22:06:28,942 CEST] 4aee3daa helper Claro, ¿qué tal te viene mañana a las 9:00 a.m.?
+[2026-09-19T22:06:28,942 CEST] 4aee3daa eleven user_transcript
+[2026-09-19T22:06:28,945 CEST] 4aee3daa eleven agent_response
+[2026-09-19T22:06:42,798 CEST] 4aee3daa eleven user_transcript
+[2026-09-19T22:06:42,799 CEST] 4aee3daa helper el teclado de mi ordenador .Bueno, por lo menos me ha contestado.
+[2026-09-19T22:06:42,806 CEST] 4aee3daa eleven agent_response
+[2026-09-19T22:06:44,117 CEST] 4aee3daa eleven agent_response_correction
+[2026-09-19T22:06:46,843 CEST] 4aee3daa helper Riggi, cambia, cambia la voz de antes, anda.
+[2026-09-19T22:06:46,844 CEST] 4aee3daa eleven user_transcript
+[2026-09-19T22:06:46,859 CEST] 4aee3daa eleven agent_response
+[2026-09-19T22:06:48,173 CEST] 4aee3daa simulator stop, keeping live session
+[2026-09-19T22:06:48,174 CEST] 4aee3daa simulator closed, keeping live session

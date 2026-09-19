@@ -1,0 +1,104 @@
+[2026-09-19T22:14:20,630 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_22-14-20_CEST.log
+[2026-09-19T22:14:20,630 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T22:15:53,984 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:15:53,985 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:15:53,985 CEST] stream start 132000e6-65a1-469e-9ab8-be260ed28fa2 {"call_id":"132000e6-65a1-469e-9ab8-be260ed28fa2","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:15:53,985 CEST] call start 132000e6-65a1-469e-9ab8-be260ed28fa2 +34600000000
+[2026-09-19T22:15:54,306 CEST] directory hint 132000e6-65a1-469e-9ab8-be260ed28fa2 []
+[2026-09-19T22:15:54,993 CEST] 132000e6 eleven conversation_initiation_metadata
+[2026-09-19T22:15:55,348 CEST] 132000e6 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:15:55,349 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:16:04,452 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:16:04,453 CEST] 132000e6 tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T22:16:04,453 CEST] 132000e6 user Hola, pasame con una agente, por favor.
+[2026-09-19T22:16:04,453 CEST] 132000e6 eleven client_tool_call
+[2026-09-19T22:16:08,874 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:16:08,875 CEST] 132000e6 tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T22:16:08,875 CEST] 132000e6 eleven client_tool_call
+[2026-09-19T22:16:08,875 CEST] 132000e6 user Pero ¿hay la certeza ahí y todo? ¿Y el sol?
+[2026-09-19T22:16:12,467 CEST] ERROR 132000e6 tool error submit_escalate TimeoutError: The operation was aborted due to timeout
+    at node:internal/deps/undici/undici:15845:13
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async twilioPost (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/twilio-transfer.ts:163:20)
+    at async originateHandoffCall (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/twilio-transfer.ts:224:18)
+    at async runClinicTool (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/tools.ts:825:11)
+[2026-09-19T22:16:13,829 CEST] 132000e6 eleven agent_tool_response
+[2026-09-19T22:16:15,524 CEST] 132000e6 tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true},"next_step":"A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable."}
+[2026-09-19T22:16:15,626 CEST] 132000e6 eleven agent_tool_response
+[2026-09-19T22:16:16,418 CEST] twiml live 132000e6 wss://b5f4-86-127-225-103.ngrok-free.app/ws
+[2026-09-19T22:16:17,387 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:16:18,940 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:16:31,243 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:16:31,245 CEST] 132000e6 patient reply Sí, esa hora me viene muy bien. Gracias.
+[2026-09-19T22:16:31,245 CEST] 132000e6 patient reply on phone after pause
+[2026-09-19T22:16:31,246 CEST] 132000e6 helper Sí, el sistema requiere que la letra del documento de identidad sea profesa para poder convocar el ¿Me podría confirmar el número y la fecha? Sí, ¿mañana a las 9:30 viene bien?
+[2026-09-19T22:16:31,372 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:16:46,886 CEST] 132000e6 helper Sí, esa hora me viene muy bien. Gracias.
+[2026-09-19T22:16:46,887 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:16:47,127 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:16:48,453 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:16:50,259 CEST] 132000e6 helper Sí, señora, claro.
+[2026-09-19T22:16:50,260 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:16:50,268 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:08,382 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:08,382 CEST] 132000e6 helper ¿Sabes qué es pebalu? ¿Sí? Pebalu, ¿cómo es que no has escuchado uno de 10 años de Haxpay? Yo a ti no te llamo pebalu, a mí me vas a llamar en Twitter. Eres un .
+[2026-09-19T22:17:08,396 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:15,208 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:15,211 CEST] 132000e6 helper ...
+[2026-09-19T22:17:15,211 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:24,187 CEST] 132000e6 helper Joder, tengo que hacer pull primero.
+[2026-09-19T22:17:24,188 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:24,188 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:25,223 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:17:29,972 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:29,974 CEST] 132000e6 helper Gracias, la voy a pedir.
+[2026-09-19T22:17:29,973 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:35,665 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:35,666 CEST] 132000e6 helper ...
+[2026-09-19T22:17:35,667 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:55,863 CEST] 132000e6 helper ¿A qué te referís? Yo nunca acuerdo, o sea, cuando va a r-- a registrar a alguien no puedo verlo. Que yo con Arturo como paciente. Ah, pues muy bien, venga, no pasa nada. O sea, acaba colgando, pero tiene un largo "timeout", creo. Sí, sí, creo.
+[2026-09-19T22:17:55,864 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:17:55,878 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:17:56,847 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:03,160 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:03,161 CEST] 132000e6 helper Porque hay-- creo que los tests de ellos, si colgabas tú antes, te daban algunos errores.
+[2026-09-19T22:18:03,174 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:09,947 CEST] 132000e6 helper ...
+[2026-09-19T22:18:09,948 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:09,959 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:10,166 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:14,238 CEST] 132000e6 helper Vale, hasta luego.
+[2026-09-19T22:18:14,239 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:14,239 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:14,937 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:23,882 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:23,883 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:23,883 CEST] 132000e6 helper Hasta ahí no me lo has tenido que preguntar a Paulina, ¿va a tener la prueba? Quitando eso.
+[2026-09-19T22:18:31,001 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:31,002 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:31,003 CEST] 132000e6 helper ...
+[2026-09-19T22:18:31,010 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:38,964 CEST] 132000e6 flushed book on wall-clock
+[2026-09-19T22:18:40,626 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:40,627 CEST] 132000e6 helper Eh, de paritaria. Pero no, como es que hoy en día ya no recuerdo la fecha.
+[2026-09-19T22:18:40,637 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:18:41,567 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:45,361 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:18:45,361 CEST] 132000e6 helper Por un cuento de los lobos.
+[2026-09-19T22:18:45,361 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:18:45,361 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:19:03,663 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:19:03,665 CEST] 132000e6 helper ¿Quién quiere ir a-- quién quiere ir a la playa? ¿Quién quiere ir a la playa? Mete al niño, repítenos bien para llevarlo a la playa. Tío, me encanta que hayamos protegido main, pero que estemos todos trabajando en la misma rama. Literal. Es algo- Es algo espectacular, la verdad.
+[2026-09-19T22:19:03,669 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:19:03,973 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:19:10,508 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:19:10,508 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:19:10,508 CEST] 132000e6 helper Yo me voy a reír cuando, cuando me ponga a revisar los conflictos que hay.
+[2026-09-19T22:19:16,589 CEST] 132000e6 helper Por supuesto.
+[2026-09-19T22:19:16,590 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:19:16,600 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:19:18,215 CEST] 132000e6 eleven agent_response_correction
+[2026-09-19T22:19:35,175 CEST] 132000e6 helper No, no, no. ¿Manu? Presta. A tomar por culo. Ah, sí. Le estabas diciendo a Daya que- No le he
+[2026-09-19T22:19:35,176 CEST] 132000e6 eleven user_transcript
+[2026-09-19T22:19:35,187 CEST] 132000e6 eleven agent_response
+[2026-09-19T22:19:35,304 CEST] 132000e6 eleven agent_response_correction

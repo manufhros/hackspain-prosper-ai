@@ -1,0 +1,30 @@
+[2026-09-19T18:15:42,726 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T18:15:42,726 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_18-15-42_CEST.log
+[2026-09-19T18:16:55,673 CEST] socket open 1 live
+[2026-09-19T18:16:55,744 CEST] call start workbench-71cf8c68-af6a-4fd6-91ea-386172762ed3 +34616820852
+[2026-09-19T18:16:56,011 CEST] directory hint workbench-71cf8c68-af6a-4fd6-91ea-386172762ed3 [{"patient_id":"P00358","name":"Rosario Sanz González","insurer":"nueva_mutua","has_visited_before":false,"note":"On file, never attended. Treat everything as a first visit. A GP referral for Dermatol
+[2026-09-19T18:16:56,498 CEST] workbenc eleven conversation_initiation_metadata
+[2026-09-19T18:16:56,822 CEST] workbenc agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:16:56,822 CEST] workbenc eleven agent_response
+[2026-09-19T18:17:49,992 CEST] workbenc elevenlabs closed 1005 
+[2026-09-19T18:20:01,633 CEST] socket open 1 live
+[2026-09-19T18:20:01,702 CEST] call start workbench-586b8759-8fbe-4bd9-a3b1-9d0d2c684023 +34731169716
+[2026-09-19T18:20:01,883 CEST] directory hint workbench-586b8759-8fbe-4bd9-a3b1-9d0d2c684023 [{"patient_id":"P00005","name":"Ignacio Vázquez Moreno","insurer":"cigna","has_visited_before":true,"note":"The chart goes quiet after August 2025. Four visits, the first of them back in January 2024.
+[2026-09-19T18:20:02,403 CEST] workbenc eleven conversation_initiation_metadata
+[2026-09-19T18:20:02,716 CEST] workbenc agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:20:02,716 CEST] workbenc eleven agent_response
+[2026-09-19T18:20:41,102 CEST] workbenc elevenlabs closed 1006 
+[2026-09-19T18:27:43,402 CEST] socket open 1 live
+[2026-09-19T18:27:43,403 CEST] call start brand-test +34600000000
+[2026-09-19T18:27:43,642 CEST] directory hint brand-test []
+[2026-09-19T18:27:44,086 CEST] brand-te eleven conversation_initiation_metadata
+[2026-09-19T18:27:44,402 CEST] brand-te agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:27:44,402 CEST] brand-te eleven agent_response
+[2026-09-19T18:27:49,513 CEST] brand-te elevenlabs closed 1005 
+[2026-09-19T18:32:39,656 CEST] socket open 1 live
+[2026-09-19T18:32:39,729 CEST] call start workbench-34c8bd0d-c342-4b0c-93d1-3f6fd4975d1e +34731169716
+[2026-09-19T18:32:39,987 CEST] directory hint workbench-34c8bd0d-c342-4b0c-93d1-3f6fd4975d1e [{"patient_id":"P00005","name":"Ignacio Vázquez Moreno","insurer":"cigna","has_visited_before":true,"note":"The chart goes quiet after August 2025. Four visits, the first of them back in January 2024.
+[2026-09-19T18:32:40,512 CEST] workbenc eleven conversation_initiation_metadata
+[2026-09-19T18:32:40,918 CEST] workbenc eleven agent_response
+[2026-09-19T18:32:40,918 CEST] workbenc agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T18:33:07,645 CEST] workbenc elevenlabs closed 1006 

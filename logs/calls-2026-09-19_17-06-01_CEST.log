@@ -1,0 +1,8 @@
+[2026-09-19T17:06:01,258 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_17-06-01_CEST.log
+[2026-09-19T17:06:01,259 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T17:09:41,630 CEST] socket open 1 live
+[2026-09-19T17:09:41,692 CEST] call start 6dfd4c4c-ada4-5768-8a77-50167985748a withheld
+[2026-09-19T17:09:42,227 CEST] 6dfd4c4c eleven conversation_initiation_metadata
+[2026-09-19T17:09:42,657 CEST] 6dfd4c4c agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T17:09:42,657 CEST] 6dfd4c4c eleven agent_response
+[2026-09-19T17:10:39,333 CEST] 6dfd4c4c elevenlabs closed 1002 Generating the LLM response took too long.

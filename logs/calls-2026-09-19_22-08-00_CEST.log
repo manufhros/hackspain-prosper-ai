@@ -1,0 +1,53 @@
+[2026-09-19T22:08:00,203 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_22-08-00_CEST.log
+[2026-09-19T22:08:00,203 CEST] listening ws://0.0.0.0:7860/ws
+[2026-09-19T22:08:23,522 CEST] stream start edcea71c-3f62-4fe1-a77a-b434a966f127 {"call_id":"edcea71c-3f62-4fe1-a77a-b434a966f127","from_number":"+34600000000","org_slug":"quironsalud","simulation":"human-handoff-quironsalud"}
+[2026-09-19T22:08:23,522 CEST] call start edcea71c-3f62-4fe1-a77a-b434a966f127 +34600000000
+[2026-09-19T22:08:23,522 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
+[2026-09-19T22:08:23,522 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
+[2026-09-19T22:08:23,871 CEST] directory hint edcea71c-3f62-4fe1-a77a-b434a966f127 []
+[2026-09-19T22:08:26,163 CEST] edcea71c eleven conversation_initiation_metadata
+[2026-09-19T22:08:26,991 CEST] edcea71c eleven agent_response
+[2026-09-19T22:08:26,992 CEST] edcea71c agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
+[2026-09-19T22:08:34,114 CEST] edcea71c user Pásame con un agente.
+[2026-09-19T22:08:34,115 CEST] edcea71c tool submit_escalate {"reason":"out_of_scope"}
+[2026-09-19T22:08:34,114 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:08:34,115 CEST] edcea71c eleven client_tool_call
+[2026-09-19T22:08:35,530 CEST] edcea71c tool result submit_escalate {"accepted":true,"action":"ESCALATE","reason":"out_of_scope","simulated":true,"transfer":{"transferred":true,"originated":true},"next_step":"A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable."}
+[2026-09-19T22:08:35,635 CEST] edcea71c eleven agent_tool_response
+[2026-09-19T22:08:37,519 CEST] edcea71c agent Le paso de inmediato con un compañero para que le atienda personalmente. Por favor, manténgase a la escucha.
+[2026-09-19T22:08:37,520 CEST] edcea71c eleven agent_response
+[2026-09-19T22:08:38,566 CEST] twiml live edcea71c wss://b5f4-86-127-225-103.ngrok-free.app/ws
+[2026-09-19T22:08:41,043 CEST] edcea71c eleven agent_response_correction
+[2026-09-19T22:08:51,865 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:08:51,867 CEST] edcea71c helper Claro, ¿qué tal te viene mañana a las 9:00 a.m.?
+[2026-09-19T22:08:51,867 CEST] edcea71c eleven agent_response
+[2026-09-19T22:08:51,867 CEST] edcea71c patient reply Sí, esa hora me viene muy bien. Gracias.
+[2026-09-19T22:08:57,203 CEST] edcea71c patient reply twilio fail The requested resource /2010-04-01/Accounts/AC***/Calls/CAb4de47123645b5e9a494a209547c697c.json was not found
+[2026-09-19T22:08:59,245 CEST] edcea71c helper ...
+[2026-09-19T22:08:59,246 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:08:59,246 CEST] edcea71c eleven agent_response
+[2026-09-19T22:08:59,774 CEST] edcea71c eleven agent_response_correction
+[2026-09-19T22:09:01,362 CEST] edcea71c helper Es que me responde, pero no me habla por el móvil.
+[2026-09-19T22:09:01,363 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:01,377 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:11,065 CEST] edcea71c helper ...
+[2026-09-19T22:09:11,066 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:11,066 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:14,813 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:14,814 CEST] edcea71c helper ...
+[2026-09-19T22:09:14,826 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:26,806 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:26,807 CEST] edcea71c helper ...
+[2026-09-19T22:09:26,808 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:30,640 CEST] edcea71c helper ...
+[2026-09-19T22:09:30,640 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:30,640 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:37,083 CEST] edcea71c helper ¿Quieres que te lo cambie, Guille? ¿La cambias desde la IA-- desde la...? Sí, sí, lo cambias desde la IA.
+[2026-09-19T22:09:37,083 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:37,091 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:51,798 CEST] edcea71c helper Tenemos aquí un par de avisos de ElevenLabs que creo, creo que no está funcionando como debería.
+[2026-09-19T22:09:51,798 CEST] edcea71c eleven agent_response
+[2026-09-19T22:09:51,799 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:58,057 CEST] edcea71c helper A ver, que no, no, no. Yo no he hecho mucho, pero un poquitito, un poco.
+[2026-09-19T22:09:58,058 CEST] edcea71c eleven user_transcript
+[2026-09-19T22:09:58,068 CEST] edcea71c eleven agent_response

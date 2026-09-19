@@ -108,7 +108,7 @@ The controlled pair (`benchmark-1789820021198.json`, two slots; `benchmark-17898
 | 10 | 3.45 / 5.25 s | 4.18 / 5.38 s |
 | 20 | 6.12 / 10.22 s | 6.83 / 10.24 s |
 
-Both completed all 108 intents and detected languages correctly, with identical recognized text, no decoder fallback and no execution failures. The Catalan fixture scored 60% WER in both. Two slots are the preferred measured candidate because of lower median latency without a material tail penalty. This is one sequential pair, not a guarantee of optimal settings or twenty-call readiness. The twenty-turn tail remains about ten seconds. Keep segment decoding opt-in until broader speech, real receptionist tools and consent flows are exercised. No production defaults or private `.env` were changed. The immediate quality check is listening to the actual Catalan fixture before attributing its errors to ASR; decoded inspection copies are `.workbench/benchmark-input-{en,es,ca}.wav`.
+Both completed all 108 intents and detected languages correctly, with identical recognized text, no decoder fallback and no execution failures. The Catalan fixture scored 60% WER in both. Two slots are the preferred measured candidate because of lower median latency without a material tail penalty. This is one sequential pair, not a guarantee of optimal settings or twenty-call readiness. The twenty-turn tail remains about ten seconds. Keep segment decoding opt-in until broader speech, real receptionist tools and consent flows are exercised. No production defaults or private `.env` were changed. Listening without Catalan proficiency did not establish whether the fixture pronunciation was correct. The next quality check uses human recordings with reference transcripts; decoded synthetic inspection copies remain at `.workbench/benchmark-input-{en,es,ca}.wav`.
 
 Reproduce the paired comparison with identical cached inputs when needed (there is no need to repeat it unchanged now). This starts the two stacks sequentially and stops if a run fails:
 
@@ -123,6 +123,24 @@ To deliberately test new synthesized recordings later, first archive `.workbench
 Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the original Ollama baseline, so that earlier comparison cannot isolate a server-only speedup. Retain each report and change one variable at a time.
 
 `bun run benchmark --help` is finite and starts nothing. Offline verification uses `bun run check`; native codec tests use the already-installed `.workbench/voice/venv/bin/python -m unittest discover -s tests -p '*_test.py'` with synthetic model stubs, not real models/devices.
+
+## Human-recorded recognition check
+
+The synthetic Catalan fixture alone cannot establish whether Piper pronunciation or Whisper recognition caused the errors. `benchmark:asr` compares Whisper small and large-v3-turbo with both `transcribe` and `segment`, using the same human recordings in each profile. It runs 240 serial recognition operations: 30 clips × two audio formats × four profiles. No reference text or language hint is sent to recognition.
+
+The prepared corpus contains ten distinct test sentences each for English (`en_us`), Spanish (`es_419`, Latin America) and Catalan (`ca_es`) from [Google FLEURS](https://huggingface.co/datasets/google/fleurs), revision `70bb2e84b976b7e960aa89f1c648e09c59f894dd`, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Selection takes the first ten distinct sentence IDs per language in archive order with duration 1–20 seconds, before any recognition results are available. Source transcripts are unchanged. Audio is converted to mono 16 kHz PCM16 and separately resampled to 8 kHz mu-law for the telephone comparison. The manifest retains source filenames and hashes; the runner verifies the prepared WAV and telephone audio hashes before starting.
+
+To reproduce the corpus using the already-installed private Python environment, run `.workbench/voice/venv/bin/python scripts/prepare-human-speech.py`. This only downloads and converts recordings; it loads no models. Existing `.workbench/human-speech/manifest.json` is reused. Archive that directory before deliberately regenerating it.
+
+Stop other voice stacks, then run the recognition check yourself:
+
+```sh
+bun run benchmark:asr
+```
+
+This command starts only recognition workers, one profile at a time, and stops them afterwards. It skips Qwen, Piper, VAD and external inference providers, regardless of `LLM_PROVIDER`. First use may install dependencies/download the selected Whisper assets. `bun run benchmark:asr --help` starts nothing. Production settings and `.env` are unchanged.
+
+The report at `.workbench/recognition-*.json` includes references, recognized text, detected language, decoder used, per-sample errors, input hashes and isolated worker timing. Corpus word error rate sums edit errors across reference words; failed operations count as empty transcripts. This small read-speech sample helps separate recognition from synthesis and codec effects. It does not validate clinic vocabulary, conversational speech, Spanish regional coverage, noisy calls or 10–20-call capacity.
 
 ## Use an OpenRouter model
 

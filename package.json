@@ -23,7 +23,9 @@
     "cf:dev": "wrangler dev",
     "desk:cf:check": "npm --prefix desk run cf:check",
     "desk:cf:deploy": "npm --prefix desk run cf:deploy",
-    "test:worker": "node --import tsx --test src/worker/*.test.mjs"
+    "test:worker": "node --import tsx --test src/worker/*.test.mjs",
+    "calls:import": "node --import tsx src/scripts/import-call-logs.mjs",
+    "test:import": "node --import tsx --test src/scripts/import-call-logs.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.1",

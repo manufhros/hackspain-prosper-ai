@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#edf4f4">
+  <title>Recepción · El Turno</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body data-state="idle">
+  <div class="kiosk">
+    <header class="header">
+      <a class="brand" href="./" aria-label="El Turno · Inicio"><span class="brand-mark" aria-hidden="true">t.</span><span>el turno<span class="brand-caption" data-copy="reception">Recepción por voz</span></span></a>
+      <nav class="languages" aria-label="Idioma">
+        <button disabled type="button" lang="es" data-language="es" aria-pressed="true">Español</button>
+        <button disabled type="button" lang="ca" data-language="ca" aria-pressed="false">Català</button>
+        <button disabled type="button" lang="en" data-language="en" aria-pressed="false">English</button>
+      </nav>
+    </header>
+    <main>
+      <div class="location"><span class="location-dot" aria-hidden="true"></span><span data-copy="welcome">Le damos la bienvenida</span></div>
+      <section class="conversation" aria-labelledby="title">
+        <div class="voice-symbol" aria-hidden="true"><div class="voice-disc"><span></span><span></span><span></span><span></span><span></span></div></div>
+        <div class="message" role="status" aria-live="polite" aria-atomic="true">
+          <p class="eyebrow" id="status">ESTAMOS PARA AYUDARLE</p>
+          <h1 id="title">¿En qué podemos<br>ayudarle?</h1>
+          <p class="description" id="description">Toque el botón y hable con nuestro asistente de recepción.</p>
+        </div>
+        <div class="actions">
+          <button disabled type="button" class="primary" id="start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg><span data-copy="start">Empezar a hablar</span><span aria-hidden="true">↗</span></button>
+          <div class="session-actions" id="session-actions" hidden><button disabled type="button" class="secondary" id="mute" aria-pressed="false">Pausar micrófono</button><button disabled type="button" class="end" id="end">Terminar</button></div>
+          <p class="mic-note" id="mic-note" data-copy="micOff">El micrófono está apagado hasta que empiece.</p>
+        </div>
+        <div class="help-panel" id="help-panel" hidden role="status"><p data-copy="helpDetail">Acérquese al mostrador de recepción. El personal podrá ayudarle en persona.</p><button disabled type="button" class="secondary" id="help-back" data-copy="back">Volver al inicio</button></div>
+      </section>
+      <div class="topics" id="topics"><p data-copy="topics">Podemos orientarle con</p><div><span data-copy="appointments">Citas y cambios</span><span class="topic-separator" aria-hidden="true">·</span><span data-copy="hours">Horarios</span><span class="topic-separator" aria-hidden="true">·</span><span data-copy="questions">Consultas de recepción</span></div></div>
+    </main>
+    <footer><p class="practice"><span class="practice-dot" aria-hidden="true"></span><span data-copy="practice">Modo de prueba. Las citas no se registran.</span></p><button disabled type="button" class="help" id="help"><span data-copy="help">Prefiero hablar con una persona</span><span aria-hidden="true">↗</span></button></footer>
+  </div>
+  <noscript>Active JavaScript para usar la recepción por voz. Puede pedir ayuda en el mostrador.</noscript>
+</body>
+</html>

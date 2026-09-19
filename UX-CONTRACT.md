@@ -1,6 +1,6 @@
 # Terminal interaction contract
 
-Sources: README.md (workbench workflows), task/contract.md (platform boundary), src/api.ts (explicit submission preview). Visual intent: DESIGN.md. This is a Bun terminal application, with no browser widgets or web routes.
+Sources: README.md (workbench workflows), task/contract.md (platform boundary), src/api.ts (explicit submission preview). Visual intent: DESIGN.md. The workbench is a Bun terminal application. The opt-in `/edge/` reception kiosk is a separate patient-facing variant served by the same backend.
 
 ## Canonical UI map
 
@@ -22,3 +22,20 @@ Both free chat and case microphone mode use `voice/microphone.ts`. Space starts 
 
 ## Verification
 Run `bun run check` for finite type and interaction checks and `python3 tests/recording_test.py` for mocked device lifecycle checks. Renderer coverage includes 40×12, 80×24, 90×24, and 120×36 plus empty, long-content, plain-color, and Unicode states. Cases and Docs use the same list/detail controls. Native microphone and interactive terminal QA require the user to start the app; mocked checks do not establish hardware or live UI quality.
+
+## Reception kiosk variant
+
+Source: current edge-screen brief, `src/edge/README.md`, `src/telephony/server.ts`, `src/telephony/call.ts`, and `src/protocol.ts`. The existing backend owns all scheduling/identity/consent logic. The browser sends microphone audio only. Practice mode is always visible; the UI cannot claim a real appointment was registered. No new legal, retention or medical-policy copy is introduced.
+
+| Capability | Canonical owner | Source of truth | Variant | Verification |
+| --- | --- | --- | --- | --- |
+| Voice controls / feedback | `src/edge/public/app.js` | protocol and backend call states | public kiosk; touch and keyboard | `tests/edge-server.test.ts`, browser QA |
+| Locale | `src/edge/public/locale.js` | supported backend languages | Spanish default, Catalan, English | `tests/edge-audio.test.js` |
+| Scrollbar / tokens | `src/edge/public/style.css` | DESIGN.md kiosk scope | document owns scrolling | browser QA |
+| Audio capture / playback | `src/edge/public/audio.js`, `capture.js` | `src/protocol.ts` | browser device rather than terminal | `tests/edge-audio.test.js` |
+
+Native buttons own all actions. Controls stay disabled until their listeners are installed. The patient chooses a language before starting; controls are locked during a session. A start gesture requests browser microphone permission and unlocks audio. Loading, listening, thinking, speaking, paused, completion, error and in-person-help states occupy the same central region, with polite status announcements and no transcript. Failure never silently reconnects or repeats actions. Human-help directions never pretend to dispatch a staff member.
+
+Ending, leaving or hiding the page closes capture and playback and aborts the session. Late microphone permission is discarded if its session is no longer current. End/error/help states reset after 30 seconds. Browser storage is unused and the kiosk adapter suppresses its call reports and console transcript; provider behavior remains governed by backend configuration. Only same-device, same-origin WebSocket sessions may enter this credential-free transport. Platform Bearer authentication remains separate and unchanged.
+
+The terminal retains its established visual/interaction contract; kiosk controls intentionally use larger touch targets, a light palette and automatic reset for shared-screen use. Browser and physical-device evidence are reported separately from finite automated tests.

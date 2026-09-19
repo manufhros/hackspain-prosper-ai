@@ -5,14 +5,24 @@ colors:
   muted: "#8a8a8a"
   status: "#ffaf5f"
   onAccent: "#000000"
+  kioskPaper: "#edf4f4"
+  kioskSurface: "#ffffff"
+  kioskInk: "#183b3d"
+  kioskMuted: "#496568"
+  kioskAccent: "#185c55"
+  kioskMint: "#d4e9e3"
 typography:
   terminal:
     fontFamily: "monospace"
-omitted:
-  - section: spacing
-    reason: "Layout uses terminal cells, not CSS lengths."
-  - section: rounded
-    reason: "Terminal panes have no rounded geometry."
+  kioskDisplay:
+    fontFamily: "Avenir Next, Avenir, Segoe UI, sans-serif"
+  kioskBody:
+    fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"
+spacing:
+  kioskDesktopInset: "52px"
+  kioskNarrowInset: "22px"
+rounded:
+  kioskControl: "22px"
 ---
 
 # El Turno terminal design
@@ -40,3 +50,13 @@ Shared renderer and input methods in `src/terminal.ts` own all sections. `Workbe
 
 ## Do's and Don'ts
 Preserve section position and filters. Keep conversation turns readable and let users pause live following. Do not replace the screen with a scrolling stream of diagnostic messages or depend on color alone. Do not clear the screen between full-frame redraws.
+
+## Reception kiosk scope
+
+The terminal rules above remain terminal-specific. The browser reception variant is a quiet public-service screen for a person standing at a shared hospital touch display. Its single job is to begin a voice conversation and make microphone state unmistakable. The visual reference is physical reception wayfinding: broad readable text, one central action, generous clear space. Avoid dashboard panels, diagnostic logs, promotional copy and decorative medical imagery.
+
+Runtime ownership: `src/edge/public/style.css` → `:root` → kiosk components. `kioskPaper`, `kioskSurface`, `kioskInk`, `kioskMuted`, `kioskAccent`, `kioskMint` map respectively to `--paper`, `--surface`, `--ink`, `--muted`, `--accent`, `--mint`. Supporting tokens live in that same runtime owner: hover `#104940`, border `#c4d5d4`, warning `#78561e` on `#f4ead4`, focus `#145fc1`, scrollbar `#708e8b` on `#e3eceb`. No exported/generated theme adapter exists.
+
+Use local Avenir Next/Avenir with Segoe UI fallback for the restrained display heading, system sans for controls and supporting copy. Display size is 38–64px with 1.08 line height; body copy is 17–19px with 1.55 line height. No downloaded font or image is needed. The signature is a five-bar voice symbol within concentric, flat rings: motion indicates listening/speaking, not decorative activity. Respect reduced motion and forced colors.
+
+The page owns natural document scrolling, including at narrow widths and 200% zoom. A 52px desktop inset becomes 22px on narrow screens. The central action is at least 76px tall; language/help controls are at least 48px. Rounded 22px controls and circular voice rings are a deliberate browser variant, not a change to terminal geometry. No shadows or fixed overlays. Status and action regions reserve space through asynchronous transitions. Hover, pressed, disabled and focus states are explicit. Spanish is the initial and reset language; Catalan/English use the same layout and tokens.

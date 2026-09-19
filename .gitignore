@@ -7,5 +7,12 @@ data/*.json
 !data/.gitkeep
 .DS_Store
 *.tsbuildinfo
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+data/voice/
+.coverage
 .idea/
 .vscode/

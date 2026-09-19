@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Arenal · Llamadas</title><link rel="stylesheet" href="/console/assets/style.css"></head>
+<body>
+<header><div><span class="brand">ARENAL</span><span class="muted"> / Voice console</span></div><span id="connection" class="badge">Desconectado</span></header>
+<section id="login"><h1>Una ventana a cada llamada.</h1><p>Introduce el token del panel para ver conversaciones y peticiones en directo.</p><form id="login-form"><input id="token" type="password" placeholder="CONSOLE_TOKEN" aria-label="Token del panel" required><button>Conectar</button></form><p id="login-error" role="alert"></p></section>
+<main id="dashboard" hidden>
+<div class="toolbar"><div><h1>Actividad de llamadas</h1><p id="configuration" class="muted"></p></div><button id="logout" class="secondary">Desconectar</button></div>
+<section class="stats"><div><strong id="active">0</strong><span>En directo</span></div><div><strong id="completed">0</strong><span>Completadas</span></div><div><strong id="errors">0</strong><span>Con errores</span></div><div><strong id="actions">0</strong><span>Acciones aceptadas</span></div></section>
+<div class="workspace"><aside><div class="section-title">LLAMADAS RECIENTES</div><input id="search" placeholder="Filtrar por call_id…" aria-label="Filtrar llamadas"><div id="calls"></div></aside>
+<section class="detail"><div class="detail-head"><div><h2 id="selected">Selecciona una llamada</h2><span id="detail-status" class="muted">Los eventos aparecerán aquí.</span></div><select id="filter" aria-label="Tipo de evento"><option value="all">Todos los eventos</option><option value="transcript">Conversación</option><option value="api.">API Prosper</option><option value="tool.">Herramientas</option><option value="error">Errores</option><option value="operation.">Operaciones</option></select><button id="export" class="secondary" disabled>Exportar JSON</button></div><div id="timeline" aria-live="polite"></div></section></div>
+<footer>Datos sensibles enmascarados · Sin supresión de ruido · El estado “completada” indica envío aceptado, no aprobación del evaluator.</footer>
+</main><script src="/console/assets/app.js" defer></script>
+</body></html>

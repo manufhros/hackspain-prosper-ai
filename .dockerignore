@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+.venv
+node_modules
+data
+.data
+.agents
+.claude
+.lmnr
+apps
+dist
+__pycache__
+.pytest_cache
+.ruff_cache

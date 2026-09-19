@@ -94,6 +94,19 @@ y slots de fechas que nadie pedía (el modelo alucinaba días). En la nuestra,
 
 ---
 
+## Latencia bajo carga — evolución medida (20 conversaciones concurrentes)
+
+| Config | Respuesta p50 | máx | Errores |
+|---|---|---|---|
+| sol, sin guard (inicial) | ~24 s | ~29 s | crashes + 3/20 sin respuesta |
+| luna-fast + guard | 11,5 s | 15 s | 0 |
+| + TTS troceado por frases + tts-1 | **8,7 s** | 11,3 s | 0 |
+
+Desglose de un turno (secuencial): **STT 2,5 s · LLM+tools 3,7 s · TTS 5,3 s**.
+El TTS era el trozo mayor; el troceado por frases (generar la siguiente mientras
+suena la actual) baja el tiempo hasta oír al agente. Siguiente palanca de STT:
+streaming (Deepgram) en vez de whisper batch — no hecho.
+
 ## Cosas que SÍ funcionan (no tocar sin querer)
 
 - **Cerebro determinista partido en dos** (nuestro `src/` raíz): extractor de

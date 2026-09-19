@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Lucía · La recepción de Clínica Arenal, en tiempo real."
+    />
+    <title>Lucía · Llamadas</title>
+    <script src="/theme.js"></script>
+    <link rel="icon" href="/assets/lucia-orb.png" type="image/png" />
+    <link rel="stylesheet" href="/vendor/icons/style.css" />
+    <link rel="stylesheet" href="/styles.css" />
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#conversation-title">Ir a la conversación</a>
+    <header class="app-header">
+      <a class="wordmark" href="/" aria-label="Lucía, inicio"
+        >Lucía<span class="brand-dot">.</span></a
+      >
+      <span class="clinic-name">Clínica Arenal</span>
+      <div class="header-actions">
+        <time id="today" class="today"></time>
+        <span id="connection" class="connection" role="status"
+          ><span class="status-dot"></span>Conectando</span
+        >
+        <button id="exit-demo" class="button quiet compact" hidden>
+          Volver al directo
+        </button>
+        <button
+          id="theme-toggle"
+          class="icon-button"
+          aria-label="Cambiar a modo oscuro"
+        >
+          <i class="ph ph-moon" aria-hidden="true"></i>
+        </button>
+        <span class="header-divider"></span>
+        <button id="open-settings" class="button quiet">
+          <i class="ph ph-gear-six" aria-hidden="true"></i><span>Ajustes</span>
+        </button>
+      </div>
+    </header>
+    <div
+      id="connection-banner"
+      class="connection-banner"
+      role="status"
+      hidden
+    ></div>
+    <main class="workspace" id="workspace" data-mobile-view="history">
+      <aside class="history-panel" aria-labelledby="history-title">
+        <div class="history-heading">
+          <div class="eyebrow">RECEPCIÓN</div>
+          <h1 id="history-title">
+            Llamadas <span id="call-count" class="count">0</span>
+          </h1>
+          <p>Cada conversación, en su sitio.</p>
+        </div>
+        <div class="search-wrap">
+          <i class="ph ph-magnifying-glass" aria-hidden="true"></i
+          ><label class="sr-only" for="call-search"
+            >Buscar llamadas por nombre o teléfono</label
+          ><input
+            id="call-search"
+            type="search"
+            placeholder="Buscar una llamada…"
+            autocomplete="off"
+          /><button
+            id="clear-search"
+            class="icon-button"
+            aria-label="Borrar búsqueda"
+            hidden
+          >
+            <i class="ph ph-x" aria-hidden="true"></i></button
+          ><kbd class="search-shortcut">/</kbd>
+        </div>
+        <div id="call-list" class="call-list" aria-live="off">
+          <div class="list-message">Conectando con el historial…</div>
+        </div>
+        <footer class="history-footer">
+          <i class="ph ph-lock-simple" aria-hidden="true"></i
+          ><span>Consola local · Últimas 200 llamadas</span>
+        </footer>
+      </aside>
+      <section class="conversation-panel" aria-labelledby="conversation-title">
+        <header class="call-header">
+          <button
+            id="back-history"
+            class="icon-button mobile-only"
+            aria-label="Volver al historial"
+          >
+            <i class="ph ph-arrow-left" aria-hidden="true"></i>
+          </button>
+          <div class="call-avatar" id="call-avatar">
+            <img src="/assets/lucia-orb.png" alt="" width="60" height="60" />
+          </div>
+          <div class="call-heading">
+            <h2 id="conversation-title" tabindex="-1">Tu recepción, al día.</h2>
+            <div id="call-meta" class="call-meta">
+              Selecciona una llamada para ver su conversación.
+            </div>
+          </div>
+          <button
+            id="show-tools"
+            class="icon-button tools-toggle"
+            aria-label="Ver herramientas"
+          >
+            <i class="ph ph-code-block" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div class="transcript-heading">
+          <div>
+            <h3>Transcripción en directo</h3>
+            <p id="transcript-caption">Una vista clara de cada conversación.</p>
+          </div>
+          <span id="live-indicator" class="live-indicator" hidden
+            ><span class="status-dot"></span>En directo</span
+          >
+        </div>
+        <div
+          id="transcript"
+          class="transcript"
+          tabindex="0"
+          aria-label="Transcripción de la llamada"
+        >
+          <div class="empty-state">
+            <img src="/assets/lucia-orb.png" width="104" height="104" alt="" />
+            <h3>Todo empieza con una llamada.</h3>
+            <p>
+              Cuando Lucía atienda, la conversación aparecerá aquí. En tiempo
+              real, mensaje a mensaje.
+            </p>
+            <button id="start-demo" class="button primary">
+              <i class="ph ph-play" aria-hidden="true"></i>Explorar una
+              demostración</button
+            ><span class="empty-note"
+              >Sin llamadas reales ni cambios en tu agente.</span
+            >
+          </div>
+        </div>
+        <footer class="transcript-footer">
+          <span id="follow-status"
+            ><span class="status-dot muted"></span>Esperando una llamada</span
+          ><button id="jump-latest" class="button quiet compact" disabled>
+            <i class="ph ph-arrow-down" aria-hidden="true"></i>Ir al último
+            mensaje
+          </button>
+        </footer>
+      </section>
+      <aside class="tools-panel" id="tools-panel" aria-labelledby="tools-title">
+        <header class="tools-heading">
+          <div>
+            <div class="eyebrow">DETRÁS DE LA CONVERSACIÓN</div>
+            <h2 id="tools-title" tabindex="-1">
+              Herramientas <span id="tool-count" class="count">0</span>
+            </h2>
+            <p>Actividad de esta llamada.</p>
+          </div>
+          <button
+            id="hide-tools"
+            class="icon-button tools-toggle"
+            aria-label="Volver a la transcripción"
+          >
+            <i class="ph ph-x" aria-hidden="true"></i>
+          </button>
+        </header>
+        <div id="tool-list" class="tool-list">
+          <div class="tools-empty">
+            <i class="ph ph-path" aria-hidden="true"></i>
+            <h3>Todo tiene su porqué.</h3>
+            <p>
+              Aquí verás qué consulta Lucía y qué respuesta recibe, paso a paso.
+            </p>
+          </div>
+        </div>
+        <footer class="tools-footer">
+          <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i
+          ><span>En orden de ejecución</span>
+        </footer>
+      </aside>
+    </main>
+    <dialog
+      id="settings-dialog"
+      aria-labelledby="settings-title"
+      aria-describedby="settings-description"
+    >
+      <div class="dialog-header">
+        <div>
+          <div class="eyebrow">A TU MANERA</div>
+          <h2 id="settings-title">Ajustes</h2>
+          <p id="settings-description">El espacio de trabajo de Lucía.</p>
+        </div>
+        <button
+          id="close-settings"
+          class="icon-button"
+          aria-label="Cerrar ajustes"
+        >
+          <i class="ph ph-x" aria-hidden="true"></i>
+        </button>
+      </div>
+      <div class="dialog-body">
+        <section class="settings-section">
+          <div class="section-label">
+            <i class="ph ph-waveform" aria-hidden="true"></i>
+            <div>
+              <h3>Proveedor de voz</h3>
+              <p>Conecta el agente que atiende tus llamadas.</p>
+            </div>
+            <span class="provider-brand">ElevenLabs</span>
+          </div>
+          <form id="provider-form" novalidate>
+            <p id="provider-loading" class="field-help" role="status">
+              Cargando configuración…
+            </p>
+            <label for="agent-id">Identificador del agente</label
+            ><input
+              id="agent-id"
+              name="agentId"
+              placeholder="agent_…"
+              autocomplete="off"
+              spellcheck="false"
+              aria-describedby="agent-help provider-feedback"
+            />
+            <p id="agent-help" class="field-help">
+              El Agent ID de tu agente de ElevenLabs.
+            </p>
+            <label for="api-key"
+              >Clave API
+              <span id="key-configured" class="field-tag" hidden
+                >Configurada</span
+              ></label
+            >
+            <div class="secret-field">
+              <input
+                id="api-key"
+                name="apiKey"
+                type="password"
+                autocomplete="new-password"
+                placeholder="Introduce tu clave API"
+                aria-describedby="key-help provider-feedback"
+              /><button
+                id="show-key"
+                class="icon-button"
+                type="button"
+                aria-label="Mostrar clave API"
+                aria-pressed="false"
+              >
+                <i class="ph ph-eye" aria-hidden="true"></i>
+              </button>
+            </div>
+            <p id="key-help" class="field-help">
+              Se guarda en el Llavero de macOS. Deja el campo vacío para
+              conservar la clave actual.
+            </p>
+            <div
+              id="provider-feedback"
+              class="inline-feedback"
+              role="status"
+            ></div>
+            <div class="form-actions">
+              <button id="test-provider" class="button secondary" type="button">
+                <i class="ph ph-plugs-connected" aria-hidden="true"></i>Probar
+                conexión</button
+              ><button id="save-provider" class="button primary" type="submit">
+                Guardar proveedor
+              </button>
+            </div>
+            <p class="field-help changes-note">
+              Los cambios se aplican a las próximas llamadas.
+            </p>
+          </form>
+        </section>
+        <section class="settings-section">
+          <div class="section-label">
+            <i class="ph ph-palette" aria-hidden="true"></i>
+            <div>
+              <h3>Tu espacio</h3>
+              <p>Preferencias de este navegador.</p>
+            </div>
+          </div>
+          <fieldset class="theme-fieldset">
+            <legend>Apariencia</legend>
+            <div class="theme-options">
+              <button
+                type="button"
+                data-theme-choice="light"
+                aria-pressed="false"
+              >
+                <i class="ph ph-sun" aria-hidden="true"></i>Claro</button
+              ><button
+                type="button"
+                data-theme-choice="dark"
+                aria-pressed="false"
+              >
+                <i class="ph ph-moon" aria-hidden="true"></i>Oscuro</button
+              ><button
+                type="button"
+                data-theme-choice="system"
+                aria-pressed="false"
+              >
+                <i class="ph ph-desktop" aria-hidden="true"></i>Sistema
+              </button>
+            </div>
+          </fieldset>
+          <label class="switch-row" for="auto-follow"
+            ><span
+              ><strong>Seguir la conversación</strong
+              ><small
+                >Ir al último mensaje mientras estás al final.</small
+              ></span
+            ><input id="auto-follow" type="checkbox" role="switch" checked
+          /></label>
+          <label class="switch-row" for="reduce-motion"
+            ><span
+              ><strong>Reducir animaciones</strong
+              ><small>Una experiencia más tranquila.</small></span
+            ><input id="reduce-motion" type="checkbox" role="switch"
+          /></label>
+        </section>
+        <section class="settings-section demo-setting">
+          <div>
+            <h3>Conoce tu consola</h3>
+            <p>Explora una llamada simulada sin tocar el agente.</p>
+          </div>
+          <button id="settings-demo" class="button secondary" type="button">
+            Ver demostración<i
+              class="ph ph-arrow-up-right"
+              aria-hidden="true"
+            ></i>
+          </button>
+        </section>
+        <div id="discard-changes" class="discard-changes" hidden>
+          <p>Tienes cambios de proveedor sin guardar.</p>
+          <div>
+            <button id="keep-editing" class="button secondary" type="button">
+              Seguir editando</button
+            ><button id="discard-provider" class="button danger" type="button">
+              Descartar y cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+      <footer class="dialog-footer">
+        <i class="ph ph-lock-simple" aria-hidden="true"></i>Solo accesible desde
+        este Mac. Tus credenciales no se envían al navegador.
+      </footer>
+    </dialog>
+    <div
+      id="announcement"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+    ></div>
+  </body>
+</html>

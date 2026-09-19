@@ -7,15 +7,15 @@ export type LiveSession = {
   audit?: AuditAction;
   sendElevenAudio: (ulaw: string) => void;
   sendToCaller: (ulaw: string) => void;
-  addPhone: (ws: WebSocket, streamSid: string) => void;
-  removePhone: (ws: WebSocket) => void;
+  addPhone: (ws: CallSocket, streamSid: string) => void;
+  removePhone: (ws: CallSocket) => void;
   freezeDisplay: () => void;
 };
 
 const sessions = new Map<string, LiveSession>();
 const rangAt = new Map<string, number>();
 const outboundCalls = new Map<string, string>();
-const KEEP_PHONE_MS = 180_000;
+export const KEEP_PHONE_MS = 180_000;
 
 export function markHumanRung(callId: string, outboundCallSid?: string) {
   rangAt.set(callId, Date.now());

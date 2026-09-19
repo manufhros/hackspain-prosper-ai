@@ -1,18 +1,21 @@
+import { currentAuditContext, withAuditContext } from "./audit.ts";
 import { SOCKET_OPEN, type CallSocket } from "./socket.ts";
 import { PlatformClient } from "../platform/client.ts";
 import { callLog, callLogError, callLogWarn } from "./call-log.ts";
 import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts";
 import { holdFrame } from "./hold-audio.ts";
+import { connectNodeSocket } from "./node-socket.ts";
 import {
   patientReplyFor,
   PATIENT_SPEECH,
   splitHandoffTranscript,
 } from "./twilio-transfer.ts";
 import { AGENT_PROMPT } from "./prompt.ts";
-import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
+import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { loadRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent } from "./call-event.ts";
 import {
+  KEEP_PHONE_MS,
   getLiveSession,
   liveSessionIds,
   markPhoneJoined,
@@ -20,6 +23,7 @@ import {
   registerLiveSession,
   sessionKeptForPhone,
   unregisterLiveSession,
+  type LiveSession,
   type PhoneSink,
 } from "./live-bridge.ts";
 
@@ -129,7 +133,7 @@ function clinicNameFor(orgSlug: string): string {
   return "Clínica Arenal";
 }
 
-export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise<void> {
+export async function handleCall(twilio: CallSocket, requestUrl = "/ws"): Promise<void> {
   const pathJoin = parseJoinPath(requestUrl);
   let streamSid: string | undefined;
   let ctx: CallContext | undefined;
@@ -162,6 +166,10 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
   let patientAnnounced = false;
   let patientReplied = false;
 
+  const background = (promise: Promise<unknown>) => {
+    void promise.catch((error: unknown) => callLogError("call task failed", error));
+  };
+
   const finalise = async (callCtx: CallContext) => {
     if (finalised) return;
     finalised = true;
@@ -173,10 +181,9 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
     clearTimeout(durationTimer);
     unregisterLiveSession(callCtx.callId);
     for (const phone of [...phones]) phone.ws.close();
-    options.onEnd?.();
     const summary = {
       callId: callCtx.callId,
-      orgSlug,
+      orgSlug: callCtx.orgSlug,
       ...(site ? { site } : {}),
       configVersion: callCtx.configVersion ?? "defaults",
       outcome: callCtx.outcome ?? (callCtx.submitted ? "submitted" : "sin_cierre"),
@@ -236,7 +243,7 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
   };
 
   const sendAgentAudio = (payload: string) => {
-    if (streamSid && twilio.readyState === WebSocket.OPEN) {
+    if (streamSid && twilio.readyState === SOCKET_OPEN) {
       sendTwilio({ event: "media", streamSid, media: { payload } });
     }
     sendToPhones(payload);
@@ -473,11 +480,7 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
             muteAgent = true;
           } else {
           callLog(tag, "agent", t);
-          if (
-            /le (paso|pongo|transfiere|conecto)|un momento, por favor|i will transfer|please hold/i.test(
-              t,
-            )
-          ) {
+          if (/un momento, por favor|i will transfer|please hold/i.test(t)) {
             muteAgent = true;
           }
           callCtx.transcript = [
@@ -492,7 +495,7 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
 
       const toolCall = extractClientToolCall(message);
       if (toolCall && handedOff) {
-        if (socket.readyState === WebSocket.OPEN) {
+        if (socket.readyState === SOCKET_OPEN) {
           socket.send(
             JSON.stringify({
               type: "client_tool_result",
@@ -565,12 +568,14 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
                 }),
               );
               if (toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
-                muteAgent = true;
                 sendEleven({
                   type: "contextual_update",
-                  text: "Stay completely silent. Do not speak. The test patient will start the phone call.",
+                  text: "Say one short sentence: Le paso con una compañera. Then stay silent.",
                 });
                 sendMonitor({ type: "handoff_ready" });
+                setTimeout(() => {
+                  muteAgent = true;
+                }, 4_500);
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
                   JSON.stringify({
@@ -716,10 +721,6 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
         twilio.close(1008, "Live call not found");
         return;
       }
-      if (options.joinOnly) {
-        twilio.close(1008, "Expected live call join");
-        return;
-      }
       const callId = start.start.customParameters?.call_id || start.start.callSid;
       const fromNumber = start.start.customParameters?.from_number;
       const orgSlug = start.start.customParameters?.org_slug || pathJoin.orgSlug || "arenal";
@@ -729,8 +730,8 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
         await callCtx.audit?.(type, payload);
       });
       const callCtx: CallContext = fromNumber
-        ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug, handoffUrl: options.handoffUrl, liveBridge: bridge }
-        : { callId, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug, handoffUrl: options.handoffUrl, liveBridge: bridge };
+        ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug }
+        : { callId, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug };
       callCtx.audit = async (type, payload) => {
         await emitCallEvent(type, callId, callCtx.configVersion ?? "defaults", {
           ...currentAuditContext(), ...payload, orgSlug, zeroRetention: callCtx.zeroRetention ?? true,
@@ -756,7 +757,7 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
           }
         },
         sendToCaller: (ulaw) => {
-          if (streamSid && twilio.readyState === WebSocket.OPEN) {
+          if (streamSid && twilio.readyState === SOCKET_OPEN) {
             sendTwilio({ event: "media", streamSid, media: { payload: ulaw } });
           }
         },
@@ -876,7 +877,7 @@ export async function handleCall(twilio: WebSocket, requestUrl = "/ws"): Promise
             try {
               const url = await getSignedConversationUrl(callCtx.audit);
               await callCtx.audit?.("voice.connecting", { provider: "elevenlabs" });
-              const socket = await options.connect(url);
+              const socket = await connectNodeSocket(url);
               if (stopped || (twilio.readyState !== SOCKET_OPEN && !hostStillNeeded())) {
                 socket.close();
                 return;

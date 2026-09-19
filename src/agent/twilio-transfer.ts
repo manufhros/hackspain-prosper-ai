@@ -115,7 +115,7 @@ export function liveStreamTwiml(
   _orgSlug = "arenal",
   _statusCallback?: string,
 ) {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="14"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="6"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
 }
 
 export function joinStreamUrl(origin: string, joinCallId: string, orgSlug = "arenal") {

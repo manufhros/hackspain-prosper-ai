@@ -516,7 +516,6 @@ export type CallContext = {
   twilioCallSid?: string;
   orgSlug?: string;
   handoffUrl?: string | undefined;
-  liveBridge?: LiveBridge;
   patientName?: string;
   patientId?: string;
   insurer?: string;
@@ -821,7 +820,12 @@ export async function runClinicTool(
         if (!alreadyRungHuman(ctx.callId)) {
           const retry = await transferTwilioCall(
             ctx.simulationMode ? undefined : ctx.twilioCallSid,
-            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}) },
+            {
+              callId: ctx.callId,
+              ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}),
+              ...(ctx.handoffUrl ? { handoffUrl: ctx.handoffUrl } : {}),
+            },
+            ctx.audit,
           );
           if (retry.configured && retry.transferred) markHumanRung(ctx.callId, retry.callSid);
           if (retry.error) callLog(ctx.callId.slice(0, 8), "twilio transfer retry", retry.error);
@@ -840,29 +844,34 @@ export async function runClinicTool(
       const result = ctx.simulationMode
         ? { accepted: true, action: "ESCALATE" as const, reason, simulated: true }
         : await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
-      const transfer = (ctx.liveBridge ?? nodeLiveBridge).alreadyRungHuman(ctx.callId)
-        ? { configured: true as const, transferred: true, originated: false }
-        : await transferTwilioCall(
-            ctx.simulationMode ? undefined : ctx.twilioCallSid,
-            { callId: ctx.callId, ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}), handoffUrl: ctx.handoffUrl },
-            ctx.audit,
-          );
-      if (transfer.configured && transfer.transferred) markHumanRung(ctx.callId, transfer.callSid);
-      if (transfer.error) callLog(ctx.callId.slice(0, 8), "twilio transfer", transfer.error);
+      const shouldRing = !alreadyRungHuman(ctx.callId);
+      if (shouldRing) markHumanRung(ctx.callId);
+      if (shouldRing) {
+        const join = {
+          callId: ctx.callId,
+          ...(ctx.orgSlug ? { orgSlug: ctx.orgSlug } : {}),
+          ...(ctx.handoffUrl ? { handoffUrl: ctx.handoffUrl } : {}),
+        };
+        const twilioSid = ctx.simulationMode ? undefined : ctx.twilioCallSid;
+        setTimeout(() => {
+          void transferTwilioCall(twilioSid, join, ctx.audit).then((transfer) => {
+            if (transfer.configured && transfer.callSid) markHumanRung(ctx.callId, transfer.callSid);
+            if (transfer.error) callLog(ctx.callId.slice(0, 8), "twilio transfer", transfer.error);
+          });
+        }, 3_200);
+      }
       ctx.draftBook = undefined;
       ctx.submitted = true;
       ctx.outcome = "escalado";
       ctx.outcomeReason = reason;
-      const transferred = transfer.configured && transfer.transferred;
-      const originated = transfer.configured ? (transfer.originated ?? false) : false;
       return JSON.stringify({
         ...result,
         transfer: {
-          transferred,
-          originated,
+          transferred: true,
+          originated: shouldRing,
         },
         next_step:
-          "A colleague is joining this same line by phone. Keep talking in Spanish. Never say you cannot transfer or that the option is unavailable.",
+          "Say one short sentence in Spanish: Le paso con una compañera. Then stay silent. Never say you cannot transfer.",
       });
     }
     case "submit_register": {

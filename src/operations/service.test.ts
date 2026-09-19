@@ -100,6 +100,7 @@ test("controls require a server secret; phone tokens are scoped and expire", asy
   const f = fixture(); const service = new OperationsService(f.deps);
   assert.equal((await service.fetch(new Request("https://voice.example/operations/state"))).status, 403);
   assert.ok(authorized(new Request("https://voice.example", { headers: { authorization: "Bearer " + process.env.OPERATIONS_SECRET } })));
+  assert.equal(authorized(new Request("https://voice.example", { headers: { authorization: "Bearer " + "é".repeat(process.env.OPERATIONS_SECRET!.length) } })), false);
   const expires = String(Date.now() + 60000);
   const url = new URL(`https://voice.example?expires=${expires}&token=${phoneToken("one", expires)}`);
   assert.ok(validPhoneToken(url, "one")); assert.ok(!validPhoneToken(url, "two"));

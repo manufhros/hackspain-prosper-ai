@@ -4,8 +4,10 @@ export function authorized(request: Request) {
   const secret = process.env.OPERATIONS_SECRET;
   const actual = request.headers.get("authorization") ?? "";
   const expected = `Bearer ${secret}`;
-  return !!secret && secret.length >= 32 && actual.length === expected.length &&
-    timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return !!secret && secret.length >= 32 && actualBytes.length === expectedBytes.length &&
+    timingSafeEqual(actualBytes, expectedBytes);
 }
 export function phoneToken(id: string, expires: string) {
   return createHmac("sha256", process.env.OPERATIONS_SECRET ?? "").update(`demo-phone:${id}:${expires}`).digest("hex");

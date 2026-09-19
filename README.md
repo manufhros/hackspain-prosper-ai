@@ -168,13 +168,26 @@ The corrected run (`recognition-1789821271493.json`) has the same input hash as 
 
 Turbo/segment is the preferred measured multilingual ASR candidate: both turbo decoders made 33 total telephone word errors across 692 reference words, while segment roughly halved median worker time. The per-language mix differs slightly; this is a small fixed sample, not statistical equivalence or clinical validation. Turbo/segment's clean-audio WER was 3.8% / 2.4% / 7.4%, and its telephone p95 was 449 / 468 / 517 ms. Remaining errors include actual substitutions as well as spelling/number formatting differences.
 
-The next capacity run combines turbo/segment with the previously favored two Qwen slots and two Piper workers. Stop other voice stacks and run this yourself; it starts the local inference stack and reuses the fixed synthetic capacity inputs:
+The combined capacity run uses turbo/segment with the previously favored two Qwen slots and two Piper workers. Stop other voice stacks and run this yourself; it starts the local inference stack and reuses the fixed synthetic capacity inputs:
 
 ```sh
 LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=2 LOCAL_ASR_MODEL=large-v3-turbo LOCAL_ASR_DECODER=segment LOCAL_TTS_WORKERS=2 LOCAL_TTS_THREADS=2 bun run benchmark
 ```
 
-This tests synchronized 1/5/10/20-turn bursts with three rounds each. Compare queueing and first-chunk latency with the two-slot small/segment baseline (`benchmark-1789820021198.json`) only after checking its input hash. Recognition-only timings cannot predict combined GPU contention or certify twenty live calls. Defaults remain unchanged pending that result.
+This tests synchronized 1/5/10/20-turn bursts with three rounds each. Compare queueing and first-chunk latency with the two-slot small/segment baseline (`benchmark-1789820021198.json`) only after checking its input hash. Recognition-only timings cannot predict combined GPU contention or certify twenty live calls. The measured result follows; defaults remain unchanged.
+
+The combined turbo/segment run (`benchmark-1789821540417.json`) matches the two-slot small/segment baseline's input hash, Qwen model hash, llama build, context and worker counts. All 108 intents and language detections passed without execution failures or decoder fallbacks; only 72 transcripts were exact. English/Spanish remained exact. The repeated Catalan phrase improved from 60% to 20% WER but still substituted `l'Atlíntica` for `la clínica`, both with automatic detection and an explicit Catalan hint. This synthetic result does not overturn the broader human-speech quality results above.
+
+| Concurrent turns | Small/segment first chunk p50 / p95 | Turbo/segment first chunk p50 / p95 |
+| ---: | ---: | ---: |
+| 1 | 0.89 / 0.92 s | 1.21 / 1.59 s |
+| 5 | 2.18 / 2.83 s | 3.64 / 4.28 s |
+| 10 | 3.45 / 5.25 s | 6.30 / 8.17 s |
+| 20 | 6.12 / 10.22 s | 11.77 / 15.87 s |
+
+At twenty turns, turbo ASR took 490 ms median per input, versus 196 ms for small. The single recognition lane's queue p95 reached 8.84 s; per-request queue plus recognition p95 was 9.32 s (maximum 9.80 s). No sample exceeded the production ASR operation's 12-second budget, but that alone is not an acceptable conversational-latency result. Qwen queue p95 reached 6.27 s; native model time excluding queue had p95 3.27 s versus 1.45 s for small, with similar output lengths (median 29 tokens). This is consistent with contention while ASR and Qwen share the GPU, not proof of a specific GPU scheduling cause. These stage percentiles are not additive. Piper remained at 91 ms median with zero measured queueing. The one-turn p95 also includes a 490 ms TTS outlier.
+
+Turbo/segment remains the stronger multilingual recognition candidate, but the current stack has not met the low-latency 10–20-call objective. Further throughput work should address recognition serialization and shared model contention; these measurements do not justify increasing Piper workers. Twenty ongoing conversations may have staggered utterances, so this synchronized burst test neither certifies nor rules out that workload. Actual endpointing, paced calls and receptionist tool flows still need validation. No production defaults were promoted and no extra model processes were started during report analysis.
 
 ## Use an OpenRouter model
 

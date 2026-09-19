@@ -39,6 +39,11 @@ export class CallerWire {
   constructor(readonly callId: string, readonly streamSid: string, private send: (data: string) => void,
     private monitor?: (role: AudioLane, audio: Buffer) => void) {}
   get playing() { return this.offset < this.speech.length; }
+  get pendingAudioBytes() { return this.receivedBytes; }
+  takeAudio(): Buffer | undefined {
+    const audio = Buffer.concat(this.received); this.received = []; this.receivedBytes = 0;
+    return audio.length ? audio : undefined;
+  }
   start(phone?: string) {
     const messages = wireMessages(this.callId, this.streamSid);
     this.send(JSON.stringify(messages.connected));
@@ -70,8 +75,7 @@ export class CallerWire {
     } else if (raw.event === "mark") {
       if (!isObject(raw.mark) || typeof raw.mark.name !== "string") throw new Error("Invalid receptionist mark");
       this.message("mark", { mark: { name: raw.mark.name } });
-      const audio = Buffer.concat(this.received); this.received = []; this.receivedBytes = 0;
-      return audio.length ? audio : undefined;
+      return this.takeAudio();
     } else if (raw.event !== "clear") throw new Error("Unknown receptionist wire event");
     // Like the published harness, clear does not discard audio already received.
   }
@@ -79,7 +83,10 @@ export class CallerWire {
 }
 
 export interface CallerEvent { role: "caller" | "heard_agent"; text: string; at_ms: number; processing_ms: number; audio_files?: string[] }
-export interface CallResult { call_id: string; elapsed_ms: number; close_code?: number; events: CallerEvent[]; errors: string[] }
+export interface CallResult {
+  call_id: string; elapsed_ms: number; close_code?: number; events: CallerEvent[]; errors: string[];
+  wire_stats?: { received_audio_bytes: number; received_marks: number; turns_without_marks: number };
+}
 const responseSchema = { type: "object", properties: { speech: { type: "string" }, wait: { type: "boolean" } }, required: ["speech", "wait"] };
 export function callerResponse(content: string): { speech: string; wait: boolean } {
   const value: unknown = JSON.parse(content);
@@ -94,18 +101,25 @@ export async function runSimulatedCall(options: {
   update: (event: CallerEvent) => void;
   saveAudio: (role: string, audio: Buffer) => Promise<string[]>;
   monitor?: (role: AudioLane, audio: Buffer) => void;
+  progress?: (message: string) => void;
+  timing?: { greetingMs?: number; turnSilenceMs?: number };
   connect?: (url: string, options: Bun.WebSocketOptions) => WebSocket;
 }): Promise<CallResult> {
   const { inference, item } = options;
   const lifetime = new AbortController();
   const signal = AbortSignal.any([options.signal, lifetime.signal, AbortSignal.timeout(180000)]);
   const started = performance.now(), events: CallerEvent[] = [], errors: string[] = [];
+  const progress = (message: string) => options.progress?.(`${Math.round(performance.now() - started)}ms: ${message}`);
+  const stats = { received_audio_bytes: 0, received_marks: 0, turns_without_marks: 0 };
+  let greeting: ReturnType<typeof setTimeout> | undefined, turnEnd: ReturnType<typeof setTimeout> | undefined;
+  let playbackUntil = 0;
   let closed = false, closeCode: number | undefined, turns = 0, processing = Promise.resolve(), pump = Promise.resolve();
   let finish!: () => void;
   const done = new Promise<void>(resolve => { finish = resolve; });
   // lib.dom's constructor hides Bun's documented headers overload in this project.
   const BunWebSocket = WebSocket as unknown as { new(url: string, options: Bun.WebSocketOptions): WebSocket };
   const connect = options.connect ?? ((url, settings) => new BunWebSocket(url, settings));
+  progress("Connecting WebSocket");
   const socket = connect(websocketTarget(options.endpoint), {
     headers: options.token ? { Authorization: `Bearer ${options.token}` } : {},
   });
@@ -116,18 +130,49 @@ export async function runSimulatedCall(options: {
   const emit = (event: CallerEvent) => { events.push(event); options.update(event); };
   const stop = () => {
     if (closed) return;
+    clearTimeout(greeting); clearTimeout(turnEnd);
     if (socket.readyState === WebSocket.OPEN) wire.stop();
     closed = true; socket.close(1000, "Simulator finished"); finish();
   };
   const fail = (error: unknown) => {
     errors.push(error instanceof Error ? error.message : String(error));
+    progress(`Call failed: ${errors.at(-1)}`);
     stop(); lifetime.abort();
   };
   const onAbort = () => { if (!closed) fail(signal.reason); };
   signal.addEventListener("abort", onAbort, { once: true });
   const handshake = setTimeout(() => fail(new Error("WebSocket did not open within 10 seconds")), 10000);
+  async function speakReply(beginning: number, opening = false) {
+    progress(opening ? "Generating caller opening request" : "Generating caller reply");
+    const reply = await inference.chat(history, [], signal, responseSchema);
+    const response = callerResponse(reply.message.content);
+    if (closed) return;
+    if (response.wait) {
+      history.push({ role: "assistant", content: reply.message.content });
+      progress("Caller is waiting for the receptionist to continue");
+      return;
+    }
+    // A delayed greeting may arrive while the opening request is being generated.
+    if (opening && stats.received_audio_bytes) return;
+    if (++turns > 24) throw new Error("Caller exceeded 24 spoken turns");
+    progress("Synthesizing caller speech");
+    const speech = await inference.audio("speak", { text: response.speech, language: item.language, wire: true }, signal);
+    if (closed || (opening && stats.received_audio_bytes)) return;
+    const raw = decodeAudio(speech.payload);
+    if (!raw) throw new Error("Caller TTS returned invalid audio");
+    const files = await options.saveAudio("caller", raw);
+    if (closed || (opening && stats.received_audio_bytes)) return;
+    history.push({ role: "assistant", content: reply.message.content });
+    emit({ role: "caller", text: response.speech, at_ms: Math.round(performance.now() - started),
+      processing_ms: Math.round(performance.now() - beginning), audio_files: files });
+    wire.play(raw);
+    while (wire.playing && !closed) await delay(20, signal);
+    // Keep real silence on the wire so the receptionist's normal VAD finalizes the utterance.
+    if (!closed) { progress("Waiting for receptionist audio"); await delay(600, signal); }
+  }
   async function respond(audio: Buffer) {
     const beginning = performance.now();
+    progress(`Transcribing ${(audio.length / 8000).toFixed(2)}s of receptionist audio`);
     const audioFiles = await options.saveAudio("agent", audio);
     const parts: string[] = [];
     // ASR input is bounded to 30s, while a complete receptionist turn may be 60s.
@@ -140,47 +185,77 @@ export async function runSimulatedCall(options: {
       processing_ms: Math.round(performance.now() - beginning), audio_files: audioFiles });
     if (closed) return;
     history.push({ role: "user", content: heard || "[The line was unintelligible. Ask for repetition.]" });
-    const reply = await inference.chat(history, [], signal, responseSchema);
-    const response = callerResponse(reply.message.content);
-    history.push({ role: "assistant", content: reply.message.content });
-    if (closed || response.wait) return;
-    if (++turns > 24) throw new Error("Caller exceeded 24 spoken turns");
-    const speech = await inference.audio("speak", { text: response.speech, language: item.language, wire: true }, signal);
-    if (closed) return;
-    const raw = decodeAudio(speech.payload);
-    if (!raw) throw new Error("Caller TTS returned invalid audio");
-    const files = await options.saveAudio("caller", raw);
-    emit({ role: "caller", text: response.speech, at_ms: Math.round(performance.now() - started),
-      processing_ms: Math.round(performance.now() - beginning), audio_files: files });
-    wire.play(raw);
-    while (wire.playing && !closed) await delay(20, signal);
-    // Keep real silence on the wire so the receptionist's normal VAD finalizes the utterance.
-    if (!closed) await delay(600, signal);
+    await speakReply(beginning);
+  }
+  function enqueueAudio(audio: Buffer | undefined) {
+    if (audio) processing = processing.then(() => respond(audio)).catch(fail);
+  }
+  function flushUnmarkedAudio() {
+    clearTimeout(turnEnd);
+    const audio = wire.takeAudio();
+    if (!audio) return;
+    stats.turns_without_marks++;
+    progress("Receptionist audio ended without a mark; processing buffered turn");
+    enqueueAudio(audio);
   }
   socket.onopen = () => {
     clearTimeout(handshake);
     if (signal.aborted) { onAbort(); return; }
+    progress("WebSocket connected; sending start and waiting for receptionist audio");
     const digits = String(item.persona.data.phone ?? "").replace(/\D/g, "");
     wire.start(digits.length === 9 ? `+34${digits}` : digits.length === 11 && digits.startsWith("34") ? `+${digits}` : undefined);
+    greeting = setTimeout(() => {
+      if (closed || stats.received_audio_bytes) return;
+      progress("No receptionist greeting; caller will speak first");
+      processing = processing.then(async () => {
+        if (closed || stats.received_audio_bytes) return;
+        history.push({ role: "user", content: "[The phone is connected, but the receptionist has not spoken. Start the call now with a brief greeting and your request. Do not wait silently.]" });
+        await speakReply(performance.now(), true);
+      }).catch(fail);
+    }, options.timing?.greetingMs ?? 3000);
     pump = (async () => { while (!closed) { wire.tick(); await delay(20, signal); } })().catch(error => { if (!closed) fail(error); });
   };
   socket.onmessage = message => {
     try {
       if (closed) return;
-      const audio = wire.receive(JSON.parse(String(message.data)));
-      if (audio) processing = processing.then(() => respond(audio)).catch(error => { fail(error); });
+      const raw = JSON.parse(String(message.data));
+      const before = wire.pendingAudioBytes;
+      const audio = wire.receive(raw);
+      if (raw.event === "media") {
+        clearTimeout(greeting); clearTimeout(turnEnd);
+        const bytes = wire.pendingAudioBytes - before;
+        if (!stats.received_audio_bytes) progress("Receiving receptionist audio");
+        stats.received_audio_bytes += bytes;
+        // A server may send a whole utterance in one burst. Allow its actual audio
+        // duration to elapse before treating the transport gap as end of speech.
+        const now = performance.now();
+        playbackUntil = Math.max(now, playbackUntil) + bytes / 8;
+        turnEnd = setTimeout(flushUnmarkedAudio, Math.max(0, playbackUntil - now) + (options.timing?.turnSilenceMs ?? 1200));
+      } else if (raw.event === "mark") {
+        stats.received_marks++;
+        playbackUntil = 0;
+        clearTimeout(turnEnd);
+      }
+      enqueueAudio(audio);
     } catch (error) { fail(error); }
   };
   socket.onerror = () => fail(new Error("WebSocket connection failed; check the endpoint and its authentication"));
-  socket.onclose = event => { closeCode = event.code; closed = true; finish(); };
+  socket.onclose = event => {
+    const stopped = closed;
+    closeCode = event.code; closed = true;
+    clearTimeout(greeting); clearTimeout(turnEnd);
+    progress(`WebSocket closed (code ${event.code})`);
+    if (!stopped && !signal.aborted) flushUnmarkedAudio();
+    finish();
+  };
   try {
     if (signal.aborted) onAbort();
     await done;
     clearTimeout(handshake);
     await processing;
   } finally {
-    signal.removeEventListener("abort", onAbort); clearTimeout(handshake);
+    signal.removeEventListener("abort", onAbort); clearTimeout(handshake); clearTimeout(greeting); clearTimeout(turnEnd);
     closed = true; lifetime.abort(); socket.close(); await pump;
   }
-  return { call_id: options.callId, elapsed_ms: Math.round(performance.now() - started), close_code: closeCode, events, errors };
+  return { call_id: options.callId, elapsed_ms: Math.round(performance.now() - started), close_code: closeCode, events, errors, wire_stats: stats };
 }

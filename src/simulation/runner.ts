@@ -168,7 +168,7 @@ export async function simulate(argv: string[]) {
         let audioIndex = 0;
         const started = performance.now();
         const call = await runSimulatedCall({ endpoint: endpoint.socket, token: endpoint.token, callId,
-          item: scenario.case, inference, signal: controller.signal, monitor: playback?.push,
+          item: scenario.case, inference, signal: controller.signal, monitor: playback?.push, progress: log,
           update: event => log(`${event.role === "caller" ? "Caller" : "Heard receptionist"}: ${event.text || "[unintelligible]"}`),
           saveAudio: async (role, audio) => {
             const paths: string[] = [];
@@ -187,7 +187,7 @@ export async function simulate(argv: string[]) {
           limitations: ["Adult existing-patient BOOK/CANCEL/RESCHEDULE only; public personas are lookup seeds, not full database sampling.",
             "Clean synthetic Piper voices; no background-noise, third-party privacy or barge-in assessment.",
             "Concurrent calls share bounded caller speech/ASR resources; caller-side queues affect observed load and timing.",
-            "Caller waits for this receptionist's playback marks. Caller chat/ASR latency contributes to call duration.",
+            "Caller uses playback marks or an audio-idle fallback for turn boundaries. Caller chat/ASR latency contributes to call duration.",
             "Seed repeats selection only against the same data/date; LLM wording and inference are nondeterministic."] };
         // Save before waiting for the server so an interrupted report lookup preserves the conversation.
         await saveLocal(`simulation-${id}.json`, partial);

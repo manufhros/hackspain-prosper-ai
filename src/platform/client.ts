@@ -104,6 +104,7 @@ export class PlatformClient {
   }
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
+    if (!this.apiKey) throw new Error("Falta PLATFORM_API_KEY en .env. La consola puede usarse sin ella, pero las llamadas necesitan acceso a la clínica.");
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) {

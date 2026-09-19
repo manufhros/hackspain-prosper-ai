@@ -4,6 +4,7 @@ dist/
 .env.*
 !.env.example
 data/*.json
+data/*.tmp
 !data/.gitkeep
 .DS_Store
 *.tsbuildinfo

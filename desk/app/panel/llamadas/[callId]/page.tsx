@@ -1,3 +1,5 @@
+import { clinicDirectory } from "@/lib/clinic-catalog";
+import { ORIGIN_LABEL } from "@/lib/reporting";
 import { ArrowLeft } from "lucide-react";
 import { notFound, redirect } from "next/navigation";
 import { CallRefresh } from "@/components/CallRefresh";
@@ -24,6 +26,7 @@ export default async function CallPage({ params, searchParams }: {
   const { turnPage } = await searchParams;
   const detail = await clinicCall(callId, typeof turnPage === "string" ? Number(turnPage) : 1);
   if (!detail) notFound();
+  const directory = await clinicDirectory();
   const { call, transcript, transcriptTotal, page, pages } = detail;
   const href = `/panel/llamadas/${encodeURIComponent(call.id)}`;
   const reason = reasonLabel(call.reason);
@@ -32,7 +35,7 @@ export default async function CallPage({ params, searchParams }: {
       <CallRefresh />
       <PageHeader
         title={call.patient || "Detalle de llamada"}
-        description={`${slotLabel(call.started)} · ${siteOf(call.site).name}`}
+        description={`${slotLabel(call.started)} · ${siteOf(call.site, directory.sites).name}`}
         crumbs={[
           { label: CLINIC.name, href: homeFor(session) },
           { label: "Llamadas", href: "/panel/llamadas" },
@@ -45,7 +48,8 @@ export default async function CallPage({ params, searchParams }: {
       />
       <Card title="Resumen de la llamada" actions={<OutcomeBadge outcome={call.outcome} />}>
         <dl className={styles.facts}>
-          <div><dt>Duración</dt><dd>{call.minutes ? `${num(call.minutes * 60)} s` : "No disponible"}</dd></div>
+          <div><dt>Duración</dt><dd>{call.minutes != null ? `${num(call.minutes * 60)} s` : "No disponible"}</dd></div>
+          <div><dt>Origen</dt><dd>{ORIGIN_LABEL[call.origin ?? "unknown"]}</dd></div>
           <div><dt>Motivo</dt><dd>{reason || call.motive || "No registrado"}</dd></div>
           <div><dt>Acciones del agente</dt><dd>{num(Math.max(call.actions?.length ?? 0, call.toolCalls ?? 0))}</dd></div>
           <div><dt>Identificador</dt><dd className={styles.identifier}>{call.id}</dd></div>

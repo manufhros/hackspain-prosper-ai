@@ -45,5 +45,22 @@ Antes de desplegar el agente o el panel con esta función, aplicar la migración
 `0004_call_transcripts.sql` mediante `npm run db:migrate:remote` desde `desk/`.
 Después desplegar el agente y el panel con sus respectivos comandos `cf:deploy`.
 Los textos de llamadas anteriores que ya fueron redactados no se pueden recuperar.
-El modo local basado en `from-logs.json` muestra el detalle disponible, pero no
-inventa transcripciones que no existen en ese archivo.
+El panel local lee directamente los logs actuales de `../logs`, incluidos sus eventos
+estructurados. El extractor manual solo genera un archivo para análisis externo;
+el panel no depende de `from-logs.json`.
+
+## Datos del resumen
+
+- Hoy significa el día natural de Madrid (incluidos cambios de hora), sin límite de 500 filas.
+- El historial mantiene una ventana explícita de las últimas 500 llamadas.
+- Los filtros distinguen telefonía, pruebas y origen desconocido. Las llamadas antiguas
+  sin evidencia de origen no se reclasifican como telefonía.
+- Las duraciones requieren una medición o ambos extremos registrados; no hay valores
+  de relleno ni límites artificiales de duración.
+- Los logs antiguos necesitan un resultado de envío confirmado para contar una acción;
+  un intento, una reserva retenida o un resultado truncado no bastan.
+- Los motivos son la clasificación guardada por el agente; no se deducen especialidades.
+- El directorio procede de `/api/v1/clinic`; si falla, se muestran identificadores.
+- No se muestran ingresos, costes ni ahorro sin precios, facturación y una base histórica.
+- La salud muestra mediciones disponibles; una caída no se convierte en cero llamadas.
+  Cloudflare no proporciona uptime de proceso y se muestra como no disponible.

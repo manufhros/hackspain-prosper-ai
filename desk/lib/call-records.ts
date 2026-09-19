@@ -21,7 +21,7 @@ export function callFromRow(row: CallRow): LoggedCall {
     origin: row.simulator || summary.demo || summary.simulation || summary.origin === "simulator" ? "simulator" : summary.origin === "phone" ? "phone" : "unknown",
     phone: null, patient: summary.patientName || null, patientId: summary.patientId || null, insurer: summary.insurer || null,
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
-    outcome, reason: summary.reason ?? null, motive: summary.intent ?? "",
+    outcome, reason: summary.reason ?? null, motive: summary.motive ?? summary.intent ?? "",
     slot: null, providerId: null, source: "llamadas", sourceFile: null,
     resolution: outcome === "en_curso" ? "unknown" : outcome === "sin_cierre" ? "abandoned"
       : outcome === "escalado" ? "escalated" : "resolved",
@@ -35,8 +35,14 @@ export function callFromRow(row: CallRow): LoggedCall {
 export async function readCallRecord(
   db: CallDatabase, orgSlug: string, callId: string, requestedPage = 1,
 ): Promise<CallDetail | null> {
-  const row = await db.prepare(`SELECT call_id, started_at, summary FROM voice_calls
-    WHERE org_slug = ? AND call_id = ?`).bind(orgSlug, callId).first<CallRow>();
+  const row = await db.prepare(`SELECT c.call_id, c.started_at, c.summary,
+    EXISTS (SELECT 1 FROM agent_events e WHERE e.call_id = c.call_id
+      AND json_extract(e.payload, '$.orgSlug') = c.org_slug
+      AND (json_extract(e.payload, '$.source') = 'simulator'
+        OR json_extract(e.payload, '$.origin') = 'simulator'
+        OR json_extract(e.payload, '$.demo') = 1
+        OR json_extract(e.payload, '$.simulation') = 1)) AS simulator
+    FROM voice_calls c WHERE c.org_slug = ? AND c.call_id = ?`).bind(orgSlug, callId).first<CallRow>();
   if (!row) return null;
 
   const count = await db.prepare(`SELECT count(*) AS total FROM voice_transcript_entries

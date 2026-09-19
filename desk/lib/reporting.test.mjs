@@ -48,3 +48,22 @@ test("missing, invalid and incomplete durations stay unknown; measured zero stay
   assert.equal(originFilter("simulator"), "simulator");
   assert.equal(originFilter("constructor"), "all");
 });
+
+test("health keeps unavailable readings distinct from a measured zero", async () => {
+  const { agentHealth } = await import("./agent-health.ts");
+  const at = "2026-09-19T12:00:00Z";
+  assert.deepEqual(agentHealth({ ok: true, activeCalls: 0 }, at), { ok: true, activeCalls: 0, uptimeSeconds: null, checkedAt: at });
+  assert.equal(agentHealth({ ok: false, activeCalls: 0 }, at).activeCalls, null);
+  assert.equal(agentHealth({ ok: true, uptimeSeconds: -1 }, at).uptimeSeconds, null);
+});
+
+test("consultations use recorded intent and UTC call times display in Madrid", async () => {
+  const { byConsultation } = await import("./metrics.ts");
+  const { timeOf } = await import("./format.ts");
+  assert.deepEqual(byConsultation([{ motive: "Me duele la rodilla" }, { intent: "appointment_action" }]), [
+    { name: "Sin clasificar", count: 1 }, { name: "Gestión de citas", count: 1 },
+  ]);
+  assert.equal(timeOf("2026-09-19T12:30:00Z"), "14:30");
+  assert.equal(timeOf("2026-01-19T12:30:00Z"), "13:30");
+  assert.equal(timeOf("2026-09-19T14:30:00,000 CEST"), "14:30");
+});

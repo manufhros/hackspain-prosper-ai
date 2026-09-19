@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { SubmitResponse } from "../../src/platform/types";
+import type { ClinicCatalog, SubmitResponse } from "../../src/platform/types";
 
 import { loadLabSecrets } from "./root-env";
 
@@ -20,6 +20,7 @@ export async function prosper() {
   async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (!platformKey) throw new Error("Falta PLATFORM_API_KEY");
     const response = await fetch(`${base}${path}`, {
+      cache: "no-store",
       ...init,
       headers: {
         "X-Api-Key": platformKey,
@@ -35,6 +36,7 @@ export async function prosper() {
     return payload as T;
   }
   return {
+    clinic: () => request<ClinicCatalog>("/clinic"),
     directory: (query: { name?: string; national_id?: string; phone?: string }) =>
       request<{ matches: Array<{
         patient_id: string;

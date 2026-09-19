@@ -35,6 +35,8 @@ export const OUTCOME_META: Record<string, { label: string; tone: Tone }> = {
   sin_cita: { label: "Sin cita", tone: "warning" },
   cancelacion: { label: "Cita anulada", tone: "neutral" },
   cambio: { label: "Cita modificada", tone: "info" },
+  en_curso: { label: "En curso", tone: "info" },
+  submitted: { label: "Acción sin clasificar", tone: "neutral" },
   sin_cierre: { label: "Sin cierre", tone: "neutral" },
 };
 
@@ -91,9 +93,10 @@ export function ButtonLink({
   icon: Icon,
   children,
   className,
-}: ButtonBase & { href: string }) {
+  current,
+}: ButtonBase & { href: string; current?: boolean }) {
   return (
-    <Link href={href} className={[s.btn, className].filter(Boolean).join(" ")} data-variant={variant} data-size={size}>
+    <Link href={href} aria-current={current ? "page" : undefined} className={[s.btn, className].filter(Boolean).join(" ")} data-variant={variant} data-size={size}>
       {Icon ? <Icon size={16} strokeWidth={2} aria-hidden="true" /> : null}
       {children}
     </Link>

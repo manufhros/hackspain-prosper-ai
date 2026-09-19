@@ -64,7 +64,7 @@ export function DeveloperPortal({
           );
         })}
       </section>
-      <footer><span>La voz, las FAQ y el comportamiento del agente se configuran en hash, no por hospital.</span><button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>{pending ? "Guardando…" : "Guardar endpoints"}</button></footer>
+      <footer><span>La voz, las FAQ y el comportamiento del agente se configuran en turno, no por hospital.</span><button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>{pending ? "Guardando…" : "Guardar endpoints"}</button></footer>
       {notice ? <p className={styles.notice}>{notice}</p> : null}
     </div>
   );

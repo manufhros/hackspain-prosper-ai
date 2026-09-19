@@ -10,8 +10,8 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "hash — la línea de citas del hospital",
-  description: "hash atiende el teléfono de citas del hospital",
+  title: "turno — la línea de citas del hospital",
+  description: "turno atiende el teléfono de citas del hospital",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

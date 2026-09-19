@@ -14,7 +14,7 @@ export default async function Home({
   return (
     <main className={styles.page}>
       <header className={styles.nav}>
-        <Link className={styles.logo} href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
+        <Link className={styles.logo} href="/" aria-label="turno, inicio"><span>t</span> turno</Link>
         <nav>
           <a href="#producto">El producto</a>
           <a href="/entrar">Entrar</a>
@@ -27,7 +27,7 @@ export default async function Home({
           <p className={styles.eyebrow}>La recepción que nunca pone en espera</p>
           <h1>Siempre hay alguien.</h1>
           <p className={styles.heroLead}>
-            hash atiende cada llamada, consulta vuestra agenda y deja la cita cerrada mientras vuestro equipo cuida a
+            turno atiende cada llamada, consulta vuestra agenda y deja la cita cerrada mientras vuestro equipo cuida a
             quien ya está en la clínica.
           </p>
           <div className={styles.actions}>
@@ -41,7 +41,7 @@ export default async function Home({
           </div>
         </div>
 
-        <div className={styles.callStage} aria-label="Ejemplo de una llamada gestionada por hash">
+        <div className={styles.callStage} aria-label="Ejemplo de una llamada gestionada por turno">
           <div className={styles.glow} />
           <div className={styles.callCard}>
             <div className={styles.callTop}>
@@ -55,7 +55,7 @@ export default async function Home({
             </div>
             <div className={styles.transcript}>
               <p><span>María</span> Necesito traumatología por la tarde, lo antes posible.</p>
-              <p><span>hash</span> Tengo el martes a las 16:20 en Arenal Centro. ¿Te viene bien?</p>
+              <p><span>turno</span> Tengo el martes a las 16:20 en Arenal Centro. ¿Te viene bien?</p>
             </div>
             <div className={styles.booked}>
               <span>✓</span>
@@ -113,7 +113,7 @@ export default async function Home({
       <section className={styles.finalCta} id="demo">
         <div>
           <p>Empezad por una línea. Medidlo todo.</p>
-          <h2>Escuchad a hash reservar una cita con vuestra agenda.</h2>
+          <h2>Escuchad a turno reservar una cita con vuestra agenda.</h2>
           <p>Os preparamos una demo con un centro, sus horarios y sus reglas. Sin cambiar vuestro teléfono ni vuestro sistema.</p>
         </div>
         <div className={styles.contact}>
@@ -125,7 +125,7 @@ export default async function Home({
       <footer className={styles.footer}>
         <div className={styles.footerMain}>
           <div className={styles.footerBrand}>
-            <Link href="/" aria-label="hash, inicio"><span>h</span> hash</Link>
+            <Link href="/" aria-label="turno, inicio"><span>t</span> turno</Link>
             <p>La recepción por voz que atiende, agenda y resuelve.</p>
           </div>
           <nav>
@@ -142,7 +142,7 @@ export default async function Home({
           </nav>
         </div>
         <div className={styles.footerBottom}>
-          <span>© 2026 hash</span>
+          <span>© 2026 turno</span>
           <span>Madrid, España</span>
           <span>Datos alojados en la UE</span>
         </div>

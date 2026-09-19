@@ -249,7 +249,7 @@ export function VoiceSimulator({
       exportedAt: new Date().toISOString(),
     };
     download(
-      `exportacion-completa-hash-${new Date().toISOString().slice(0, 10)}.json`,
+      `exportacion-completa-turno-${new Date().toISOString().slice(0, 10)}.json`,
       JSON.stringify({ savedCalls: scenarios, liveSession }, null, 2),
       "application/json",
     );
@@ -291,7 +291,7 @@ export function VoiceSimulator({
       ]),
     ];
     download(
-      `exportacion-completa-hash-${new Date().toISOString().slice(0, 10)}.csv`,
+      `exportacion-completa-turno-${new Date().toISOString().slice(0, 10)}.csv`,
       rows.map((row) => row.map(quote).join(",")).join("\n"),
       "text/csv;charset=utf-8",
     );

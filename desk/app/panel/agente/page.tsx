@@ -28,7 +28,7 @@ export default async function Agente() {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Consola hash", href: "/panel" }, { label: "Configuración del agente" }]}
+        crumbs={[{ label: "Consola turno", href: "/panel" }, { label: "Configuración del agente" }]}
         title="Configuración del agente"
         description="Voz, comportamiento, preguntas frecuentes y endpoints del hospital. Publicar aplica los cambios en el runtime; guardar solo deja un borrador."
         actions={

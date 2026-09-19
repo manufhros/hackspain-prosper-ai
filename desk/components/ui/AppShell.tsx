@@ -75,9 +75,9 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
-        <Link className={styles.brand} href={brandHref} aria-label="hash, inicio">
-          <span>h</span>
-          <strong>hash</strong>
+        <Link className={styles.brand} href={brandHref} aria-label="turno, inicio">
+          <span>t</span>
+          <strong>turno</strong>
         </Link>
 
         <div className={styles.workspace}>

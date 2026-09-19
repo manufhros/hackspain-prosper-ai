@@ -12,8 +12,8 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
   return (
     <div className={styles.page}>
       <header>
-        <Link className={styles.logo} href="/" aria-label="Volver a hash">
-          <span>h</span> hash
+        <Link className={styles.logo} href="/" aria-label="Volver a turno">
+          <span>t</span> turno
         </Link>
         <Link className={styles.back} href="/">
           Volver a la web
@@ -35,7 +35,7 @@ export default async function Entrar({ searchParams }: { searchParams: Promise<{
             <div>
               <div>
                 <span>Hoy · {SITES.length} centros</span>
-                <strong>Recepción atendida por hash</strong>
+                <strong>Recepción atendida por turno</strong>
               </div>
               <i />
             </div>

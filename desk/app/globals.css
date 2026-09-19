@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   hash desk · design tokens
+   turno desk · design tokens
    Single source of truth for colour, type, radius and elevation. Every module
    stylesheet references these variables; no hard-coded palette elsewhere.
 --------------------------------------------------------------------------- */

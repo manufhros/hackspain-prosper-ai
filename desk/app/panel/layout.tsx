@@ -11,7 +11,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   const workspace =
     session.role === "admin"
-      ? { name: "Consola hash", meta: `Operación de ${CLINIC.name}`, initials: "h", tint: "#0b3b49" }
+      ? { name: "Consola turno", meta: `Operación de ${CLINIC.name}`, initials: "t", tint: "#0b3b49" }
       : session.role === "tester"
         ? { name: CLINIC.name, meta: "Entorno de pruebas de voz", initials: CLINIC.initials, tint: CLINIC.tint }
         : { name: CLINIC.name, meta: `Admisión · ${SITES.length} centros`, initials: CLINIC.initials, tint: CLINIC.tint };

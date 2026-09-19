@@ -35,7 +35,53 @@ from `desk/` to validate the adapter and final Worker bundle, not only `npm run 
 
 Next.js 16 keeps development output in `.next/dev`, independently of the production `.next` output required by OpenNext.
 
-## One-time Cloudflare setup
+## GitHub automatic deployment
+
+`.github/workflows/deploy-cloudflare.yml` deploys both Workers on every push to
+`main`. You can also run it from GitHub Actions with **Run workflow**, selecting
+`main`; other branches cannot deploy through this workflow.
+
+In GitHub **Settings → Secrets and variables → Actions → New repository secret**, add:
+
+- `CLOUDFLARE_ACCOUNT_ID`: the account that owns the existing `prosper-desk` D1 database and `somelabs.dev` zone.
+- `CLOUDFLARE_API_TOKEN`: create a Cloudflare API token using the **Edit Cloudflare Workers** template, scoped to that account and the `somelabs.dev` zone. Include account **D1: Edit** access for the database binding, and retain the template's Workers Scripts and Workers Routes permissions for Worker and custom-domain deployment.
+
+Ensure GitHub Actions is enabled for the repository and permits `actions/checkout`
+and `actions/setup-node`. No Cloudflare Git integration is required. Disable any
+existing Cloudflare Builds auto-deployment for these same Workers to avoid duplicate deployments.
+
+Complete the Worker secret setup below before the first
+CI deployment. Runtime provider secrets stay on the Cloudflare Workers; GitHub
+only needs the two deployment credentials above. The desk configuration publishes
+`turno.somelabs.dev`, so the token must have access to that zone.
+
+The workflow installs both lockfiles with Node.js 22, checks voice types, builds
+OpenNext, and dry-runs both Worker bundles before applying pending D1 migrations,
+then deploying voice and desk.
+Deployments are serialized and an active deployment is not cancelled by a new push.
+GitHub may replace a pending run with a newer push while another run is active.
+Deployment of the two Workers is not atomic: if desk deployment fails after voice
+succeeds, inspect the Actions log and rerun after correcting the failure.
+
+D1 migrations run through `npm --prefix desk run db:migrate:remote` against the
+shared `prosper-desk` database. Wrangler compares `desk/migrations/*.sql` with D1's
+migration history and applies only unapplied files; when none are pending, it
+exits successfully without applying migrations. This checks database state on
+every deployment, including retries, rather than relying on changed Git paths.
+A migration failure stops deployment of both Workers. Previously successful
+migrations remain applied, so schema changes must remain compatible with the
+currently deployed Workers until the new deployment succeeds.
+Wrangler applies the configured
+Durable Object migrations as part of voice deployment. CI does not upload runtime
+secrets, import call data, or run live provider calls.
+
+The existing Worker unit suite is currently excluded from this deployment workflow:
+`npm run test:worker` has a failing custom-prompt assertion in `src/worker/session.test.mjs`.
+Typechecking and both production build/package checks gate deployment.
+
+Reference: [Cloudflare GitHub Actions authentication setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+
+## Manual resource and secret setup
 
 Run these commands yourself when ready to create the deployment:
 
@@ -45,7 +91,8 @@ npx wrangler login
 
 Both configurations already point to the existing database `prosper-desk` (`2d1a883d-639b-4246-a6cc-d6e0bc69c571`) with binding `prosper_desk`. Log in to the account that owns this database. If using multiple accounts, set the same `account_id` in both configs. Do not create another database for this deployment.
 
-Apply all three migrations once, through the desk configuration:
+CI applies pending migrations automatically. To apply them manually instead,
+use the same desk configuration:
 
 ```sh
 npm --prefix desk run db:migrate:remote

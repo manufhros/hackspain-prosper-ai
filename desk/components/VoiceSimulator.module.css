@@ -1,0 +1,530 @@
+.simulator {
+  color: #1c1c1a;
+  font-size: 14px;
+}
+
+.intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 18px;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 590;
+  letter-spacing: -0.035em;
+}
+
+.intro p {
+  max-width: 680px;
+  margin: 7px 0 0;
+  color: #666760;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.introActions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.introActions > div {
+  display: flex;
+  gap: 7px;
+}
+
+.introActions button {
+  height: 44px;
+  border: 1px solid #deddd7;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #44443f;
+  background: white;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.simulator label span {
+  display: block;
+  margin-bottom: 6px;
+  color: #454640;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.simulator input,
+.simulator select {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #deddd7;
+  border-radius: 10px;
+  padding: 0 12px;
+  color: #292a27;
+  background: white;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+.simulator input:focus,
+.simulator select:focus {
+  border-color: #1f6f54;
+  box-shadow: 0 0 0 3px rgba(31, 111, 84, 0.11);
+}
+
+.introActions label {
+  width: 190px;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.testGrid {
+  display: grid;
+  grid-template-columns: 220px minmax(360px, 1.2fr) minmax(280px, 0.8fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.callerColumn {
+  display: grid;
+  gap: 12px;
+}
+
+.caller,
+.summary,
+.conversation,
+.audit {
+  border: 1px solid #e1e0da;
+  border-radius: 12px;
+  background: white;
+}
+
+.caller {
+  padding: 24px 18px 18px;
+  text-align: center;
+}
+
+.avatar {
+  display: grid;
+  width: 92px;
+  height: 92px;
+  margin: 0 auto 18px;
+  place-items: center;
+  border-radius: 50%;
+  color: #154d3c;
+  background: #dcefe8;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.caller h2 {
+  margin: 0 auto;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.caller p {
+  margin: 6px 0 10px;
+  color: #73736d;
+  font-size: 13px;
+}
+
+.caller > span {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 99px;
+  color: #52635c;
+  background: #efefeb;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.caller > span[data-status="idle"],
+.caller > span[data-status="live"] {
+  color: #176248;
+  background: #e0f2ea;
+}
+
+.caller > div:last-child {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.caller button {
+  display: inline-flex;
+  min-width: 126px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.caller button svg,
+.audit svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.fleet {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.lineCard {
+  display: grid;
+  justify-items: start;
+  gap: 3px;
+  padding: 14px;
+  border: 1px solid #e1e0da;
+  border-radius: 12px;
+  background: white;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lineCard[data-active="true"] {
+  border-color: #1f6f54;
+  box-shadow: 0 0 0 1px #1f6f54;
+}
+
+.lineCard b {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  color: #154d3c;
+  background: #dcefe8;
+  font-size: 11px;
+}
+
+.lineCard strong {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+.lineCard small,
+.lineCard span {
+  color: #73736d;
+  font-size: 12px;
+}
+
+.lineCard em {
+  color: #176248;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.lineCard[data-active="false"] em {
+  color: #73736d;
+  font-weight: 500;
+}
+
+.answer,
+.fleetStart {
+  border: 0;
+  color: white;
+  background: #1f6f54;
+}
+
+.fleetStart {
+  color: #176248;
+  background: #edf8f4;
+  border: 1px solid #b9d8cd;
+}
+
+.hangup {
+  border: 1px solid #d9d8d2;
+  color: #3f403c;
+  background: white;
+}
+
+.summary {
+  padding: 16px;
+}
+
+.summary h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.summary code {
+  display: block;
+  margin-top: 5px;
+  color: #6b6b66;
+  font-size: 11px;
+}
+
+.summary p {
+  margin: 18px 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.summary > span,
+.summary > small {
+  display: block;
+  color: #666760;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.summary > small {
+  margin-top: 12px;
+}
+
+.conversation > header,
+.audit > header {
+  padding: 16px 18px 12px;
+}
+
+.conversation h2,
+.audit h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.conversation header p,
+.audit header p {
+  margin: 4px 0 0;
+  color: #73736d;
+  font-size: 12px;
+}
+
+.transcript {
+  display: flex;
+  min-height: 430px;
+  max-height: 590px;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 18px 18px;
+}
+
+.transcript article {
+  display: flex;
+  max-width: 88%;
+  align-items: flex-end;
+  gap: 9px;
+}
+
+.transcript article[data-speaker="caller"] {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.messageAvatar {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: #35594c;
+  background: #dcefe8;
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.transcript article[data-speaker="agent"] .messageAvatar {
+  color: white;
+  background: #1c1c1a;
+}
+
+.messageContent {
+  min-width: 0;
+}
+
+.transcript article[data-speaker="caller"] .messageContent {
+  text-align: right;
+}
+
+.messageContent > span {
+  display: block;
+  margin: 0 8px 5px;
+  color: #666760;
+  font-size: 11px;
+}
+
+.messageContent > span em {
+  margin-left: 6px;
+  border: 1px solid #d8d8d2;
+  border-radius: 99px;
+  padding: 1px 5px;
+  color: #666760;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.messageContent > p {
+  margin: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #f0f4f2;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.transcript article[data-speaker="caller"] .messageContent > p {
+  color: white;
+  background: #1f6f54;
+}
+
+.toolLine {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  color: #5f716a;
+}
+
+.toolLine > i {
+  height: 1px;
+  background: #dedfd9;
+}
+
+.toolLine > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.toolLine svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.audit > div {
+  padding: 4px 12px 14px;
+}
+
+.audit details {
+  overflow: hidden;
+  border: 1px solid #e3e2dc;
+  border-radius: 9px;
+}
+
+.audit details + details {
+  margin-top: 8px;
+}
+
+.audit summary {
+  display: grid;
+  grid-template-columns: 22px 18px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.audit summary::-webkit-details-marker {
+  display: none;
+}
+
+.audit summary > span {
+  color: #777871;
+  font-size: 11px;
+}
+
+.audit summary strong {
+  font-size: 12px;
+}
+
+.audit pre {
+  overflow-x: auto;
+  margin: 0;
+  border-top: 1px solid #e8e7e2;
+  padding: 12px;
+  color: #41423e;
+  background: #f7f7f4;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.empty {
+  padding: 18px;
+  color: #7a7a74;
+  font-size: 13px;
+}
+
+.callHint {
+  margin-top: 14px;
+  color: #70716b;
+  font-size: 12px;
+}
+
+@media (max-width: 1180px) {
+  .testGrid {
+    grid-template-columns: 210px 1fr;
+  }
+
+  .audit {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 820px) {
+  .intro,
+  .introActions {
+    flex-direction: column;
+  }
+
+  .introActions,
+  .introActions label {
+    width: 100%;
+  }
+
+  .controls,
+  .testGrid,
+  .fleet {
+    grid-template-columns: 1fr;
+  }
+
+  .audit {
+    grid-column: auto;
+  }
+
+  .transcript {
+    min-height: 320px;
+  }
+}

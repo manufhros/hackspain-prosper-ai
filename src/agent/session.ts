@@ -5,6 +5,8 @@ import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts
 import { holdFrame } from "./hold-audio.ts";
 import { AGENT_PROMPT } from "./prompt.ts";
 import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
+import { loadRuntimeConfig } from "./runtime-config.ts";
+import { deliverPostCall, emitCallEvent } from "./call-event.ts";
 
 type TwilioStart = {
   event: "start";
@@ -29,11 +31,23 @@ function madridToday(): string {
   return clinicTodayYmd();
 }
 
-async function lookupByPhone(platform: PlatformClient, fromNumber?: string): Promise<string> {
-  if (!fromNumber) return "";
+type PreCallContext = {
+  hint: string;
+  patientName: string;
+  insurer: string;
+  patientId: string;
+};
+
+async function lookupByPhone(
+  platform: PlatformClient,
+  fromNumber?: string,
+): Promise<PreCallContext> {
+  if (!fromNumber) return { hint: "", patientName: "", insurer: "", patientId: "" };
   try {
     const found = await platform.directory({ phone: fromNumber });
-    return JSON.stringify(
+    const one = found.matches.length === 1 ? found.matches[0] : undefined;
+    return {
+      hint: JSON.stringify(
       found.matches.map((match) => ({
         patient_id: match.patient_id,
         name: `${match.given_name} ${match.first_surname} ${match.second_surname}`,
@@ -41,11 +55,63 @@ async function lookupByPhone(platform: PlatformClient, fromNumber?: string): Pro
         has_visited_before: match.has_visited_before,
         note: match.note,
       })),
-    );
+      ),
+      patientName: one
+        ? `${one.given_name} ${one.first_surname} ${one.second_surname}`.trim()
+        : "",
+      insurer: one?.insurer ?? "",
+      patientId: one?.patient_id ?? "",
+    };
   } catch (error) {
     callLogError("directory hint", error);
-    return "";
+    return { hint: "", patientName: "", insurer: "", patientId: "" };
   }
+}
+
+function routeFor(text: string): { intent: string; route: "general" | "actions" | "human" } {
+  const value = text.toLowerCase();
+  if (/urgencia|emergencia|pecho|respirar|sangr|desmay/.test(value)) {
+    return { intent: "medical_emergency", route: "human" };
+  }
+  if (/reserv|cita|cancel|anul|mover|cambiar|alta|registr/.test(value)) {
+    return { intent: "appointment_action", route: "actions" };
+  }
+  return { intent: "general_faq", route: "general" };
+}
+
+function frustrationDelta(text: string): number {
+  const value = text.toLowerCase();
+  let score = 0;
+  if (/ya te lo he dicho|otra vez|no me entiendes|persona|humano|operador/.test(value)) score += 30;
+  if (/fatal|ridículo|inútil|harto|enfadad|frustrad/.test(value)) score += 35;
+  if (/[!¡]{2,}/.test(value)) score += 10;
+  return score;
+}
+
+function transcriptLanguage(text: string): "es" | "en" | undefined {
+  const value = text.toLowerCase();
+  if (
+    /[áéíóúñ¿¡]/.test(value) ||
+    /\b(hola|buenos|sí|soy|quiero|cita|gracias|otra|nada|mejor|puede|necesito|adiós|por favor)\b/.test(
+      value,
+    )
+  ) {
+    return "es";
+  }
+  if (
+    /\b(hello|hi|yes|please|appointment|thank|actually|change|name|sure|wait|week|doctor)\b/.test(
+      value,
+    )
+  ) {
+    return "en";
+  }
+  return undefined;
+}
+
+function clinicNameFor(orgSlug: string): string {
+  if (orgSlug === "quironsalud") return "Clínica Quirón";
+  if (orgSlug === "sanitas") return "Clínica Sanitas";
+  return "Clínica Arenal";
 }
 
 export async function handleCall(twilio: WebSocket): Promise<void> {
@@ -58,6 +124,37 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   let holdTimer: ReturnType<typeof setInterval> | undefined;
   let holdTick = 0;
   let pendingHint: string | undefined;
+  let startedAt = Date.now();
+  let toolCalls = 0;
+  let toolErrors = 0;
+  let finalised = false;
+  let simulationMode = false;
+  let lastDetectedLanguage: "es" | "en" | undefined;
+
+  const finalise = async (callCtx: CallContext) => {
+    if (finalised) return;
+    finalised = true;
+    const summary = {
+      callId: callCtx.callId,
+      configVersion: callCtx.configVersion ?? "defaults",
+      outcome: callCtx.outcome ?? (callCtx.submitted ? "submitted" : "sin_cierre"),
+      ...(callCtx.outcomeReason ? { reason: callCtx.outcomeReason } : {}),
+      ...(callCtx.route ? { route: callCtx.route } : {}),
+      ...(callCtx.intent ? { intent: callCtx.intent } : {}),
+      durationMs: Math.max(0, Date.now() - startedAt),
+      userTurns: callCtx.userTurns ?? 0,
+      toolCalls,
+      toolErrors,
+      frustrationScore: callCtx.frustrationScore ?? 0,
+      zeroRetention: callCtx.zeroRetention ?? true,
+    };
+    emitCallEvent("call.ended", callCtx.callId, callCtx.configVersion ?? "defaults", summary);
+    if (callCtx.postCallWebhook) {
+      await deliverPostCall(summary, callCtx.postCallEndpoint).catch((error: unknown) => {
+        callLogError(callCtx.callId.slice(0, 8), "post-call failed", error);
+      });
+    }
+  };
 
   const sendEleven = (payload: unknown) => {
     if (eleven?.readyState === WebSocket.OPEN) {
@@ -69,6 +166,10 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     if (twilio.readyState === WebSocket.OPEN) {
       twilio.send(JSON.stringify(payload));
     }
+  };
+
+  const sendMonitor = (monitor: Record<string, unknown>) => {
+    if (simulationMode) sendTwilio({ event: "monitor", monitor });
   };
 
   const queueAudio = (chunk: string) => {
@@ -180,6 +281,23 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           .user_transcription_event?.user_transcript;
         if (t) {
           callLog(tag, "user", t);
+          callCtx.transcript = [
+            ...(callCtx.transcript ?? []),
+            { speaker: "caller" as const, text: t },
+          ].slice(-12);
+          const language = transcriptLanguage(t);
+          sendMonitor({ type: "user", text: t, language });
+          if (language && language !== lastDetectedLanguage) {
+            lastDetectedLanguage = language;
+            sendEleven({
+              type: "contextual_update",
+              context_id: "detected-language",
+              text:
+                language === "es"
+                  ? "The caller is speaking Spanish. Reply only in Spanish. Never say 'one moment' or any English filler."
+                  : "The caller is speaking English. Reply only in English.",
+            });
+          }
           if (isPauseTranscript(t)) {
             muteAgent = true;
             sendEleven({
@@ -189,6 +307,29 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           } else {
             muteAgent = false;
             callCtx.userTurns = (callCtx.userTurns ?? 0) + 1;
+            const decision = routeFor(t);
+            callCtx.route = decision.route;
+            callCtx.intent = decision.intent;
+            callCtx.frustrationScore = Math.min(
+              100,
+              (callCtx.frustrationScore ?? 0) + frustrationDelta(t),
+            );
+            emitCallEvent("route.decided", callCtx.callId, callCtx.configVersion ?? "defaults", {
+              ...decision,
+              mode: callCtx.routingMode ?? "shadow",
+              frustrationScore: callCtx.frustrationScore,
+            });
+            if (
+              callCtx.routingMode === "enforce" &&
+              callCtx.frustrationScore >= (callCtx.frustrationThreshold ?? 75) &&
+              decision.route !== "human"
+            ) {
+              callCtx.route = "human";
+              sendEleven({
+                type: "contextual_update",
+                text: "The caller is frustrated. Offer to pass the call to the human team now.",
+              });
+            }
           }
         }
       }
@@ -197,13 +338,27 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           .agent_response_event?.agent_response;
         if (t) {
           callLog(tag, "agent", t);
+          callCtx.transcript = [
+            ...(callCtx.transcript ?? []),
+            { speaker: "agent" as const, text: t },
+          ].slice(-12);
+          sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
           if (isNudgeSpeech(t)) muteAgent = true;
         }
       }
 
       const toolCall = extractClientToolCall(message);
       if (toolCall) {
+        toolCalls += 1;
         callLog(tag, "tool", toolCall.tool_name, toolCall.parameters);
+        sendMonitor({
+          type: "tool",
+          name: toolCall.tool_name,
+          params: toolCall.parameters,
+        });
+        emitCallEvent("tool.called", callCtx.callId, callCtx.configVersion ?? "defaults", {
+          name: toolCall.tool_name,
+        });
         if (toolCall.tool_name === "end_call") {
           callLog(tag, "blocked end_call");
           if (socket.readyState === WebSocket.OPEN) {
@@ -219,10 +374,31 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           }
           return;
         }
+        if (
+          callCtx.routingMode === "enforce" &&
+          callCtx.actionTools === false &&
+          !toolCall.tool_name.startsWith("submit_")
+        ) {
+          socket.send(
+            JSON.stringify({
+              type: "client_tool_result",
+              tool_call_id: toolCall.tool_call_id,
+              result: "Action tools are disabled for this organisation. Offer human assistance.",
+              is_error: true,
+            }),
+          );
+          return;
+        }
+        const toolStarted = Date.now();
         pendingTools += 1;
         void runClinicTool(callCtx, toolCall.tool_name, toolCall.parameters)
           .then((result) => {
             callLog(tag, "tool result", toolCall.tool_name, result.slice(0, 800));
+            sendMonitor({
+              type: "tool_result",
+              name: toolCall.tool_name,
+              result: result.slice(0, 4_000),
+            });
             if (socket.readyState === WebSocket.OPEN) {
               socket.send(
                 JSON.stringify({
@@ -241,9 +417,58 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                 );
               }
             }
+            const failed = result.includes('"error"');
+            if (toolCall.tool_name === "submit_escalate" && !failed) {
+              const handoff = {
+                reason: callCtx.outcomeReason ?? toolCall.parameters.reason ?? "out_of_scope",
+                fromNumber: callCtx.fromNumber ?? null,
+                patient: {
+                  id: callCtx.patientId ?? null,
+                  name: callCtx.patientName ?? null,
+                  insurer: callCtx.insurer ?? null,
+                },
+                intent: callCtx.intent ?? null,
+                frustrationScore: callCtx.frustrationScore ?? 0,
+                transcript: callCtx.zeroRetention ? [] : (callCtx.transcript ?? []),
+              };
+              emitCallEvent(
+                "handoff.prepared",
+                callCtx.callId,
+                callCtx.configVersion ?? "defaults",
+                handoff,
+              );
+              sendMonitor({ type: "handoff", ...handoff });
+            }
+            if (failed) {
+              toolErrors += 1;
+              callCtx.failureCount = (callCtx.failureCount ?? 0) + 1;
+              callCtx.frustrationScore = Math.min(100, (callCtx.frustrationScore ?? 0) + 15);
+            }
+            emitCallEvent("tool.completed", callCtx.callId, callCtx.configVersion ?? "defaults", {
+              name: toolCall.tool_name,
+              ok: !failed,
+              latencyMs: Date.now() - toolStarted,
+              failureCount: callCtx.failureCount ?? 0,
+            });
+            if (
+              callCtx.routingMode === "enforce" &&
+              (callCtx.failureCount ?? 0) >= (callCtx.escalationFails ?? 3)
+            ) {
+              callCtx.route = "human";
+              sendEleven({
+                type: "contextual_update",
+                text: "The configured failure limit was reached. Offer the human team; do not retry the same action.",
+              });
+            }
           })
           .catch((error: unknown) => {
+            toolErrors += 1;
+            callCtx.failureCount = (callCtx.failureCount ?? 0) + 1;
             callLogError(tag, "tool error", toolCall.tool_name, error);
+            emitCallEvent("tool.failed", callCtx.callId, callCtx.configVersion ?? "defaults", {
+              name: toolCall.tool_name,
+              latencyMs: Date.now() - toolStarted,
+            });
             if (socket.readyState === WebSocket.OPEN) {
               socket.send(
                 JSON.stringify({
@@ -274,6 +499,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         elevenReady = false;
         keepTwilioAlive();
       }
+      void finalise(callCtx);
     });
     socket.on("error", (error) => {
       callLogError(tag, "elevenlabs ws", error);
@@ -294,11 +520,15 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       streamSid = start.start.streamSid;
       const callId = start.start.customParameters?.call_id || start.start.callSid;
       const fromNumber = start.start.customParameters?.from_number;
+      const orgSlug = start.start.customParameters?.org_slug || "arenal";
+      const clinicName = clinicNameFor(orgSlug);
+      simulationMode = start.start.customParameters?.simulation != null;
       const platform = new PlatformClient();
       const callCtx: CallContext = fromNumber
-        ? { callId, fromNumber, platform }
-        : { callId, platform };
+        ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid }
+        : { callId, platform, simulationMode, twilioCallSid: start.start.callSid };
       ctx = callCtx;
+      startedAt = Date.now();
       callLog("call start", callId, fromNumber ?? "withheld");
 
       const wallClock = setTimeout(() => {
@@ -326,6 +556,62 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
 
       playHold();
       void (async () => {
+        const runtime = await loadRuntimeConfig(orgSlug);
+        Object.assign(callCtx, {
+          configVersion: runtime.version,
+          routingMode: runtime.routingMode,
+          actionTools: runtime.actionTools,
+          postCallWebhook: runtime.postCallWebhook || Boolean(runtime.postCallEndpoint),
+          postCallEndpoint: runtime.postCallEndpoint,
+          zeroRetention: runtime.zeroRetention,
+          escalationFails: runtime.escalationFails,
+          frustrationThreshold: runtime.frustrationThreshold,
+          failureCount: 0,
+          frustrationScore: 0,
+        });
+        emitCallEvent("call.started", callId, runtime.version, {
+          hasFromNumber: Boolean(fromNumber),
+          routingMode: runtime.routingMode,
+        });
+        const emptyPreCall: PreCallContext = {
+          hint: "",
+          patientName: "",
+          insurer: "",
+          patientId: "",
+        };
+        const preCallStarted = Date.now();
+        const preCall =
+          runtime.patientLookup && fromNumber
+            ? await Promise.race([
+                lookupByPhone(platform, fromNumber),
+                new Promise<PreCallContext>((resolve) =>
+                  setTimeout(() => resolve(emptyPreCall), 550),
+                ),
+              ])
+            : emptyPreCall;
+        let externalContext = "";
+        if (runtime.preCallEndpoint) {
+          try {
+            const response = await fetch(runtime.preCallEndpoint, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ call_id: callId, from_number: fromNumber ?? "" }),
+              signal: AbortSignal.timeout(550),
+            });
+            if (response.ok) externalContext = (await response.text()).slice(0, 4_000);
+          } catch {
+            externalContext = "";
+          }
+        }
+        callCtx.knownPatient = Boolean(preCall.patientId);
+        callCtx.patientName = preCall.patientName;
+        callCtx.patientId = preCall.patientId;
+        callCtx.insurer = preCall.insurer;
+        emitCallEvent("crm.lookup.completed", callId, runtime.version, {
+          matched: Boolean(preCall.patientId),
+          latencyMs: Date.now() - preCallStarted,
+        });
+        if (preCall.hint) callLog("directory hint", callId, preCall.hint.slice(0, 200));
         while (twilio.readyState === WebSocket.OPEN && !elevenReady) {
           try {
             const url = await getSignedConversationUrl();
@@ -346,7 +632,15 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                       call_id: callId,
                       from_number: fromNumber ?? "",
                       madrid_today: madridToday(),
-                      directory_hint: "",
+                      directory_hint: runtime.dynamicContext ? preCall.hint : "",
+                      patient_name: runtime.dynamicContext ? preCall.patientName : "",
+                      insurer: runtime.dynamicContext ? preCall.insurer : "",
+                      patient_id: runtime.dynamicContext ? preCall.patientId : "",
+                      config_version: runtime.version,
+                      routing_mode: runtime.routingMode,
+                      hospital_context: externalContext,
+                      approved_faq: JSON.stringify(runtime.faq).slice(0, 8_000),
+                      clinic_name: clinicName,
                       desk_rules: AGENT_PROMPT,
                     },
                   }),
@@ -367,19 +661,6 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
           }
         }
       })();
-      const pushHint = (hint: string) => {
-        callCtx.knownPatient = hint.includes("patient_id");
-        callLog("directory hint", callId, hint.slice(0, 200));
-        const text = `Phone directory match: ${hint}. After they say what they need, search_directory with phone ${fromNumber ?? ""}, confirm this name, then search_availability. Do not ask them to spell the name first.`;
-        if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
-          sendEleven({ type: "contextual_update", text });
-        } else {
-          pendingHint = text;
-        }
-      };
-      void lookupByPhone(platform, fromNumber).then((hint) => {
-        if (hint) pushHint(hint);
-      });
       return;
     }
 
@@ -394,12 +675,34 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       return;
     }
 
+    if (message.event === "user_text") {
+      const spoken = String((message as { text?: string }).text ?? "").trim();
+      const callCtx = ctx;
+      if (!spoken || !callCtx) return;
+      let tries = 0;
+      const deliver = () => {
+        if (tries++ > 25) return;
+        if (!elevenReady || eleven?.readyState !== WebSocket.OPEN) {
+          setTimeout(deliver, 400);
+          return;
+        }
+        callLog(callCtx.callId.slice(0, 8), "user", spoken);
+        sendMonitor({ type: "user", text: spoken, language: transcriptLanguage(spoken) });
+        callCtx.userTurns = (callCtx.userTurns ?? 0) + 1;
+        sendEleven({ type: "user_message", text: spoken });
+      };
+      deliver();
+      return;
+    }
+
     if (message.event === "stop") {
       stopHold();
       if (ctx) {
-        void flushPendingSubmit(ctx).catch((error: unknown) => {
-          callLogError(ctx.callId.slice(0, 8), "flush on stop failed", error);
+        const callCtx = ctx;
+        void flushPendingSubmit(callCtx).catch((error: unknown) => {
+          callLogError(callCtx.callId.slice(0, 8), "flush on stop failed", error);
         });
+        void finalise(callCtx);
       }
       closeElevenSoon();
     }
@@ -408,9 +711,11 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   twilio.on("close", () => {
     stopHold();
     if (ctx) {
-      void flushPendingSubmit(ctx).catch((error: unknown) => {
-        callLogError(ctx.callId.slice(0, 8), "flush on close failed", error);
+      const callCtx = ctx;
+      void flushPendingSubmit(callCtx).catch((error: unknown) => {
+        callLogError(callCtx.callId.slice(0, 8), "flush on close failed", error);
       });
+      void finalise(callCtx);
     }
     closeElevenSoon();
   });

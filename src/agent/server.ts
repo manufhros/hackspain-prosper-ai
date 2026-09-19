@@ -3,11 +3,25 @@ import { WebSocketServer } from "ws";
 import { env } from "../config.ts";
 import { callLog, callLogError, LOG_FILE } from "./call-log.ts";
 import { handleCall } from "./session.ts";
+import { handoffTwiml } from "./twilio-transfer.ts";
+
+const startedAt = Date.now();
 
 const server = createServer((req, res) => {
-  if (req.url === "/health") {
+  const url = new URL(req.url ?? "/", "http://127.0.0.1");
+  if (url.pathname === "/health") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
+    res.end(JSON.stringify({
+      ok: true,
+      activeCalls: wss.clients.size,
+      uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+      checkedAt: new Date().toISOString(),
+    }));
+    return;
+  }
+  if (url.pathname === "/twiml/handoff") {
+    res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
+    res.end(handoffTwiml(url.searchParams.get("summary") ?? undefined));
     return;
   }
   res.writeHead(404);

@@ -11,4 +11,7 @@ data/*.json
 .vscode/
 logs/*.log
 !logs/.gitkeep
+desk/data/*.json
+!desk/data/.gitkeep
+.tools/
 

@@ -9,6 +9,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "dev": "node --env-file=.env --import tsx src/agent/server.ts",
+    "desk": "npm --prefix desk run dev",
+    "desk:extract": "node desk/scripts/extract-logs.mjs",
     "agent:configure": "node --env-file=.env --import tsx src/scripts/configure-agent.ts",
     "clinic:fetch": "node --env-file=.env --import tsx src/scripts/fetch-clinic.ts",
     "clinic:smoke": "node --env-file=.env --import tsx src/scripts/smoke.ts",

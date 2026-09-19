@@ -18,6 +18,12 @@ test("maps insurer aliases", () => {
   assert.equal(asInsurer("Cazé Salud"), "caser");
   assert.equal(asInsurer("KASIR"), "caser");
   assert.equal(asInsurer("Addislos"), "adeslas");
+  assert.equal(asInsurer("adeslaz"), "adeslas");
+  assert.equal(asInsurer("Sentas"), "sanitas");
+  assert.equal(asProviderId("Iglesas"), "PR05");
+  assert.equal(asProviderId("Lorente"), undefined);
+  assert.equal(asLocation("sentro"), "centro");
+  assert.equal(asSpecialty("dermatologia"), "dermatology");
 });
 
 test("restores register name accents and email spelling", () => {
@@ -42,6 +48,8 @@ test("maps Iglesia vs Iglesias to different provider ids", () => {
   assert.equal(asProviderId("PR06"), "PR06");
   assert.equal(asProviderId("Dr. Sid"), "PR09");
   assert.equal(asProviderId("Cid"), "PR09");
+  assert.equal(asProviderId("Lorente"), undefined);
+  assert.equal(asProviderId("Quintero"), undefined);
 });
 
 test("keeps an explicit later date_from and caps the range at 14 days", () => {
@@ -106,7 +114,7 @@ test("search_availability remaps orthopedics and fills dates", async () => {
     ctx({
       availability: async (q) => {
         query = q;
-        return { providers: [], slots: [], blocked: [], appointment_type: { id: "review" } };
+        return { providers: [], slots: [], blocked: [], appointment_type: { id: "review", name: "Review", duration_minutes: 30, new_patient_requirement: "none", guidance: "" } };
       },
     }),
     "search_availability",
@@ -306,7 +314,7 @@ test("unknown spoken doctor is provider_not_found without calling availability",
       ctx({
         availability: async () => {
           called = true;
-          return { providers: [], slots: [], blocked: [], appointment_type: { id: "x" } };
+          return { providers: [], slots: [], blocked: [], appointment_type: { id: "x", name: "Test", duration_minutes: 30, new_patient_requirement: "none", guidance: "" } };
         },
       }),
       "search_availability",
@@ -323,7 +331,7 @@ test("named provider drops specialty_id so Iglesia is not searched as GP", async
     ctx({
       availability: async (q) => {
         query = q;
-        return { providers: [], slots: [], blocked: [], appointment_type: { id: "review" } };
+        return { providers: [], slots: [], blocked: [], appointment_type: { id: "review", name: "Review", duration_minutes: 30, new_patient_requirement: "none", guidance: "" } };
       },
     }),
     "search_availability",

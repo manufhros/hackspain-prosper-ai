@@ -1,0 +1,266 @@
+.page {
+  min-height: 100svh;
+  color: #14343e;
+  background:
+    radial-gradient(650px 500px at 12% 90%, rgba(55, 185, 163, 0.16), transparent 70%),
+    #f4f9fa;
+  font-family: var(--font-brand), sans-serif;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+.page header {
+  display: flex;
+  height: 82px;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1160px;
+  margin: auto;
+  padding: 0 32px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #0b3b49;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.logo span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  color: white;
+  background: #0b3b49;
+}
+
+.back {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  color: #617a82;
+  font-size: 13px;
+}
+
+.page main {
+  display: grid;
+  grid-template-columns: 1fr 430px;
+  gap: 90px;
+  align-items: center;
+  max-width: 1080px;
+  min-height: calc(100svh - 82px);
+  margin: auto;
+  padding: 40px 32px 100px;
+}
+
+.intro > p:first-child {
+  margin: 0 0 18px;
+  color: #147b8c;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.intro h1 {
+  max-width: 650px;
+  margin: 0;
+  color: #0b3b49;
+  font-size: clamp(48px, 6vw, 76px);
+  font-weight: 600;
+  line-height: 0.97;
+  letter-spacing: -0.06em;
+}
+
+.lead {
+  max-width: 510px;
+  margin: 28px 0 0;
+  color: #607881;
+  font-size: 17px;
+  line-height: 1.6;
+}
+
+.preview {
+  max-width: 530px;
+  margin-top: 50px;
+  padding: 20px;
+  border: 1px solid #d5e5e8;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow: 0 25px 70px rgba(36, 88, 100, 0.08);
+}
+
+.preview > div {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e0eaec;
+}
+
+.preview > div > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.preview span,
+.preview dd {
+  color: #71868d;
+  font-size: 11px;
+}
+
+.preview strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.preview i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22a284;
+  box-shadow: 0 0 0 5px rgba(34, 162, 132, 0.1);
+}
+
+.preview dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 18px 0 0;
+}
+
+.preview dl div + div {
+  padding-left: 18px;
+  border-left: 1px solid #e0eaec;
+}
+
+.preview dt {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.preview dd {
+  margin: 1px 0 0;
+}
+
+.loginCard {
+  padding: 34px;
+  border: 1px solid #d7e5e8;
+  border-radius: 28px;
+  background: white;
+  box-shadow: 0 30px 90px rgba(30, 82, 94, 0.12);
+}
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #168c82;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.lock::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #20a787;
+  content: "";
+}
+
+.loginCard h2 {
+  margin: 18px 0 6px;
+  color: #0b3b49;
+  font-size: 36px;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+}
+
+.loginCard > p {
+  margin: 0 0 24px;
+  color: #6b8188;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.loginCard :global(.login) {
+  margin: 0;
+}
+
+.loginCard :global(.login label) {
+  color: #526d75;
+}
+
+.loginCard :global(.login input) {
+  height: 50px;
+  border-color: #cadcde;
+  border-radius: 12px;
+  background: #f8fbfb;
+}
+
+.loginCard :global(.login button) {
+  height: 50px;
+  border-radius: 12px;
+  color: white;
+  background: #167d91;
+}
+
+.help {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e3ecee;
+  color: #73878d;
+  font-size: 12px;
+}
+
+.help a {
+  color: #116f80;
+  font-weight: 650;
+}
+
+@media (max-width: 850px) {
+  .page main {
+    grid-template-columns: 1fr;
+    gap: 50px;
+    max-width: 600px;
+  }
+
+  .intro h1 {
+    font-size: 55px;
+  }
+}
+
+@media (max-width: 520px) {
+  .page header {
+    height: 70px;
+    padding-inline: 18px;
+  }
+
+  .page main {
+    padding: 48px 18px 70px;
+  }
+
+  .intro h1 {
+    font-size: 44px;
+  }
+
+  .preview {
+    display: none;
+  }
+
+  .loginCard {
+    padding: 24px;
+  }
+}

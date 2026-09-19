@@ -7,6 +7,7 @@ import type {
   Insurer,
   OutcomeReason,
 } from "../platform/types.ts";
+import { transferTwilioCall } from "./twilio-transfer.ts";
 
 const INSURERS = new Set<Insurer>([
   "sanitas",
@@ -23,6 +24,79 @@ const INSURERS = new Set<Insurer>([
 
 function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function foldKey(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
+}
+
+function editDistance(a: string, b: string): number {
+  const rows = a.length + 1;
+  const cols = b.length + 1;
+  const dp: number[][] = Array.from({ length: rows }, () => new Array<number>(cols).fill(0));
+  const at = (i: number, j: number) => dp[i]![j]!;
+  for (let i = 0; i < rows; i++) dp[i]![0] = i;
+  for (let j = 0; j < cols; j++) dp[0]![j] = j;
+  for (let i = 1; i < rows; i++) {
+    for (let j = 1; j < cols; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(at(i - 1, j) + 1, at(i, j - 1) + 1, at(i - 1, j - 1) + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        dp[i]![j] = Math.min(at(i, j), at(i - 2, j - 2) + 1);
+      }
+    }
+  }
+  return at(a.length, b.length);
+}
+
+function pairRatio(a: string, b: string): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  return 1 - editDistance(a, b) / Math.max(a.length, b.length);
+}
+
+/** STT-tolerant similarity: edits, doubled letters, and consonant skeletons. */
+export function stringSimilarity(left: string, right: string): number {
+  const a = foldKey(left);
+  const b = foldKey(right);
+  if (!a || !b) return 0;
+  const compactA = a.replace(/(.)\1+/g, "$1");
+  const compactB = b.replace(/(.)\1+/g, "$1");
+  const consA = a.replace(/[aeiou]/g, "");
+  const consB = b.replace(/[aeiou]/g, "");
+  const contained =
+    a.includes(b) || b.includes(a)
+      ? Math.min(a.length, b.length) / Math.max(a.length, b.length)
+      : 0;
+  return Math.max(
+    pairRatio(a, b),
+    pairRatio(compactA, compactB),
+    consA.length >= 3 && consB.length >= 3 ? pairRatio(consA, consB) : 0,
+    contained,
+  );
+}
+
+function closestBySimilarity<T extends string>(
+  spoken: string,
+  labels: readonly T[],
+  minScore: number,
+  minMargin: number,
+  minLength = 4,
+): T | undefined {
+  const key = foldKey(spoken);
+  if (key.length < minLength) return undefined;
+  const ranked = labels
+    .map((label) => ({ label, score: stringSimilarity(key, foldKey(label)) }))
+    .sort((x, y) => y.score - x.score);
+  const best = ranked[0];
+  if (!best || best.score < minScore) return undefined;
+  const second = ranked[1]?.score ?? 0;
+  if (best.score - second < minMargin) return undefined;
+  return best.label;
 }
 
 function compact<T extends Record<string, unknown>>(obj: T): T {
@@ -49,7 +123,7 @@ export function asInsurer(value: unknown): Insurer | undefined {
   if (key === "dkv") return "dkv";
   if (key === "axa") return "axa";
   if (key.includes("privado") || key.includes("private") || key.includes("selfpay")) return "privado";
-  return undefined;
+  return closestBySimilarity(key, [...INSURERS], 0.72, 0.08);
 }
 
 const SPECIALTY_ALIASES: Record<string, string> = {
@@ -88,17 +162,32 @@ export function asLocation(value: unknown): string | undefined {
   }
   if (raw.includes("norte") || raw.includes("north")) return "norte";
   if (raw.includes("centro") || raw.includes("central") || raw.includes("arnold")) return "centro";
-  return LOCATION_ALIASES[raw] ?? raw;
+  const aliased = LOCATION_ALIASES[raw];
+  if (aliased) return aliased;
+  return closestBySimilarity(raw, ["centro", "norte", "sur"], 0.78, 0.1, 4) ?? raw;
 }
+
+const SPECIALTIES = [
+  "general_practice",
+  "dermatology",
+  "orthopaedics",
+  "gynaecology",
+  "paediatrics",
+  "physiotherapy",
+] as const;
 
 export function asSpecialty(value: unknown): string | undefined {
   const raw = asString(value)?.toLowerCase().replace(/\s+/g, "_");
   if (!raw) return undefined;
-  return SPECIALTY_ALIASES[raw] ?? raw;
+  const mapped = SPECIALTY_ALIASES[raw] ?? raw;
+  if ((SPECIALTIES as readonly string[]).includes(mapped)) return mapped;
+  const hit = closestBySimilarity(raw.replace(/_/g, ""), SPECIALTIES, 0.78, 0.1);
+  return hit ?? mapped;
 }
 
 export function addYmd(ymd: string, days: number): string {
   const [year, month, day] = ymd.split("-").map(Number);
+  if (!year || !month || !day) throw new Error(`Invalid date ${ymd}`);
   const next = new Date(Date.UTC(year, month - 1, day + days));
   return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}-${String(next.getUTCDate()).padStart(2, "0")}`;
 }
@@ -162,7 +251,13 @@ export function asProviderId(value: unknown): string | undefined {
   for (const [needle, id] of Object.entries(PROVIDER_ALIASES)) {
     if (key.includes(needle)) return id;
   }
-  return undefined;
+  const names = [...Object.keys(PROVIDER_ALIASES), "iglesias", "iglesia", "sid"] as const;
+  const hit = closestBySimilarity(key, names, 0.82, 0.12, 5);
+  if (!hit) return undefined;
+  if (hit === "iglesias") return "PR05";
+  if (hit === "iglesia") return "PR06";
+  if (hit === "sid") return "PR09";
+  return PROVIDER_ALIASES[hit];
 }
 
 function madridParts(iso: string): { weekday: string; hour: number } {
@@ -240,11 +335,7 @@ const TERMINAL_DECLINE = new Set([
 ]);
 
 function foldName(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z]/g, "");
+  return foldKey(value);
 }
 
 const REGISTER_NAME_ACCENTS: Record<string, string> = {
@@ -255,7 +346,11 @@ const REGISTER_NAME_ACCENTS: Record<string, string> = {
 };
 
 export function restoreRegisterName(value: string): string {
-  return REGISTER_NAME_ACCENTS[foldName(value)] ?? value.trim();
+  const key = foldName(value);
+  const exact = REGISTER_NAME_ACCENTS[key];
+  if (exact) return exact;
+  const hit = closestBySimilarity(key, Object.keys(REGISTER_NAME_ACCENTS), 0.82, 0.1);
+  return hit ? REGISTER_NAME_ACCENTS[hit]! : value.trim();
 }
 
 export function normalizeRegisterEmail(value: string): string {
@@ -277,10 +372,13 @@ export function alignSurnameWithEmail(first_surname: string, email: string): str
   const fromDot = local.match(/^[a-z]+\.([a-z]+)/);
   if (!fromDot) return first_surname;
   const spoken = foldName(first_surname);
-  const mailed = fromDot[1];
+  const mailed = fromDot[1]!;
   if (spoken === mailed) return first_surname;
   if (spoken === "hill" && mailed === "gill") return "Gill";
   if (spoken === "marine" && mailed === "gill") return first_surname;
+  if (spoken !== mailed && stringSimilarity(spoken, mailed) >= 0.75) {
+    return mailed.charAt(0).toUpperCase() + mailed.slice(1);
+  }
   return first_surname;
 }
 
@@ -404,9 +502,29 @@ export type CallContext = {
   callId: string;
   fromNumber?: string;
   platform: PlatformClient;
+  configVersion?: string;
+  routingMode?: "shadow" | "enforce";
+  actionTools?: boolean;
+  postCallWebhook?: boolean;
+  postCallEndpoint?: string;
+  zeroRetention?: boolean;
+  simulationMode?: boolean;
+  twilioCallSid?: string;
+  patientName?: string;
+  patientId?: string;
+  insurer?: string;
+  transcript?: Array<{ speaker: "caller" | "agent"; text: string }>;
+  escalationFails?: number;
+  frustrationThreshold?: number;
+  failureCount?: number;
+  frustrationScore?: number;
+  route?: "general" | "actions" | "human";
+  intent?: string;
+  outcome?: string;
+  outcomeReason?: string;
   submitted?: boolean;
-  lastDecline?: string;
-  lastBlocked?: string;
+  lastDecline?: string | undefined;
+  lastBlocked?: string | undefined;
   userTurns?: number;
   knownPatient?: boolean;
   draftBook?: {
@@ -415,8 +533,8 @@ export type CallContext = {
     location_id: string;
     appointment_type_id: string;
     slot: string;
-    policy_id: string;
-  };
+    policy_id: Insurer;
+  } | undefined;
 };
 
 export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
@@ -425,6 +543,7 @@ export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
   ctx.draftBook = undefined;
   await ctx.platform.submitBook({ call_id: ctx.callId, ...draft });
   ctx.submitted = true;
+  ctx.outcome = "cita";
 }
 
 export async function runClinicTool(
@@ -649,6 +768,7 @@ export async function runClinicTool(
       ctx.draftBook = book;
       const result = await ctx.platform.submitBook({ call_id: ctx.callId, ...book });
       ctx.submitted = true;
+      ctx.outcome = "cita";
       ctx.draftBook = undefined;
       return JSON.stringify(result);
     }
@@ -669,18 +789,37 @@ export async function runClinicTool(
       const result = await ctx.platform.submitNoAction({ call_id: ctx.callId, reason });
       ctx.draftBook = undefined;
       ctx.submitted = true;
+      ctx.outcome = "sin_cita";
+      ctx.outcomeReason = reason;
       return JSON.stringify(result);
     }
     case "submit_escalate": {
       if (ctx.submitted) return alreadySubmitted();
-      const reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
-      if (!reason || !OUTCOME_REASONS.has(reason)) {
-        return JSON.stringify({ error: "reason required", next_step: "Use a closed OutcomeReason." });
-      }
-      const result = await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
+      let reason = coerceOutcomeReason(asString(params.reason), ctx.lastBlocked);
+      if (!reason || !OUTCOME_REASONS.has(reason)) reason = "out_of_scope";
+      const result = ctx.simulationMode
+        ? { accepted: true, action: "ESCALATE" as const, reason, simulated: true }
+        : await ctx.platform.submitEscalate({ call_id: ctx.callId, reason });
+      const summary = [
+        ctx.patientName ? `Paciente ${ctx.patientName}.` : null,
+        `Motivo ${reason.replaceAll("_", " ")}.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const transfer = await transferTwilioCall(ctx.simulationMode ? undefined : ctx.twilioCallSid, summary);
       ctx.draftBook = undefined;
       ctx.submitted = true;
-      return JSON.stringify(result);
+      ctx.outcome = "escalado";
+      ctx.outcomeReason = reason;
+      const transferPayload = transfer.configured
+        ? {
+            transferred: transfer.transferred,
+            originated: transfer.originated ?? false,
+            ...(transfer.callSid ? { callSid: transfer.callSid } : {}),
+            ...(transfer.error ? { twilio_error: transfer.error } : {}),
+          }
+        : { transferred: false, twilio_error: transfer.error ?? "not_configured" };
+      return JSON.stringify({ ...result, transfer: transferPayload });
     }
     case "submit_register": {
       if (ctx.submitted) return alreadySubmitted();
@@ -740,6 +879,7 @@ export async function runClinicTool(
         });
       ctx.draftBook = undefined;
       ctx.submitted = true;
+      ctx.outcome = "alta";
       return JSON.stringify(result);
     }
     case "submit_cancel": {
@@ -749,6 +889,7 @@ export async function runClinicTool(
       const result = await ctx.platform.submitCancel({ call_id: ctx.callId, appointment_id });
       ctx.draftBook = undefined;
       ctx.submitted = true;
+      ctx.outcome = "cancelacion";
       return JSON.stringify(result);
     }
     case "submit_reschedule": {
@@ -771,6 +912,7 @@ export async function runClinicTool(
         });
       ctx.draftBook = undefined;
       ctx.submitted = true;
+      ctx.outcome = "cambio";
       return JSON.stringify(result);
     }
     default:

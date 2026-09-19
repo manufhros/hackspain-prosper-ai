@@ -39,6 +39,19 @@ actionCases.push({ id: "multiple-intents", input: { ...base, accepted: [booking]
 actionCases.push({ id: "pending-not-accepted", input: { ...base, pending: { actions: [booking], delivered: true, needsReoffer: false, speech: consentOffer },
   candidate: tool("complete_call", { actions: [booking] }) }, expected: ["revise", "clarify"] });
 
+const rescheduleIdentity: ActionInput = { ...base, evidence: [], conversation: [
+  { role: "caller", text: "Quiero mover mi cita del 13 de octubre a las 12:00 al 29 de septiembre a las 9:45 con la doctora Elena Iglesias en Arenal Sur, con Cigna." },
+  { role: "agent", text: "¿Me dice su nombre completo y su DNI?" },
+  { role: "caller", text: "Mi nombre es Test Example. Mi DNI es 48064716." },
+  { role: "agent", text: "¿Me confirma la letra de su DNI?" },
+  { role: "caller", text: "La letra E es GEREN." },
+] };
+actionCases.push(
+  { id: "unclear-dni-targeted-question", input: { ...rescheduleIdentity, candidate: { kind: "speech", text: "¿Me repite su DNI completo, con todos los números y la letra final?" } }, expected: ["execute"] },
+  { id: "unclear-dni-not-unclear-action", input: { ...rescheduleIdentity, candidate: { kind: "speech", text: "¿Qué desea que haga ahora con su solicitud?" } }, expected: ["revise"] },
+  { id: "unclear-dni-no-guessed-letter", input: { ...rescheduleIdentity, candidate: tool("directory", { name: "Test Example", national_id: "48064716Y" }) }, expected: ["revise"] },
+);
+
 // Match the production controller input: Jev sees each actual tool contract.
 for (const item of actionCases) {
   const candidate = item.input.candidate;

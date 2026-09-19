@@ -1,4 +1,4 @@
-import { allowAction } from "./fixtures/action-decision";
+import { actionResult, allowAction } from "./fixtures/action-decision";
 import { expect, test } from "bun:test";
 import { cases, type ObjectValue, type Outcome } from "../src/data";
 import { evaluateBatch, parseResults } from "../src/evaluate";
@@ -537,8 +537,80 @@ test("Jev rejection blocks clinic requests and repeated unsafe candidates stop a
   const inference = new FakeInference([directory(), directory(), directory()]);
   inference.decideAction = async () => ({ choice: "revise", probability: 1, confidence: 1, elapsed_ms: 1, model: "fake-jev" });
   const agent = new Receptionist(inference, clinic, bookCase.reference_time, "en");
-  expect(await agent.turn(identityText, signal())).toContain("What would you like");
+  await expect(agent.turn(identityText, signal())).rejects.toThrow("Action decision rejected two candidates");
   expect(requests).toHaveLength(0); expect(inference.seen).toHaveLength(2);
+  expect(agent.record).toBeUndefined();
+});
+test("reported rescheduling loop asks for the blocked DNI and resumes the original request", async () => {
+  const name = "Ignacio Vázquez Moreno";
+  const request = "Quiero mover mi cita del martes 13 de octubre de 2026 a las 12.00 al martes 29 de septiembre de 2026 a las 9.45 con la doctora Elena Iglesias en Arenal Sur y que se facture a mi plan Cigna.";
+  const identity = (national_id: string) => call("directory", { name, national_id });
+  const move = { action: "RESCHEDULE", appointment_id: "A-future", provider_id: "PR01", location_id: "sur",
+    slot: "2026-09-29T09:45:00+02:00", policy_id: "cigna" };
+  const inference = new FakeInference([
+    say("¿Me dice su nombre completo y su DNI?"),
+    identity("65699248"), say("¿Me confirma la letra de su DNI?"),
+    identity("65699248E"), say("¿La letra es E?"),
+    identity("65699248E"), identity("65699248R"),
+    identity("65699248R"), call("appointments", { patient_id: "P00001" }),
+    call("availability", { patient_id: "P00001", provider_id: "PR01", date_from: "2026-09-29", date_to: "2026-09-29" }),
+    offer({ actions: [move] }),
+  ]);
+  const decisions = [actionResult("execute"), actionResult("execute"), actionResult("execute"),
+    actionResult("revise", 0.85), actionResult("execute", 0.56), actionResult("revise", 0.98), actionResult("revise", 0.9)];
+  inference.decideAction = async input => decisions.shift() ?? actionResult(input.candidate ? "execute" : "finish");
+  const requests: string[] = [];
+  const clinic: ClinicReader = { async request(request) {
+    requests.push(request.path);
+    const data = request.path.includes("/directory?") ? { matches: [{ patient_id: "P00001", given_name: "Ignacio", first_surname: "Vázquez", second_surname: "Moreno", national_id: "65699248R" }] }
+      : request.path.includes("/appointments") ? { appointments: [{ appointment_id: "A-future", patient_id: "P00001", provider_id: "PR01", location_id: "sur", start_time: "2026-10-13T12:00:00+02:00" }] }
+      : { slots: [{ ...move, start_time: move.slot, appointment_type_id: "review", provider_name: "Dra. Elena Iglesias", payable_with: ["cigna"] }] };
+    return { status: 200, elapsed_ms: 0, meaning: "OK", data };
+  } };
+  const agent = new Receptionist(inference, clinic, "2026-09-19T14:41:18Z", "es", () => {}, { mode: "platform" });
+  await agent.turn(request, signal()); agent.markDelivered();
+  await agent.turn(`Mi nombre es ${name}. Mi DNI es 65699248.`, signal()); agent.markDelivered();
+  expect(await agent.turn("la letra E es GEREN.", signal())).toContain("todos los números y la letra final"); agent.markDelivered();
+  expect(await agent.turn(request, signal())).toContain("todos los números y la letra final"); agent.markDelivered();
+  expect(requests).toHaveLength(0);
+  expect(agent.record).toBeUndefined();
+  const proposal = await agent.turn("Mi DNI completo es 65699248R.", signal()); agent.markDelivered();
+  expect(proposal).toContain("Cambiar la cita");
+  expect(proposal).toContain("Elena Iglesias");
+  expect(proposal).toContain("09:45");
+  expect(agent.record).toBeUndefined();
+  expect(requests).toHaveLength(3);
+  expect(inference.seen.at(-1)!.messages.some(m => m.role === "user" && m.content === request)).toBe(true);
+  await agent.turn("Sí, cambie la cita.", signal());
+  expect(agent.record).toEqual({ actions: [move] });
+  expect(agent.transcript.some(t => t.text.includes("Qué desea que haga"))).toBe(false);
+});
+test("uncertain speech is repaired into a specific question without executing a rejected draft", async () => {
+  const inference = new FakeInference([say("What should I do?"), say("Which day would you prefer?")]);
+  let decisions = 0;
+  inference.decideAction = async () => actionResult("execute", decisions++ ? 0.99 : 0.56);
+  const agent = new Receptionist(inference, noClinic, bookCase.reference_time, "en");
+  expect(await agent.turn("I want to move my appointment.", signal())).toBe("Which day would you prefer?");
+  expect(agent.transcript.filter(t => t.role === "agent")).toEqual([{ role: "agent", text: "Which day would you prefer?" }]);
+  expect(inference.seen[1]!.messages[0]!.content).toContain("specific missing or ambiguous detail");
+  expect(agent.record).toBeUndefined();
+});
+test("uncertain completion retains consent and resumes the gated completion workflow", async () => {
+  const inference = new FakeInference([directory(), availability(), offer(), complete(booking)]);
+  inference.decideAction = async input => actionResult(input.candidate ? "execute" : "finish", input.candidate ? 0.99 : 0.81);
+  const agent = new Receptionist(inference, clinicFixture().clinic, bookCase.reference_time, "en");
+  await agent.turn(identityText + "Book a visit.", signal());
+  const closing = await agent.turn("Yes, book it.", signal());
+  expect(agent.record).toEqual(booking);
+  expect(closing).not.toContain("?");
+  expect(agent.messages.filter(m => m.tool_name === "offer_actions")).toHaveLength(1);
+});
+test("repeated speech rejections fail safely instead of asking the caller to repeat a clear action", async () => {
+  const inference = new FakeInference([say("Your appointment is confirmed."), say("Your appointment is booked.")]);
+  inference.decideAction = async () => actionResult("revise");
+  const agent = new Receptionist(inference, noClinic, bookCase.reference_time, "en");
+  await expect(agent.turn("Move my appointment.", signal())).rejects.toThrow("Action decision rejected two candidates");
+  expect(agent.transcript.filter(t => t.role === "agent")).toHaveLength(0);
   expect(agent.record).toBeUndefined();
 });
 test("Jev reviews final spoken wording and cannot bypass delivery or exact grounding", async () => {

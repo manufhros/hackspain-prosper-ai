@@ -2,7 +2,6 @@
 export const callPhrases = {
   en: {
     greeting: "Clínica Arenal, how can I help you?",
-    clarifyAction: "What would you like me to do next with your request?",
     waiting: "Of course, let me check that for you. One moment, please.",
     repeat: "I couldn't hear that clearly. Please repeat what you said.",
     repeatNationalId: "Could you repeat your DNI or NIE slowly, including all the digits and the final letter?",
@@ -12,7 +11,6 @@ export const callPhrases = {
   },
   es: {
     greeting: "Clínica Arenal, ¿en qué puedo ayudarle?",
-    clarifyAction: "¿Qué desea que haga ahora con su solicitud?",
     waiting: "De acuerdo, déjeme revisarlo un momento.",
     repeat: "No le he oído con claridad. Por favor, repita lo que ha dicho.",
     repeatNationalId: "¿Me repite su DNI o NIE despacio, con todos los números y la letra final?",
@@ -22,7 +20,6 @@ export const callPhrases = {
   },
   ca: {
     greeting: "Clínica Arenal, en què el puc ajudar?",
-    clarifyAction: "Què vol que faci ara amb la seva petició?",
     waiting: "D'acord, deixi'm revisar-ho un moment.",
     repeat: "No l'he sentit amb claredat. Si us plau, repeteixi el que ha dit.",
     repeatNationalId: "Em pot repetir el DNI o NIE a poc a poc, amb tots els números i la lletra final?",

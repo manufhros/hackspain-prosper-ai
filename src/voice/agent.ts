@@ -157,6 +157,13 @@ export class Receptionist {
     let speechRepairs = 0;
     let identityFailures = 0;
     let decisionRepairs = 0;
+    let recoverySpeech: string | undefined;
+    const recoverDecision = () => {
+      if (recoverySpeech) return this.speak(recoverySpeech);
+      // Exhausted internal repairs are a processing failure, not missing caller intent.
+      throw new Error("Action decision rejected two candidates; unable to safely continue");
+    };
+    const repairInstruction = "The candidate was not authorized and was NOT executed or spoken. Keep the caller's stated action and details. Correct the next step using retrieved facts, or ask only for the specific missing or ambiguous detail. For an unclear DNI/NIE, ask for the full identifier including its final letter; never guess it. Do not ask what action the caller wants when already stated, repeat the rejected candidate, or reconfirm accepted actions.";
     if (text) { this.transcript.push({ role: "caller", text }); this.messages.push({ role: "user", content: text }); }
     else this.messages.push({ role: "user", content: "The line has connected. Greet the caller." });
     this.turnStart = { messages: this.messages.length, transcript: this.transcript.length };
@@ -181,7 +188,8 @@ export class Receptionist {
     if (this.consent.acceptedActions.length && !this.consent.pendingAction) {
       const next = await this.decideAction(undefined, signal);
       if (next === "finish") { this.captureAccepted(); return this.closingSpeech(); }
-      if (next === "clarify") return this.speak(callPhrases[this.currentLanguage].clarifyAction);
+      // An uncertain coverage decision leaves accepted actions intact and lets
+      // the normal, gated workflow resolve the remaining work.
     }
     for (let step = 0; step < 10; step++) {
       signal.throwIfAborted();
@@ -198,23 +206,35 @@ export class Receptionist {
           const started = performance.now();
           let result: unknown;
           let identityClarification: string | undefined;
+          let decisionExhausted = false;
           const next = await this.decideAction({ kind: "tool", name: call.function.name, arguments: call.function.arguments }, signal);
           const rejected = next === "revise" || next === "clarify";
           try {
             if (next === "finish") { this.captureAccepted(); result = { completed: true, record: this.record }; }
             else if (rejected) {
-              result = { error: "Jev rejected this candidate. Use the caller's request and retrieved facts to propose a different next step. Do not repeat this candidate or reconfirm accepted actions." };
-              if (next === "clarify" || ++decisionRepairs >= 2) identityClarification = callPhrases[this.currentLanguage].clarifyAction;
-            } else result = await this.tool(call, signal);
+              result = { error: repairInstruction };
+              if (call.function.name === "directory") {
+                try { this.checkIdentityInput(call.function.arguments); }
+                catch (error) {
+                  if (error instanceof IdentityInputError) recoverySpeech = error.field === "national_id"
+                    ? callPhrases[this.currentLanguage].repeatNationalId : callPhrases[this.currentLanguage].repeatIdentity;
+                }
+              }
+              decisionExhausted = ++decisionRepairs >= 2;
+            } else {
+              result = await this.tool(call, signal);
+              if (call.function.name === "directory") recoverySpeech = undefined;
+            }
             signal.throwIfAborted();
           }
           catch (error) {
             signal.throwIfAborted();
             result = { error: error instanceof Error ? error.message : "Tool failed" };
             if (call.function?.name === "complete_call") this.completionFailures++;
-            if (error instanceof IdentityInputError && ++identityFailures >= 2) {
+            if (error instanceof IdentityInputError) {
               const phrases = callPhrases[this.currentLanguage];
-              identityClarification = error.field === "national_id" ? phrases.repeatNationalId : phrases.repeatIdentity;
+              recoverySpeech = error.field === "national_id" ? phrases.repeatNationalId : phrases.repeatIdentity;
+              if (++identityFailures >= 2) identityClarification = recoverySpeech;
             }
           }
           this.emit("tool", Math.round(performance.now() - started), `${call.function?.name ?? "unknown"}: ${isObject(result) && result.error ? result.error : "completed"}`);
@@ -227,6 +247,7 @@ export class Receptionist {
               ...(skipped.id ? { tool_call_id: skipped.id } : {}), content: JSON.stringify({ skipped: true, reason: "Not executed: the preceding action ended this turn. Wait for the caller." }) });
           }
           if (identityClarification) return this.speak(identityClarification);
+          if (decisionExhausted) return recoverDecision();
           if (completed) {
             // Completion is a terminal state, not another language-model turn.
             // Ignore any trailing tool requests and never ask for consent again.
@@ -276,8 +297,8 @@ export class Receptionist {
       }
       if (next === "clarify" || next === "revise") {
         this.messages.pop();
-        if (next === "clarify" || ++decisionRepairs >= 2) return this.speak(callPhrases[this.currentLanguage].clarifyAction);
-        this.messages.push({ role: "system", content: "Jev rejected the unspoken draft. Do not repeat it. Propose a grounded next step; never reconfirm already accepted actions or claim success before completion." });
+        if (++decisionRepairs >= 2) return recoverDecision();
+        this.messages.push({ role: "system", content: repairInstruction });
         continue;
       }
       if (reoffer) this.consent.offer(pending!.actions, this.options.mode !== "platform", pending!.provider, pending!.location, this.proposalSpeech(pending!.actions[0]!));
@@ -285,6 +306,14 @@ export class Receptionist {
       return this.speak(answer);
     }
     throw new Error("Local agent exceeded ten tool rounds in one turn");
+  }
+  private checkIdentityInput(args: ObjectValue) {
+    const callerTurns = this.transcript.filter(t => t.role === "caller").map(t => t.text);
+    for (const [field, value] of Object.entries(args)) {
+      const carrierHint = field === "phone" && value === this.options.callerPhone;
+      if (value != null && !carrierHint && !callerSupplied(field, value, callerTurns))
+        throw new IdentityInputError(`Ask the caller for ${field === "national_id" ? "DNI/NIE" : field}; never invent identifiers or search with a service name. For a birth date, ask for the month by name if ambiguous.`, field);
+    }
   }
   private async tool(call: ToolCall, signal: AbortSignal): Promise<unknown> {
     if (!isObject(call.function) || !isObject(call.function.arguments)) throw new Error("Malformed tool call");
@@ -310,13 +339,7 @@ export class Receptionist {
     const endpoint = readEndpoints.find(e => toolName(e.path) === name);
     if (!endpoint) throw new Error("Tool not allowed. Only read-only clinic tools, offer_actions and complete_call exist.");
     const callerTurns = this.transcript.filter(t => t.role === "caller").map(t => t.text);
-    if (name === "directory") {
-      for (const [field, value] of Object.entries(args)) {
-        const carrierHint = field === "phone" && value === this.options.callerPhone;
-        if (value != null && !carrierHint && !callerSupplied(field, value, callerTurns))
-          throw new IdentityInputError(`Ask the caller for ${field === "national_id" ? "DNI/NIE" : field}; never invent identifiers or search with a service name. For a birth date, ask for the month by name if ambiguous.`, field);
-      }
-    }
+    if (name === "directory") this.checkIdentityInput(args);
     if (["appointments", "availability"].includes(name) && (!args.patient_id || !this.patients.has(String(args.patient_id))))
       throw new Error("Verify the patient with directory(name plus a caller-supplied exact second identifier) before accessing appointments or patient-specific availability.");
     if (name === "availability") this.latestAvailability = undefined;

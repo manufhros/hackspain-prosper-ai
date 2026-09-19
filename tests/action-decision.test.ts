@@ -6,10 +6,10 @@ test("intermediate decisions and completion use separate confidence gates; denia
   const read = { kind: "tool" as const, name: "clinic", arguments: {} };
   const complete = { ...read, name: "complete_call" };
   expect(selectedAction(actionResult("execute", 0.7), read)).toBe("execute");
-  expect(selectedAction(actionResult("execute", 0.55), read)).toBe("clarify");
-  expect(selectedAction(actionResult("execute", 0.7), complete)).toBe("clarify");
+  expect(selectedAction(actionResult("execute", 0.55), read)).toBe("revise");
+  expect(selectedAction(actionResult("execute", 0.7), complete)).toBe("revise");
   expect(selectedAction(actionResult("execute", 0.81), complete)).toBe("execute");
-  expect(selectedAction(actionResult("finish", 0.81))).toBe("clarify");
+  expect(selectedAction(actionResult("finish", 0.81))).toBe("revise");
   expect(selectedAction(actionResult("finish", 0.9))).toBe("finish");
   expect(selectedAction(actionResult("revise", 0.55), complete)).toBe("revise");
 });

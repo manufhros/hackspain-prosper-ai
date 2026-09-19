@@ -11,7 +11,7 @@ import {
 } from "./twilio-transfer.ts";
 import { AGENT_PROMPT } from "./prompt.ts";
 import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
-import { loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
+import { applyAgentPrompt, conversationConfigOverride, loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent as emitLocalCallEvent } from "./call-event.ts";
 import {
   KEEP_PHONE_MS,
@@ -916,6 +916,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               socket.send(
                 JSON.stringify({
                   type: "conversation_initiation_client_data",
+                  conversation_config_override: conversationConfigOverride(runtime),
                   dynamic_variables: {
                     call_id: callId,
                     from_number: fromNumber ?? "",
@@ -929,7 +930,9 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
                     hospital_context: externalContext,
                     approved_faq: JSON.stringify(runtime.faq).slice(0, 8_000),
                     clinic_name: clinicName,
-                    desk_rules: AGENT_PROMPT,
+                    meta_prompt: runtime.metaPrompt,
+                    org_instructions: runtime.extraInstructions,
+                    desk_rules: applyAgentPrompt(runtime),
                   },
                 }),
               );

@@ -24,13 +24,17 @@ export default async function Agente() {
   } catch {
     /* keep the last known health state if Prosper is temporarily unreachable */
   }
+  endpoints = {
+    ...endpoints,
+    voiceId: agentConfig.active?.config.voiceId ?? agentConfig.draft.voiceId,
+  };
 
   return (
     <>
       <PageHeader
         crumbs={[{ label: "Consola turno", href: "/panel" }, { label: "Configuración del agente" }]}
         title="Configuración del agente"
-        description="Voz, comportamiento, preguntas frecuentes y endpoints del hospital. Publicar aplica los cambios en el runtime; guardar solo deja un borrador."
+        description="Tono, carácter, voz, FAQ y endpoints. Publicar aplica el runtime; Guardar en tono y endpoints deja el cambio para las próximas llamadas."
         actions={
           <Badge tone={agentConfig.active ? "success" : "neutral"} dot>
             {agentConfig.active ? `Publicada · ${new Date(agentConfig.active.publishedAt).toLocaleDateString("es-ES")}` : "Sin publicar"}

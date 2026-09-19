@@ -37,6 +37,40 @@ jobs:
             package-lock.json
             desk/package-lock.json
 
+      - name: Check Cloudflare deployment credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const { CLOUDFLARE_API_TOKEN: token, CLOUDFLARE_ACCOUNT_ID: account } = process.env;
+          function fail(message) {
+            console.error(`::error::${message}`);
+            process.exit(1);
+          }
+          if (!token || !account) {
+            fail('Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in repository Actions secrets.');
+          }
+          // Check the exact account-level endpoint Wrangler needs after uploading voice.
+          // Never print credentials or the API response body.
+          try {
+            const response = await fetch(
+              `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/workers/subdomain`,
+              { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) },
+            );
+            const body = await response.json();
+            if (!response.ok || body.success !== true) {
+              fail(`Cloudflare workers/subdomain check failed (HTTP ${response.status}). Ensure the deployment token has Account > Workers Scripts > Edit on the account in CLOUDFLARE_ACCOUNT_ID, and check token expiry/IP restrictions. See CLOUDFLARE.md. User > Memberships > Read does not grant access to this endpoint.`);
+            }
+            if (!body.result?.subdomain) {
+              fail('Register a workers.dev subdomain in Cloudflare Workers & Pages before deploying prosper-voice.');
+            }
+            console.log('Cloudflare workers.dev subdomain access verified.');
+          } catch {
+            fail('Could not complete the Cloudflare workers/subdomain check. Check Cloudflare availability and retry.');
+          }
+          NODE
+
       - name: Install locked dependencies
         run: |
           npm ci

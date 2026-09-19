@@ -58,6 +58,8 @@ only needs the two deployment credentials above. The desk configuration publishe
 The workflow installs both lockfiles with Node.js 22, checks voice types, builds
 OpenNext, and dry-runs both Worker bundles before applying pending D1 migrations,
 then deploying voice and desk.
+Before building or changing remote resources, CI checks that those same credentials
+can read the account's `workers.dev` subdomain.
 Deployments are serialized and an active deployment is not cancelled by a new push.
 GitHub may replace a pending run with a newer push while another run is active.
 Deployment of the two Workers is not atomic: if desk deployment fails after voice
@@ -80,6 +82,31 @@ The existing Worker unit suite is currently excluded from this deployment workfl
 Typechecking and both production build/package checks gate deployment.
 
 Reference: [Cloudflare GitHub Actions authentication setup](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/).
+
+### Authentication error 10000 at `workers/subdomain`
+
+An upload can succeed before Wrangler fails to read the account subdomain. Check
+the token used by the GitHub `CLOUDFLARE_API_TOKEN` secret: it needs **Account →
+Workers Scripts → Edit** on the account identified by `CLOUDFLARE_ACCOUNT_ID`.
+Verify its account scope, expiry, and any client IP restrictions. Retain D1 Edit
+and the zone permissions described above. If replacing the token, update the
+GitHub secret and rerun the workflow; changing repository code cannot grant API
+permissions to an existing token.
+
+The subdomain read endpoint accepts Workers Scripts Read or Write; deployment
+also needs Write (called Edit in the dashboard). The subsequent
+`User → Memberships → Read` warning comes from Wrangler's account diagnostics and
+does not identify the permission required by the failed endpoint. Account-owned
+tokens are supported for Workers; that warning alone is not a reason to switch
+token types.
+
+Keep the voice Worker's `workers.dev` route enabled: the documented Twilio/Prosper
+endpoint uses it. Disabling it to bypass the error would remove that public URL.
+The preflight verifies subdomain access only; later deployment steps still
+validate D1, Worker writes, and custom-domain permissions.
+
+References: [subdomain API permissions](https://developers.cloudflare.com/api/resources/workers/subresources/subdomains/methods/get/)
+and [account token compatibility](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/).
 
 ## Manual resource and secret setup
 

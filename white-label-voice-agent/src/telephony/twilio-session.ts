@@ -129,19 +129,31 @@ export class TwilioSession {
   }
 
   private async say(text: string): Promise<void> {
-    let frames: Uint8Array[];
-    try {
-      frames = await speakToMuLawFrames(text);
-    } catch (error) {
-      console.error("tts failed", error);
-      return;
-    }
+    // TTS troceado por frases y en pipeline: se genera la frase siguiente
+    // mientras suena la actual. El paciente oye al agente en cuanto está la
+    // PRIMERA frase (~1-2s) en vez de esperar a todo el audio (~4s).
+    const sentences = splitSentences(text);
+    if (sentences.length === 0) return;
     const generation = ++this.playGeneration;
     this.playing = true;
-    for (const frame of frames) {
+
+    const gen = (s: string) =>
+      speakToMuLawFrames(s).catch((e) => {
+        console.error("tts failed", e);
+        return [] as Uint8Array[];
+      });
+
+    let nextGen = gen(sentences[0]!);
+    for (let i = 0; i < sentences.length; i++) {
       if (this.closed || generation !== this.playGeneration) break;
-      this.sendFrame(frame);
-      await sleep(FRAME_MS);
+      const frames = await nextGen;
+      // Empieza a generar la siguiente ya, mientras reproducimos esta.
+      nextGen = i + 1 < sentences.length ? gen(sentences[i + 1]!) : Promise.resolve([]);
+      for (const frame of frames) {
+        if (this.closed || generation !== this.playGeneration) break;
+        this.sendFrame(frame);
+        await sleep(FRAME_MS);
+      }
     }
     if (generation === this.playGeneration) this.playing = false;
   }
@@ -196,4 +208,24 @@ async function lookupByPhone(
     console.error("directory hint", error);
     return "";
   }
+}
+
+/** Trocea una respuesta en frases para el TTS en pipeline. Frases muy cortas
+ * se fusionan para no fragmentar de más (más peticiones = más overhead). */
+function splitSentences(text: string): string[] {
+  const parts = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?¿¡…])\s+/);
+  const out: string[] = [];
+  for (const p of parts) {
+    const s = p.trim();
+    if (!s) continue;
+    if (out.length && (out[out.length - 1]!.length < 25 || s.length < 15)) {
+      out[out.length - 1] += " " + s;
+    } else {
+      out.push(s);
+    }
+  }
+  return out;
 }

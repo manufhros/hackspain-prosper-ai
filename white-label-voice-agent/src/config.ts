@@ -30,6 +30,6 @@ export const models = {
   caller: process.env.WL_CALLER_MODEL ?? "openai/gpt-5.6-luna", // simulador de paciente: barato
 
   stt: process.env.WL_STT_MODEL ?? "openai/whisper-1",
-  tts: process.env.WL_TTS_MODEL ?? "openai/tts-1-hd",
+  tts: process.env.WL_TTS_MODEL ?? "openai/tts-1", // estándar: mitad de precio y algo más rápido que -hd
   ttsVoice: process.env.WL_TTS_VOICE ?? "nova",
 };

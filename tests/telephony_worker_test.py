@@ -30,6 +30,9 @@ class SyntheticVoice:
 class WireAudioTests(unittest.TestCase):
     def setUp(self):
         self.heard = []
+        environment = patch.dict(os.environ, {"LOCAL_ASR_DECODER": "transcribe"})
+        environment.start()
+        self.addCleanup(environment.stop)
 
         def transcribe(audio, **kwargs):
             self.heard.append((audio, kwargs))
@@ -59,13 +62,24 @@ class WireAudioTests(unittest.TestCase):
     def test_wire_roundtrip_resamples_for_asr_and_detects_language(self):
         result = self.worker["handle"]({"operation": "speak", "text": "Hola", "language": "es", "wire": True})
         heard = self.worker["handle"]({"operation": "transcribe_mulaw", "payload": result["payload"]})
-        self.assertEqual(heard, {"text": "Hola", "language": "es"})
+        self.assertEqual(heard, {"text": "Hola", "language": "es", "decoder": "transcribe"})
         self.assertEqual(len(self.heard[0][0]), 16000)
         self.assertIsNone(self.heard[0][1]["language"])
 
     def test_silence_never_calls_whisper(self):
         result = self.worker["handle"]({"operation": "transcribe_mulaw", "payload": base64.b64encode(bytes([255]) * 8000).decode()})
         self.assertEqual(result["text"], "")
+        self.assertEqual(self.heard, [])
+
+    def test_opt_in_decoder_receives_resampled_audio_and_language_hint(self):
+        from unittest.mock import Mock
+        decode = Mock(return_value={"text": "Hola", "language": "ca", "decoder": "segment"})
+        wire = self.worker["handle"]({"operation": "speak", "text": "Hola", "language": "ca", "wire": True})
+        with patch.dict(os.environ, {"LOCAL_ASR_DECODER": "segment"}), patch.dict(sys.modules, {"recognition": types.SimpleNamespace(transcribe_segment=decode)}):
+            result = self.worker["handle"]({"operation": "transcribe_mulaw", "payload": wire["payload"], "language": "ca"})
+        self.assertEqual(result["decoder"], "segment")
+        self.assertEqual(len(decode.call_args.args[0]), 16000)
+        self.assertEqual(decode.call_args.args[2], "ca")
         self.assertEqual(self.heard, [])
 
     def test_oversized_or_malformed_payloads_are_rejected(self):

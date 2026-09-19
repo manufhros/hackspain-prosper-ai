@@ -70,10 +70,13 @@ def transcribe(path, language):
 def transcribe_audio(audio, language):
     if len(audio) < 1600 or float(np.sqrt(np.mean(audio ** 2))) < 0.002:
         return {"text": "", "language": language or "unknown"}
+    if os.environ.get("LOCAL_ASR_DECODER", "transcribe") == "segment":
+        from recognition import transcribe_segment
+        return transcribe_segment(audio, str(ASR_ROOT), language)
     result = mlx_whisper.transcribe(audio, path_or_hf_repo=str(ASR_ROOT),
                                     language=language or None, verbose=None,
                                     condition_on_previous_text=False, temperature=0.0)
-    return {"text": result["text"].strip(), "language": result.get("language", language)}
+    return {"text": result["text"].strip(), "language": result.get("language", language), "decoder": "transcribe"}
 
 
 def handle(request):

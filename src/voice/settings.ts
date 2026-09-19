@@ -7,6 +7,8 @@ export function localSettings(env: Record<string, string | undefined> = process.
   };
   const asrModel = env.LOCAL_ASR_MODEL?.trim() || "small";
   if (!["small", "large-v3-turbo"].includes(asrModel)) throw new Error("LOCAL_ASR_MODEL must be small or large-v3-turbo");
+  const asrDecoder = env.LOCAL_ASR_DECODER?.trim() || "transcribe";
+  if (!["transcribe", "segment"].includes(asrDecoder)) throw new Error("LOCAL_ASR_DECODER must be transcribe or segment");
   const backend = env.LOCAL_LLM_BACKEND?.trim() || "llama";
   if (!["llama", "ollama"].includes(backend)) throw new Error("LOCAL_LLM_BACKEND must be llama or ollama");
   return {
@@ -17,6 +19,7 @@ export function localSettings(env: Record<string, string | undefined> = process.
     ttsWorkers: integer("LOCAL_TTS_WORKERS", 2, 1, 4),
     ttsThreads: integer("LOCAL_TTS_THREADS", 2, 1, 4),
     asrModel: asrModel as "small" | "large-v3-turbo",
+    asrDecoder: asrDecoder as "transcribe" | "segment",
   };
 }
 export type LocalSettings = ReturnType<typeof localSettings>;

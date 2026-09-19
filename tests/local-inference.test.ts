@@ -56,7 +56,7 @@ test("truncated local responses never become speech or actions", async () => {
 });
 
 test("invalid capacities fail before starting processes; ASR variants cannot share weight directories", () => {
-  for (const env of [{ LOCAL_LLM_PARALLEL: "20" }, { LOCAL_TTS_WORKERS: "0" }, { LOCAL_TTS_THREADS: "NaN" }, { LOCAL_ASR_MODEL: "tiny.en" }]) {
+  for (const env of [{ LOCAL_LLM_PARALLEL: "20" }, { LOCAL_TTS_WORKERS: "0" }, { LOCAL_TTS_THREADS: "NaN" }, { LOCAL_ASR_MODEL: "tiny.en" }, { LOCAL_ASR_DECODER: "auto" }]) {
     expect(() => localSettings(env)).toThrow();
   }
   expect(speechAssets("large-v3-turbo").some(asset => asset.path.startsWith("whisper/"))).toBe(false);

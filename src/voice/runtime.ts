@@ -15,7 +15,7 @@ type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; r
 export interface Message { role: "system" | "user" | "assistant" | "tool"; content: string; tool_calls?: ToolCall[]; tool_name?: string; tool_call_id?: string; reasoning_details?: unknown[] }
 export interface ToolCall { id?: string; arguments_text?: string; function: { name: string; arguments: ObjectValue } }
 export interface ChatReply { message: Message; elapsed_ms: number; metrics?: Record<string, number | string> }
-export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean }
+export interface AudioReply { text?: string; payload?: string; file?: string; language?: string; decoder?: string; duration_ms?: number; elapsed_ms: number; queue_ms?: number; total_ms?: number; cache_hit?: boolean }
 export interface Inference {
   chat(messages: Message[], tools: unknown[], signal: AbortSignal, format?: unknown): Promise<ChatReply>;
   audio(operation: string, fields: ObjectValue, signal: AbortSignal): Promise<AudioReply>;
@@ -205,7 +205,7 @@ export class LocalRuntime implements Inference {
   }
   private startWorker(python: string, role: Worker["role"]) {
     const child = this.launch([python, join(root, "local-voice/worker.py"), voiceDir, role], {
-      LOCAL_ASR_MODEL: this.settings.asrModel, LOCAL_TTS_THREADS: String(this.settings.ttsThreads),
+      LOCAL_ASR_MODEL: this.settings.asrModel, LOCAL_ASR_DECODER: this.settings.asrDecoder, LOCAL_TTS_THREADS: String(this.settings.ttsThreads),
       OMP_NUM_THREADS: String(this.settings.ttsThreads), OPENBLAS_NUM_THREADS: "1", HF_HUB_OFFLINE: "1",
     });
     const worker: Worker = { process: child, role, pending: 0 };

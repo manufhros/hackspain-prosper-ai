@@ -60,7 +60,7 @@ export interface BenchmarkSample {
   expected_text: string; recognized_text?: string; detected_language?: string; language_correct?: boolean;
   model_metrics?: Record<string, number | string>;
   wer?: number; intent_correct?: boolean; first_chunk_ready_ms?: number; total_ms?: number;
-  asr_ms?: number; asr_queue_ms?: number; model_ms?: number; model_queue_ms?: number;
+  asr_ms?: number; asr_queue_ms?: number; asr_decoder?: string; model_ms?: number; model_queue_ms?: number;
   prefill_ms?: number; decode_ms?: number; tts_ms?: number; tts_queue_ms?: number;
 }
 export async function measureInference(inference: Inference, audio: SharedAudio, options: ReturnType<typeof benchmarkOptions>,
@@ -77,7 +77,7 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
     const automatic = await audio.run("transcribe_mulaw", { payload: speech.payload }, signal);
     const hinted = await audio.run("transcribe_mulaw", { payload: speech.payload, language: phrase.language }, signal);
     const score = (heard: typeof automatic) => ({ recognized_text: heard.text ?? "", detected_language: heard.language ?? null,
-      wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms });
+      wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms, decoder: heard.decoder });
     transcriptionDiagnostics.push({ language: phrase.language, expected_text: phrase.text, automatic: score(automatic), explicit_language: score(hinted) });
   }
   for (const concurrency of options.concurrency) {
@@ -92,6 +92,7 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
         try {
           const heard = await audio.run("transcribe_mulaw", { payload: recordings[phraseIndex]! }, turnSignal);
           sample.asr_ms = heard.elapsed_ms; sample.asr_queue_ms = heard.queue_ms ?? 0;
+          sample.asr_decoder = heard.decoder;
           sample.recognized_text = heard.text ?? ""; sample.detected_language = heard.language;
           sample.language_correct = heard.language === phrase.language;
           sample.wer = wordErrorRate(phrase.text, heard.text ?? "");

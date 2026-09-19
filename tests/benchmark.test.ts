@@ -17,7 +17,7 @@ test("synthetic capacity benchmark retains per-language scores and does not clai
   const inference: Inference = {
     async audio(op, fields) {
       return op === "speak" ? { payload: String(fields.text), elapsed_ms: 1 } : {
-        text: String(fields.payload), language: benchmarkPhrases.find(phrase => phrase.text === fields.payload)?.language, elapsed_ms: 1 };
+        text: String(fields.payload), language: benchmarkPhrases.find(phrase => phrase.text === fields.payload)?.language, elapsed_ms: 1, decoder: "segment" };
     },
     async chat(messages) {
       const phrase = benchmarkPhrases.find(phrase => phrase.text === messages.at(-1)?.content)!;
@@ -36,6 +36,8 @@ test("synthetic capacity benchmark retains per-language scores and does not clai
   expect(report.samples[0]?.model_metrics).toMatchObject({ inference_ms: 1, load_ms: 0, prompt_tokens: 10, completion_tokens: 5 });
   expect(report.transcription_diagnostics).toHaveLength(3);
   expect(report.transcription_diagnostics.every(row => row.automatic.wer === 0 && row.explicit_language.wer === 0)).toBe(true);
+  expect(report.samples.every(sample => sample.asr_decoder === "segment")).toBe(true);
+  expect(report.transcription_diagnostics.every(row => row.automatic.decoder === "segment")).toBe(true);
 });
 
 test("benchmark exposes language detection errors even when intent passes", async () => {

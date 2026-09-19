@@ -1,5 +1,17 @@
 export type Source = "llamadas" | "demo";
 
+export type CallAction = {
+  id?: string;
+  name: string;
+  at: string | null;
+  reason: string | null;
+  summary: string;
+  status?: "pending" | "completed" | "failed" | "blocked" | "unknown";
+  parameters?: unknown;
+  result?: unknown;
+  latencyMs?: number;
+};
+
 export type TranscriptEntry = {
   id: string;
   at: string;
@@ -43,10 +55,5 @@ export type LoggedCall = {
   patientRating?: number | null;
   escalationAppropriate?: boolean | null;
   configVersion?: string | null;
-  actions?: Array<{
-    name: string;
-    at: string | null;
-    reason: string | null;
-    summary: string;
-  }>;
+  actions?: CallAction[];
 };

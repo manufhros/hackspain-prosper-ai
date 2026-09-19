@@ -79,3 +79,25 @@ test("historical and in-progress calls expose an honest empty transcript", async
   assert.equal(historical.call.outcome, "sin_cierre");
   assert.deepEqual(historical.transcript, []);
 });
+
+test("call detail pairs tools by ID, keeps repeated invocations and excludes other clinics", async (t) => {
+  const db = database(t);
+  await storeCallEvent(db, event("start", "call.started"));
+  for (const [id, type, payload] of [
+    ["received", "tool.received", { toolCallId: "a", toolName: "search_directory", parameters: { name: "Private", phone: "123" } }],
+    ["called", "tool.called", { toolCallId: "a", toolName: "search_directory" }],
+    ["result", "tool.completed", { toolCallId: "a", toolName: "search_directory", ok: true, latencyMs: 123, result: { matches: [] } }],
+    ["received-2", "tool.received", { toolCallId: "b", toolName: "search_directory", parameters: {} }],
+    ["failed", "tool.failed", { toolCallId: "b", toolName: "search_directory", ok: false }],
+    ["blocked", "tool.blocked", { toolCallId: "c", toolName: "submit_book", reason: "action_tools_disabled" }],
+    ["foreign", "tool.called", { orgSlug: "sanitas", toolCallId: "foreign", toolName: "search_directory" }],
+  ]) await storeCallEvent(db, event(id, type, payload));
+  const { call } = await readCallRecord(db, "arenal", "call");
+  assert.equal(call.actions.length, 3);
+  assert.equal(call.actions[0].status, "completed");
+  assert.equal(call.actions[0].latencyMs, 123);
+  assert.deepEqual(call.actions[0].result, { matches: [] });
+  assert.deepEqual(call.actions[0].parameters, { name: "[redacted]", phone: "[redacted]" });
+  assert.equal(call.actions[1].status, "failed");
+  assert.equal(call.actions[2].status, "blocked");
+});

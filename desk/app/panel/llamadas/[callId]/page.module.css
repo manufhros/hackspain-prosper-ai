@@ -69,3 +69,13 @@
   .turn { gap: 8px; padding-inline: 0; }
   .speaker { flex-direction: row; justify-content: space-between; }
 }
+
+.tool { border-bottom: 1px solid var(--border); }
+.tool:last-child { border-bottom: 0; }
+.tool summary { cursor: pointer; padding: 16px 12px; }
+.tool summary:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.toolHeading { display: inline-flex; flex-direction: column; gap: 4px; margin: 0 12px 8px 4px; }
+.toolHeading > span { color: var(--ink-2); font-size: 12px; }
+.toolContent { padding: 0 12px 16px; min-width: 0; }
+.toolContent h3 { font-size: 13px; margin: 16px 0 8px; }
+.toolContent pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; }

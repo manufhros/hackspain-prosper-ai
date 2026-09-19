@@ -25,6 +25,20 @@ export const TOOL_NAMES = {
   submit_escalate: ["Derivar llamada", "arrow-bend-up-right"],
 };
 const timeOptions = { timeZone: "Europe/Madrid" };
+export function clinicalDate(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}(?:$|T)/.test(value))
+    return String(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const date = new Date(dateOnly ? `${value}T12:00:00Z` : value);
+  if (!Number.isFinite(date.getTime())) return value;
+  return new Intl.DateTimeFormat("es-ES", {
+    ...timeOptions,
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    ...(dateOnly ? {} : { hour: "2-digit", minute: "2-digit" }),
+  }).format(date);
+}
 export const time = (date, seconds = false) =>
   new Date(date).toLocaleTimeString("es-ES", {
     ...timeOptions,

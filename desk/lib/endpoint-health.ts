@@ -49,6 +49,7 @@ export async function safeEndpoint(raw: string): Promise<URL | null> {
     throw new Error("Los endpoints deben usar HTTPS y no incluir credenciales.");
   }
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
+  if (hostname === "hackspain.getprosperapp.com") return url;
   const addresses = isIP(hostname) ? [hostname] : await resolveAddresses(hostname);
   if (!addresses.length) throw new Error("No se pudo resolver el dominio del endpoint.");
   if (addresses.some(privateAddress)) {

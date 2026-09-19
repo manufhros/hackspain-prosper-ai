@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readSetting, usesCloudflareStorage, writeSetting } from "./cloudflare-storage";
 import { PROSPER_API_BASE } from "./endpoint-health";
+import { DEFAULT_VOICE_ID } from "./voices";
 export { PROSPER_API_BASE } from "./endpoint-health";
 
 export type EndpointHealth = {
@@ -21,6 +22,12 @@ export type OrgAgentConfig = {
   postCallEndpoint: string;
   frustrationThreshold: number;
   faq: Array<{ id: string; question: string; answer: string }>;
+  metaPrompt: string;
+  extraInstructions: string;
+  firstMessage: string;
+  firstMessageEn: string;
+  language: string;
+  voiceId: string;
   health: Record<"preCall" | "actions" | "postCall", EndpointHealth>;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -81,6 +88,12 @@ export function defaultOrgAgentConfig(orgSlug: string): OrgAgentConfig {
     postCallEndpoint: `${PROSPER_API_BASE}/submissions`,
     frustrationThreshold: 75,
     faq: DEFAULT_FAQ.map((item) => ({ ...item })),
+    metaPrompt: "",
+    extraInstructions: "",
+    firstMessage: "{{clinic_name}}, buenos días. ¿En qué puedo ayudarle?",
+    firstMessageEn: "{{clinic_name}}, hello. How may I help you?",
+    language: "es",
+    voiceId: DEFAULT_VOICE_ID,
     health: {
       preCall: { ...EMPTY_HEALTH },
       actions: { ...EMPTY_HEALTH },
@@ -118,6 +131,12 @@ export async function readOrgAgentConfig(orgSlug: string): Promise<OrgAgentConfi
     actionEndpoint: merged.actionEndpoint.trim() || defaults.actionEndpoint,
     postCallEndpoint: merged.postCallEndpoint.trim() || defaults.postCallEndpoint,
     faq: merged.faq.length ? merged.faq : defaults.faq,
+    metaPrompt: String(merged.metaPrompt ?? "").slice(0, 4000),
+    extraInstructions: String(merged.extraInstructions ?? "").slice(0, 8000),
+    firstMessage: String(merged.firstMessage ?? "").trim() || defaults.firstMessage,
+    firstMessageEn: String(merged.firstMessageEn ?? "").trim() || defaults.firstMessageEn,
+    language: String(merged.language ?? "es").trim() || "es",
+    voiceId: String(merged.voiceId ?? defaults.voiceId).trim() || defaults.voiceId,
   };
 }
 

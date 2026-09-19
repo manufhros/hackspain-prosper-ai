@@ -4,7 +4,6 @@ export function patientAvatarUrl(seed: string) {
   const params = new URLSearchParams({
     seed,
     backgroundColor: "b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf",
-    radius: "50",
   });
   return `${API}/adventurer/svg?${params}`;
 }

@@ -30,6 +30,12 @@ export async function saveOrgIntegrationConfig(input: OrgAgentConfig) {
     ...input,
     orgSlug: input.orgSlug,
     frustrationThreshold: Math.min(100, Math.max(50, Number(input.frustrationThreshold))),
+    metaPrompt: String(input.metaPrompt ?? "").trim().slice(0, 4000),
+    extraInstructions: String(input.extraInstructions ?? "").trim().slice(0, 8000),
+    firstMessage: String(input.firstMessage ?? "").trim().slice(0, 280) || current.firstMessage,
+    firstMessageEn: String(input.firstMessageEn ?? "").trim().slice(0, 280) || current.firstMessageEn,
+    language: String(input.language ?? current.language).trim().slice(0, 8) || "es",
+    voiceId: String(input.voiceId ?? current.voiceId).trim() || current.voiceId,
     faq: input.faq
       .slice(0, 40)
       .map((item) => ({

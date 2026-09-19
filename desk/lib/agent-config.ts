@@ -3,6 +3,7 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readSetting, usesCloudflareStorage, writeSetting } from "./cloudflare-storage";
+import { DEFAULT_VOICE_ID, voiceNameFor } from "./voices";
 
 export type AgentConfig = {
   voiceId: string;
@@ -67,8 +68,8 @@ export const DEFAULT_FAQ: AgentConfig["faq"] = [
 ];
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
-  voiceId: "UOIqAnmS11Reiei1Ytkc",
-  voiceName: "Carolina · española peninsular",
+  voiceId: DEFAULT_VOICE_ID,
+  voiceName: voiceNameFor(DEFAULT_VOICE_ID),
   modelId: "eleven_flash_v2_5",
   voiceSpeed: 0.96,
   backgroundEnabled: true,
@@ -95,14 +96,11 @@ function asNumber(value: unknown, fallback: number) {
 
 export function normalizeAgentConfig(value: Partial<AgentConfig>): AgentConfig {
   const rawVoiceId = String(value.voiceId ?? DEFAULT_AGENT_CONFIG.voiceId).trim();
-  const dropLucia = rawVoiceId === "1XKosoC1PO6b8UZKO1CE";
   return {
     ...DEFAULT_AGENT_CONFIG,
     ...value,
-    voiceId: dropLucia ? DEFAULT_AGENT_CONFIG.voiceId : rawVoiceId,
-    voiceName: dropLucia
-      ? DEFAULT_AGENT_CONFIG.voiceName
-      : String(value.voiceName ?? DEFAULT_AGENT_CONFIG.voiceName).trim(),
+    voiceId: rawVoiceId,
+    voiceName: voiceNameFor(rawVoiceId),
     voiceSpeed: asNumber(value.voiceSpeed, DEFAULT_AGENT_CONFIG.voiceSpeed),
     backgroundVolume: asNumber(
       value.backgroundVolume,
@@ -244,14 +242,37 @@ export async function publishAgentConfig(config: AgentConfig): Promise<void> {
   const endpoint = `https://api.elevenlabs.io/v1/convai/agents/${agentId}`;
   const before = await fetch(endpoint, { headers });
   if (!before.ok) throw new Error(`No se pudo leer el agente (${before.status}).`);
-  const previous = (await before.json()) as { conversation_config?: unknown };
+  const previous = (await before.json()) as {
+    conversation_config?: {
+      tts?: Record<string, unknown> & { voice_id?: string };
+      language_presets?: Record<string, {
+        overrides?: { tts?: Record<string, unknown> & { voice_id?: string } };
+      }>;
+    };
+  };
+  const presets = previous.conversation_config?.language_presets ?? {};
+  const spanish = presets.es ?? {};
+  const ttsPatch = {
+    voice_id: config.voiceId,
+    model_id: config.modelId,
+    speed: config.voiceSpeed,
+    agent_output_audio_format: "ulaw_8000",
+  };
   const patch = {
     conversation_config: {
-      tts: {
-        voice_id: config.voiceId,
-        model_id: config.modelId,
-        speed: config.voiceSpeed,
-        agent_output_audio_format: "ulaw_8000",
+      tts: ttsPatch,
+      language_presets: {
+        ...presets,
+        es: {
+          ...spanish,
+          overrides: {
+            ...spanish.overrides,
+            tts: {
+              ...spanish.overrides?.tts,
+              ...ttsPatch,
+            },
+          },
+        },
       },
       conversation: {
         background_sound: config.backgroundEnabled
@@ -270,17 +291,15 @@ export async function publishAgentConfig(config: AgentConfig): Promise<void> {
     headers,
     body: JSON.stringify(patch),
   });
-  if (!updated.ok) throw new Error(`ElevenLabs rechazó la configuración (${updated.status}).`);
-  try {
-    await patchToolSounds(apiKey, config.typingEnabled, config.typingBehavior);
-    const check = await fetch(endpoint, { headers });
-    const remote = (await check.json()) as {
-      conversation_config?: { tts?: { voice_id?: string } };
-    };
-    if (!check.ok || remote.conversation_config?.tts?.voice_id !== config.voiceId) {
-      throw new Error("ElevenLabs no confirmó la voz publicada.");
-    }
-  } catch (error) {
+  if (!updated.ok) {
+    const detail = await updated.text().catch(() => "");
+    throw new Error(`ElevenLabs rechazó la configuración (${updated.status}${detail ? `: ${detail.slice(0, 180)}` : ""}).`);
+  }
+  const check = await fetch(endpoint, { headers });
+  const remote = (await check.json()) as typeof previous;
+  const topVoice = remote.conversation_config?.tts?.voice_id;
+  const spanishVoice = remote.conversation_config?.language_presets?.es?.overrides?.tts?.voice_id;
+  if (!check.ok || topVoice !== config.voiceId || (spanishVoice && spanishVoice !== config.voiceId)) {
     if (previous.conversation_config) {
       await fetch(endpoint, {
         method: "PATCH",
@@ -288,6 +307,15 @@ export async function publishAgentConfig(config: AgentConfig): Promise<void> {
         body: JSON.stringify({ conversation_config: previous.conversation_config }),
       });
     }
-    throw error;
+    throw new Error("ElevenLabs no confirmó la voz publicada.");
+  }
+  try {
+    await patchToolSounds(apiKey, config.typingEnabled, config.typingBehavior);
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? `${error.message} La voz sí quedó publicada.`
+        : "No se pudieron actualizar los sonidos de teclado. La voz sí quedó publicada.",
+    );
   }
 }

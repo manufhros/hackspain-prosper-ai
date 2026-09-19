@@ -29,6 +29,12 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
   if (pathname.startsWith("/api/agent-status")) return NextResponse.next();
+  if (pathname === "/api/simulate") {
+    if (!canOpen(session.role, "/pruebas")) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
 
   const section = sectionOf(pathname);
   if (section !== null) {

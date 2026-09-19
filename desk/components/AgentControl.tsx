@@ -6,6 +6,7 @@ import {
   saveAgentDraft,
 } from "@/app/panel/agente/agent-config-actions";
 import type { AgentConfig, AgentConfigState } from "@/lib/agent-config";
+import { RECEPTION_VOICES, voiceNameFor } from "@/lib/voices";
 import { useState, useTransition } from "react";
 import styles from "./AgentControl.module.css";
 
@@ -59,8 +60,16 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
       <div className={styles.voice}>
         <label>
           <span><strong>Voz de recepción</strong><small>Nativa de España · cálida y profesional</small></span>
-          <select value={draft.voiceId} onChange={(event) => update({ voiceId: event.target.value })}>
-            <option value="UOIqAnmS11Reiei1Ytkc">Carolina · español peninsular</option>
+          <select
+            value={draft.voiceId}
+            onChange={(event) => {
+              const voiceId = event.target.value;
+              update({ voiceId, voiceName: voiceNameFor(voiceId) });
+            }}
+          >
+            {RECEPTION_VOICES.map((voice) => (
+              <option key={voice.id} value={voice.id}>{voice.name}</option>
+            ))}
           </select>
         </label>
         <label>
@@ -112,8 +121,8 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
         onChange={(value) => update({ postCallWebhook: value })}
       />
       <Toggle
-        label="Redactar datos en auditoría"
-        copy="Oculta datos personales en la auditoría y omite el texto en transferencias. La transcripción se guarda en Llamadas."
+        label="Retención cero"
+        copy="No conserva audio ni transcripción."
         checked={draft.zeroRetention}
         onChange={(value) => update({ zeroRetention: value })}
       />

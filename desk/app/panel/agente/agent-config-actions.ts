@@ -9,6 +9,8 @@ import {
   type AgentConfig,
   type AgentConfigState,
 } from "@/lib/agent-config";
+import { CLINIC } from "@/lib/clinic";
+import { readOrgAgentConfig, saveOrgAgentConfig } from "@/lib/org-agent-config";
 import { getSession } from "@/lib/session";
 
 export type AgentConfigResult = {
@@ -54,6 +56,13 @@ export async function publishAgentDraft(input: AgentConfig): Promise<AgentConfig
       versions: [version, ...state.versions].slice(0, 20),
     };
     await writeAgentConfigState(next);
+    const org = await readOrgAgentConfig(CLINIC.slug);
+    await saveOrgAgentConfig({
+      ...org,
+      voiceId: config.voiceId,
+      updatedAt: version.publishedAt,
+      updatedBy: session.email,
+    });
     return { ok: true, message: "Configuración publicada y verificada.", state: next };
   } catch (error) {
     return {

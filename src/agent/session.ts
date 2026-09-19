@@ -4,7 +4,7 @@ import { callLog, callLogError, callLogWarn } from "./call-log.ts";
 import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts";
 import { holdFrame } from "./hold-audio.ts";
 import { AGENT_PROMPT } from "./prompt.ts";
-import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
+import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent as emitLocalCallEvent } from "./call-event.ts";
 import { currentAuditContext, withAuditContext } from "./audit.ts";
@@ -484,11 +484,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           }
           return;
         }
-        if (
-          callCtx.routingMode === "enforce" &&
-          callCtx.actionTools === false &&
-          !toolCall.tool_name.startsWith("submit_")
-        ) {
+        if (actionToolBlocked(callCtx, toolCall.tool_name)) {
           background(callCtx.audit?.("tool.blocked", { ...toolAudit, reason: "action_tools_disabled" }) ?? Promise.resolve());
           socket.send(
             JSON.stringify({

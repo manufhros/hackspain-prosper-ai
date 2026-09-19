@@ -543,8 +543,19 @@ export type CallContext = {
   } | undefined;
 };
 
+const AGENDA_TOOLS = new Set(["submit_book", "submit_register", "submit_cancel", "submit_reschedule"]);
+
+export function actionToolBlocked(ctx: CallContext, name: string): boolean {
+  return ctx.routingMode === "enforce" && ctx.actionTools === false && AGENDA_TOOLS.has(name);
+}
+
 export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
   if (ctx.submitted || !ctx.draftBook) return;
+  if (actionToolBlocked(ctx, "submit_book")) {
+    ctx.draftBook = undefined;
+    await ctx.audit?.("tool.blocked", { toolName: "submit_book", reason: "action_tools_disabled" });
+    return;
+  }
   const draft = ctx.draftBook;
   ctx.draftBook = undefined;
   await ctx.audit?.("action.flush_pending_booking", { parameters: draft });
@@ -558,6 +569,10 @@ export async function runClinicTool(
   name: string,
   params: Record<string, unknown>,
 ): Promise<string> {
+  if (actionToolBlocked(ctx, name)) {
+    await ctx.audit?.("tool.blocked", { toolName: name, reason: "action_tools_disabled" });
+    return JSON.stringify({ error: "action_tools_disabled", message: "Agenda actions are disabled. Offer human assistance." });
+  }
   switch (name) {
     case "search_directory": {
       const found = await ctx.platform.directory(

@@ -153,9 +153,28 @@ Spanish and Catalan telephone results from that run were:
 | turbo / transcribe | 2.4% | 6.6% | 821 ms | 846 ms |
 | turbo / segment | 2.4% | 7.0% | 449 ms | 459 ms |
 
-Small detected Catalan correctly on only 5/10 telephone recordings; turbo detected 10/10. Transcript inspection shows small frequently rendering Catalan as Spanish. Some turbo word errors reflect spelling and number formatting (`trenta per cent` versus `30%`), so literal WER is not a semantic error rate. Turbo/segment is the next quality/latency candidate, pending the corrected English evaluation and a separate concurrent full-stack benchmark. Its isolated serial timing does not establish 10–20-call capacity.
+Small detected Catalan correctly on only 5/10 telephone recordings; turbo detected 10/10. Transcript inspection shows small frequently rendering Catalan as Spanish. Some turbo word errors reflect spelling and number formatting (`trenta per cent` versus `30%`), so literal WER is not a semantic error rate. That run identified turbo/segment as the next quality/latency candidate, pending the corrected English evaluation below and a separate concurrent full-stack benchmark. Its isolated serial timing does not establish 10–20-call capacity.
 
-The worker now retains quiet audio for either decoder and skips only input shorter than 100 ms or exact digital silence; Whisper's no-speech handling remains active. Reports expose input RMS, skip reasons, empty-transcript counts and `decoded_worker_ms` excluding bypassed requests, while `worker_ms` continues to include all completed requests. Rerun `bun run benchmark:asr` with the same cached recordings to measure the correction. Offline regression tests cover quiet clean/telephone input reaching both decoder paths, silence handling and skip-aware reporting; they do not prove live recognition accuracy. Production model defaults and private `.env` remain unchanged.
+The worker now retains quiet audio for either decoder and skips only input shorter than 100 ms or exact digital silence; Whisper's no-speech handling remains active. Reports expose input RMS, skip reasons, empty-transcript counts and `decoded_worker_ms` excluding bypassed requests, while `worker_ms` continues to include all completed requests. The corrected run below reuses the same cached recordings to measure the correction. Offline regression tests cover quiet clean/telephone input reaching both decoder paths, silence handling and skip-aware reporting; they do not prove live recognition accuracy. Production model defaults and private `.env` remain unchanged.
+
+The corrected run (`recognition-1789821271493.json`) has the same input hash as the first run. All 240 operations decoded nonempty text, with no errors, skips or segment fallbacks. All six previously discarded English clips reached recognition in both audio formats and all four profiles. Spanish/Catalan recognized text was unchanged. Both turbo profiles detected all 60 clip/channel languages correctly; small still misidentified 4/10 clean and 5/10 telephone Catalan clips as Spanish.
+
+| Profile | Telephone EN / ES / CA WER | Telephone EN / ES / CA median ASR time |
+| --- | --- | --- |
+| small / transcribe | 8.0% / 6.7% / 46.0% | 221 / 256 / 259 ms |
+| small / segment | 8.0% / 6.3% / 45.2% | 140 / 170 / 185 ms |
+| turbo / transcribe | 4.7% / 2.4% / 6.6% | 791 / 817 / 826 ms |
+| turbo / segment | 4.2% / 2.4% / 7.0% | 419 / 436 / 446 ms |
+
+Turbo/segment is the preferred measured multilingual ASR candidate: both turbo decoders made 33 total telephone word errors across 692 reference words, while segment roughly halved median worker time. The per-language mix differs slightly; this is a small fixed sample, not statistical equivalence or clinical validation. Turbo/segment's clean-audio WER was 3.8% / 2.4% / 7.4%, and its telephone p95 was 449 / 468 / 517 ms. Remaining errors include actual substitutions as well as spelling/number formatting differences.
+
+The next capacity run combines turbo/segment with the previously favored two Qwen slots and two Piper workers. Stop other voice stacks and run this yourself; it starts the local inference stack and reuses the fixed synthetic capacity inputs:
+
+```sh
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=2 LOCAL_ASR_MODEL=large-v3-turbo LOCAL_ASR_DECODER=segment LOCAL_TTS_WORKERS=2 LOCAL_TTS_THREADS=2 bun run benchmark
+```
+
+This tests synchronized 1/5/10/20-turn bursts with three rounds each. Compare queueing and first-chunk latency with the two-slot small/segment baseline (`benchmark-1789820021198.json`) only after checking its input hash. Recognition-only timings cannot predict combined GPU contention or certify twenty live calls. Defaults remain unchanged pending that result.
 
 ## Use an OpenRouter model
 

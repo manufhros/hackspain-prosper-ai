@@ -11,7 +11,7 @@ import { PatientPhoneSocket } from "./phone-socket.ts";
 import { demoNumber, TwilioRequestError } from "./twilio.ts";
 import { verifyPhoneWebhook } from "./webhook.ts";
 
-type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string };
+type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string; toolCallId?: string; params?: unknown };
 export type OperationCall = { id: string; name: string; source: "llm" | "phone"; state: string; started: number; ended?: number; events: Entry[] };
 export type DemoState = { id: string; state: string; message: string; calls: OperationCall[] };
 type Dependencies = {
@@ -65,6 +65,8 @@ export class OperationsService {
     if (type === "ready") call.state = "En conversación";
     call.events.push({
       type, at: Date.now(),
+      ...(typeof event.toolCallId === "string" ? { toolCallId: event.toolCallId } : {}),
+      ...(event.params !== undefined ? { params: event.params } : {}),
       ...(typeof event.text === "string" ? { text: event.text } : {}),
       ...(typeof event.name === "string" ? { name: event.name } : {}),
       ...(typeof event.result === "string" ? { result: event.result } : {}),

@@ -1,4 +1,4 @@
-export type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string };
+export type Entry = { type: string; at: number; text?: string; name?: string; result?: string; language?: string; toolCallId?: string; params?: unknown };
 export type Call = { id: string; name: string; source: "llm" | "phone" | "mock"; state: string; started: number; ended?: number; events: Entry[] };
 export type Run = { id: string; state: string; message: string; calls: Call[] };
 export const toolLabels: Record<string, string> = {

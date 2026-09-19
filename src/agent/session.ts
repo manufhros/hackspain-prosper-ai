@@ -550,12 +550,14 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         callLog(tag, "tool", toolCall.tool_name, toolCall.parameters);
         sendMonitor({
           type: "tool",
+          toolCallId: toolCall.tool_call_id,
           name: toolCall.tool_name,
           params: toolCall.parameters,
         });
         const toolAudit = { toolCallId: toolCall.tool_call_id, toolName: toolCall.tool_name };
         background(callCtx.audit?.("tool.received", { ...toolAudit, parameters: toolCall.parameters }) ?? Promise.resolve());
         if (toolCall.tool_name === "end_call") {
+          sendMonitor({ type: "tool_result", toolCallId: toolCall.tool_call_id, name: toolCall.tool_name, result: JSON.stringify({ error: "El paciente controla el cierre de la llamada." }) });
           callLog(tag, "blocked end_call");
           background(callCtx.audit?.("tool.blocked", { ...toolAudit, reason: "caller_controls_hangup" }) ?? Promise.resolve());
           if (socket.readyState === SOCKET_OPEN) {
@@ -572,6 +574,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           return;
         }
         if (actionToolBlocked(callCtx, toolCall.tool_name)) {
+          sendMonitor({ type: "tool_result", toolCallId: toolCall.tool_call_id, name: toolCall.tool_name, result: JSON.stringify({ error: "Esta acción está deshabilitada para la organización." }) });
           background(callCtx.audit?.("tool.blocked", { ...toolAudit, reason: "action_tools_disabled" }) ?? Promise.resolve());
           socket.send(
             JSON.stringify({
@@ -593,6 +596,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
             callLog(tag, "tool result", toolCall.tool_name, result.slice(0, 800));
             sendMonitor({
               type: "tool_result",
+              toolCallId: toolCall.tool_call_id,
               name: toolCall.tool_name,
               result: result.slice(0, 4_000),
             });
@@ -674,7 +678,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
             }
           })
           .catch(async (error: unknown) => {
-            sendMonitor({ type: "error", text: "La herramienta no pudo completar la operación.", name: toolCall.tool_name });
+            sendMonitor({ type: "error", toolCallId: toolCall.tool_call_id, text: "La herramienta no pudo completar la operación.", name: toolCall.tool_name });
             toolErrors += 1;
             callCtx.failureCount = (callCtx.failureCount ?? 0) + 1;
             callLogError(tag, "tool error", toolCall.tool_name, error);

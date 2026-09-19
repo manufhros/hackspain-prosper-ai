@@ -8,6 +8,7 @@ import { Badge } from "./components/badge";
 import { Separator } from "./components/separator";
 import { duration, toolLabels, type Call } from "./types";
 import styles from "./Operations.module.css";
+import { ToolCall, toolRows } from "./ToolCall";
 
 export function Chat({ call }: { call?: Call }) {
   const language = call?.events.findLast(event => event.type === "user" && event.language)?.language;
@@ -30,7 +31,8 @@ export function Chat({ call }: { call?: Call }) {
     <div className={styles.chatBody}><ScrollArea ref={area} className="h-full">
       <div className={styles.messages} role="log" aria-label="Transcripción">
         {!call?.events.length && <div className={styles.empty}><MessageSquare size={28}/><p>La transcripción aparecerá aquí</p></div>}
-        {call?.events.map((event, index) => ["agent", "user"].includes(event.type) ?
+        {call && toolRows(call.events).map(({ event, result, index }) => ["tool", "tool_result"].includes(event.type) ?
+          <ToolCall key={index} event={event} result={result} ended={call.ended}/> : ["agent", "user"].includes(event.type) ?
           <article key={index} className={event.type === "user" ? styles.patient : styles.agent}>
             <Avatar className="h-7 w-7"><AvatarFallback>{event.type === "agent" ? <Headphones size={14}/> : <UserRound size={14}/>}</AvatarFallback></Avatar>
             <div><div className={styles.messageMeta}><strong>{event.type === "agent" ? "Agente" : call.name}</strong><time>{duration(call.started, event.at)}</time></div><p>{event.text}</p></div>

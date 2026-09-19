@@ -55,6 +55,16 @@ test("three concurrent patients use Lucia core; phone uses Guille exact playback
   assert.ok(f.hungup >= 1);
   assert.ok(!service.phoneAllowed(new URL(f.webhook)));
 });
+test("tool monitoring preserves correlation, parameters and results", async () => {
+  const f = fixture(); const service = new OperationsService(f.deps);
+  service.start(false); await settle();
+  f.options[0]!.onMonitor?.({ type: "tool", name: "search_availability", toolCallId: "tool-1", params: { specialty: "general" } });
+  f.options[0]!.onMonitor?.({ type: "tool_result", name: "search_availability", toolCallId: "tool-1", result: '{"slots":[]}' });
+  const events = service.snapshot().calls[0]!.events;
+  assert.deepEqual(events.find(event => event.type === "tool")?.params, { specialty: "general" });
+  assert.equal(events.find(event => event.type === "tool_result")?.toolCallId, "tool-1");
+  await service.stop();
+});
 test("credential failure prevents all provider sessions and dialing", async () => {
   const f = fixture();
   const service = new OperationsService({ ...f.deps, checkPhone: async () => { throw new Error("Twilio respondió 401"); } });

@@ -113,8 +113,8 @@ export function AgentControl({ initialState }: { initialState: AgentConfigState 
         onChange={(value) => update({ postCallWebhook: value })}
       />
       <Toggle
-        label="Retención cero"
-        copy="No conserva audio ni transcripción."
+        label="Redactar datos en auditoría"
+        copy="Oculta datos personales en la auditoría y omite el texto en transferencias. La transcripción se guarda en Llamadas."
         checked={draft.zeroRetention}
         onChange={(value) => update({ zeroRetention: value })}
       />

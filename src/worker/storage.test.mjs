@@ -6,7 +6,7 @@ import { readRuntimeConfig, storeCallEvent } from "./storage.ts";
 
 function database() {
   const sqlite = new DatabaseSync(":memory:");
-  for (const name of ["0001_desk_storage.sql", "0002_voice_calls.sql", "0003_agent_audit.sql"]) {
+  for (const name of ["0001_desk_storage.sql", "0002_voice_calls.sql", "0003_agent_audit.sql", "0004_call_transcripts.sql"]) {
     sqlite.exec(readFileSync(new URL(`../../desk/migrations/${name}`, import.meta.url), "utf8"));
   }
   const db = {
@@ -42,6 +42,30 @@ test("Workers share global FAQ and behavior while isolating hospital endpoints",
     assert.equal(sanitas.preCallEndpoint, "");
     assert.deepEqual(sanitas.faq, [{ question: "Global?", answer: "Yes" }]);
     assert.deepEqual(arenal.faq, sanitas.faq);
+  } finally { sqlite.close(); }
+});
+
+test("full transcripts survive retries, out-of-order writes and audit redaction", async () => {
+  const { sqlite, db } = database();
+  try {
+    const turns = Array.from({ length: 20 }, (_, index) => ({
+      eventId: `turn-${index}`, schemaVersion: 1, callId: "conversation", configVersion: "v2",
+      occurredAt: "2026-09-19T12:00:00.000Z",
+      type: index % 2 ? "conversation.agent" : "conversation.user",
+      payload: { orgSlug: "arenal", sequence: index + 1, text: `Turn ${index}`, zeroRetention: true,
+        ...(index === 0 ? { source: "simulator" } : {}) },
+    }));
+    for (const event of [...turns].reverse()) await storeCallEvent(db, event);
+    await storeCallEvent(db, turns[0]);
+    await storeCallEvent(db, { ...turns[0], eventId: "blank", payload: { text: "  " } });
+    const rows = sqlite.prepare("SELECT * FROM voice_transcript_entries ORDER BY sequence").all();
+    assert.equal(rows.length, 20);
+    assert.deepEqual(rows.map(row => row.text), turns.map(turn => turn.payload.text));
+    assert.equal(rows[0].speaker, "caller");
+    assert.equal(rows[1].speaker, "agent");
+    assert.ok(rows.every(row => row.org_slug === "arenal"));
+    const audit = sqlite.prepare("SELECT payload FROM agent_events WHERE event_id = 'turn-0'").get();
+    assert.equal(JSON.parse(audit.payload).text, "[redacted]");
   } finally { sqlite.close(); }
 });
 

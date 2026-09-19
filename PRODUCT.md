@@ -39,7 +39,7 @@ No es un chatbot genérico ni un listado de clínicas. El agente trabaja contra 
 - Panel: resumen (KPIs, resultados, consultas, actividad por centro, valor de la agenda), llamadas con trazabilidad, configuración del agente y simulador de voz.
 - La clínica no ve la configuración del agente; hash sí.
 - El modelo de voz no se expone a roles de hospital; hash lo trata como configuración restringida.
-- No inventar pacientes, DNI ni citas. No mostrar transcripción si el centro activa retención cero.
+- No inventar pacientes, DNI ni citas. La transcripción de cada llamada se conserva en D1 para su vista de detalle, incluidos los turnos del simulador. La opción de privacidad redacta la auditoría y omite la transcripción en transferencias; no elimina la transcripción del registro de llamadas. Este cambio de retención fue solicitado explícitamente para el detalle de llamadas.
 - Abierto: permisos más finos (quién ve nómina vs citas) si hace falta más que el local del correo.
 
 ## Brand Commitments

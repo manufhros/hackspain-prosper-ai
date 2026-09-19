@@ -10,6 +10,17 @@ export async function readRuntimeConfig(db: D1Database, orgSlug: string) {
 }
 
 export async function storeCallEvent(db: D1Database, event: CallEvent): Promise<void> {
+  // The call record retains the conversation even when diagnostic PII is redacted.
+  // Persist each turn, not the handoff context's rolling twelve-message window.
+  if ((event.type === "conversation.user" || event.type === "conversation.agent") &&
+      typeof event.payload.text === "string" && event.payload.text.trim()) {
+    await db.prepare(`INSERT INTO voice_transcript_entries
+      (event_id, call_id, org_slug, occurred_at, sequence, speaker, text)
+      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(event_id) DO NOTHING`)
+      .bind(event.eventId, event.callId, String(event.payload.orgSlug ?? "arenal"),
+        event.occurredAt, Number(event.payload.sequence ?? 0),
+        event.type === "conversation.user" ? "caller" : "agent", event.payload.text).run();
+  }
   const payload = auditPayload(event.payload, event.payload.zeroRetention !== false);
   await db.prepare(`INSERT INTO agent_events
     (event_id, schema_version, call_id, config_version, type, occurred_at, payload)

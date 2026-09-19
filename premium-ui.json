@@ -1,0 +1,14 @@
+{
+  "profile": "product-admin",
+  "sourceRoots": ["public"],
+  "locale": "es-ES",
+  "canonicalMap": "UX-CONTRACT.md",
+  "requiredCapabilities": ["Form", "Scrollbar", "Date"],
+  "ownership": { "Date": "typed" },
+  "requiredCommands": ["typecheck", "unit", "syntax"],
+  "commands": {
+    "typecheck": "npm run typecheck",
+    "unit": "npm test",
+    "syntax": "npm run check:ui"
+  }
+}

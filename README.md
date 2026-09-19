@@ -95,10 +95,12 @@ The segment run (`benchmark-1789819486185.json`, small, four LLM slots) used seg
 
 At twenty turns, ASR worker median fell from 339 to 236 ms and ASR queue p95 from 6.14 to 4.30 s. Model queue p95 rose to 4.23 s as recognition supplied turns faster; total model p95 was 5.86 s. TTS queue p95 stayed at zero. Catalan WER on the repeated phrase improved from 50% to 40%, while English/Spanish remained exact. This is the fastest measured profile so far, but does not settle Catalan accuracy or validate twenty live calls. Keep segment opt-in until broader utterances are checked.
 
-Next compare eight LLM slots with the existing four-slot small/segment run; this is an experiment, not an assumption that more slots are faster:
+The eight-slot run (`benchmark-1789819610709.json`, small/segment) regressed at every tested concurrency. At ten turns p50/p95 rose from 4.18/5.40 s to 5.16/6.11 s; at twenty, from 6.86/10.24 s to 9.20/11.74 s. All 108 intents passed with no decoder fallbacks; the repeated Catalan phrase still scored 40% WER. At twenty turns, median decode time per generated token increased from 56.6 to 117.7 ms with the same median output length (29 tokens). Lower model queueing did not compensate for slower decoding, consistent with resource contention rather than longer responses. Four slots remain the best measured candidate; do not promote eight.
+
+Next compare two LLM slots with the four-slot small/segment run to check whether lower parallelism improves throughput on this workload:
 
 ```sh
-LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=8 LOCAL_ASR_MODEL=small LOCAL_ASR_DECODER=segment bun run benchmark
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=2 LOCAL_ASR_MODEL=small LOCAL_ASR_DECODER=segment bun run benchmark
 ```
 
 Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the original Ollama baseline, so that earlier comparison cannot isolate a server-only speedup. Retain each report and change one variable at a time.

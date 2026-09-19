@@ -2,11 +2,24 @@ import type { CapturedAction } from "../clinic/tools.ts";
 
 type Accept = { actions: Record<string, unknown>[] };
 
+/** Aplana un REGISTER: el contrato anida los campos bajo `new_patient`, pero
+ * el agente los envía planos (y la API los acepta planos). Comparamos planos. */
+function flatten(action: Record<string, unknown>): Record<string, unknown> {
+  const np = action.new_patient;
+  if (np && typeof np === "object") {
+    const { new_patient: _drop, ...rest } = action;
+    return { ...rest, ...(np as Record<string, unknown>) };
+  }
+  return action;
+}
+
 /** Una acción capturada casa con una esperada si el tipo y todos los campos
  * de la esperada coinciden (los ids se comparan exactos, sin normalizar). */
-function actionMatches(got: CapturedAction, exp: Record<string, unknown>): boolean {
+function actionMatches(got: CapturedAction, expRaw: Record<string, unknown>): boolean {
+  const exp = flatten(expRaw);
+  const g = flatten(got);
   for (const [k, v] of Object.entries(exp)) {
-    if (String(got[k] ?? "") !== String(v ?? "")) return false;
+    if (String(g[k] ?? "") !== String(v ?? "")) return false;
   }
   return true;
 }

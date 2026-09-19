@@ -4,6 +4,9 @@ export const consentBooking: Action = { action: "BOOK", patient_id: "synthetic-p
   slot: "2026-09-22T09:00:00+02:00", appointment_type_id: "review", policy_id: "dkv" };
 export const consentOffer = "Le puedo reservar una cita con Dr. Emilio Iglesia, Arenal Centro, martes, 22 de septiembre de 2026, 09:00. ¿Le viene bien?";
 export const consentCases: { id: string; reply: string; accept: boolean; cancel?: boolean; delivered?: boolean; lastQuestion?: string }[] = [
+  { id: "es-status-check", reply: "Sí, confírmela, ¿queda reservada?", accept: true },
+  { id: "es-cancel-status", reply: "Sí, confirmo. ¿Queda cancelada entonces?", cancel: true, accept: true },
+  { id: "en-status-check", reply: "Yes, book it please. Is it confirmed now?", accept: true },
   { id: "reported-perfecto", reply: "Perfecto, muy bien.", accept: true },
   { id: "reported-emphatic", reply: "Que sí, coño, que me viene muy bien eso, sí.", accept: true },
   { id: "en-natural", reply: "That sounds great, go ahead and book it for me.", accept: true },

@@ -54,3 +54,22 @@ test("configuration defaults are independent of the conversational model", () =>
   expect(() => consentConfig({ CONSENT_TIMEOUT_MS: "0" })).toThrow();
   expect(() => consentConfig({ CONSENT_MODEL: "bad model" })).toThrow();
 });
+
+test("action decisions use narrow candidate versus completion questions and reject unknown choices", async () => {
+  const candidate = { kind: "tool" as const, name: "clinic", arguments: {} };
+  let finish = false;
+  const model = new OpenRouterConsent(consentConfig({}), "test", send(async (_url, init) => {
+    const body = JSON.parse(String(init.body));
+    expect(Object.keys(body.questions.action.criteria).sort()).toEqual(finish ? ["execute", "finish"] : ["execute", "revise"]);
+    return Response.json({ answers: { action: { type: "choice", choice: finish ? "finish" : "execute", confidence: 0.98,
+      probabilities: finish ? { finish: 0.99, execute: 0.01 } : { execute: 0.99, revise: 0.01 } } } });
+  }));
+  const state = { accepted: [], conversation: [], evidence: [], reference_time: "2026-09-19T09:00:00+02:00" };
+  expect((await model.decideAction({ ...state, candidate }, signal())).choice).toBe("execute");
+  finish = true;
+  expect((await model.decideAction(state, signal())).choice).toBe("finish");
+  const invalid = new OpenRouterConsent(consentConfig({}), "test", send(async () => Response.json({ answers: { action: {
+    type: "choice", choice: "finish", confidence: 1, probabilities: { finish: 1, execute: 0, revise: 0 },
+  } } })));
+  await expect(invalid.decideAction({ ...state, candidate }, signal())).rejects.toThrow("Invalid action decision");
+});

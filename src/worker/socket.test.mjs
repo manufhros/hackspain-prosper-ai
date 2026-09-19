@@ -11,6 +11,66 @@ class NativeSocket extends EventTarget {
   close() { this.readyState = 3; }
 }
 
+function mockConnectionClock(t) {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  // Node's built-in AbortSignal.timeout uses an internal clock. Route it through
+  // the mock clock so this regression also catches the old uncancellable timer.
+  t.mock.method(AbortSignal, "timeout", (ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), ms);
+    return controller.signal;
+  });
+}
+
+test("an upgraded WebSocket remains usable beyond the connection timeout", async (t) => {
+  mockConnectionClock(t);
+  const native = new NativeSocket();
+  let signal;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    signal = options.signal;
+    // Workers keeps the request's abort signal attached to its upgraded socket.
+    signal.addEventListener("abort", () => native.close(), { once: true });
+    return { webSocket: native, status: 101 };
+  });
+  const socket = await connectWorkerSocket("wss://example.test/conversation");
+  t.mock.timers.tick(60_000);
+  assert.equal(signal.aborted, false);
+  assert.equal(socket.readyState, 1);
+  socket.send("still connected");
+  assert.deepEqual(native.sent, ["still connected"]);
+});
+
+test("a stalled WebSocket upgrade still times out after twelve seconds", async (t) => {
+  mockConnectionClock(t);
+  let signal;
+  t.mock.method(globalThis, "fetch", (_url, options) => {
+    signal = options.signal;
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+    });
+  });
+  const connection = connectWorkerSocket("wss://example.test/conversation");
+  const rejected = assert.rejects(connection, { name: "TimeoutError" });
+  t.mock.timers.tick(11_999);
+  assert.equal(signal.aborted, false);
+  t.mock.timers.tick(1);
+  await rejected;
+  assert.equal(signal.aborted, true);
+});
+
+test("a failed connection clears its timer without masking the fetch error", async (t) => {
+  mockConnectionClock(t);
+  const failure = new Error("Network failure");
+  let signal;
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    signal = options.signal;
+    throw failure;
+  });
+  await assert.rejects(connectWorkerSocket("wss://example.test/conversation"), error => error === failure);
+  t.mock.timers.tick(60_000);
+  assert.equal(signal.aborted, false);
+});
+
 test("Workers transport forwards text, binary, close and errors to the call engine", () => {
   const native = new NativeSocket();
   const socket = new WorkerSocket(native);

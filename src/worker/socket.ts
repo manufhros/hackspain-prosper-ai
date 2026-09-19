@@ -23,15 +23,25 @@ export async function connectWorkerSocket(url: string): Promise<CallSocket> {
   const endpoint = new URL(url);
   if (endpoint.protocol !== "wss:") throw new Error("Expected a secure ElevenLabs WebSocket URL");
   endpoint.protocol = "https:";
-  const response = await fetch(endpoint, {
-    headers: { Upgrade: "websocket" },
-    signal: AbortSignal.timeout(12_000),
-    // workerd supports follow/manual only. Do not follow a signed URL to another host.
-    redirect: "manual",
-  });
-  const socket = response.webSocket;
-  if (!socket) throw new Error(`ElevenLabs WebSocket upgrade failed (${response.status})`);
-  const adapter = new WorkerSocket(socket);
-  socket.accept();
-  return adapter;
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort(new DOMException("ElevenLabs WebSocket connection timed out", "TimeoutError"));
+  }, 12_000);
+  try {
+    const response = await fetch(endpoint, {
+      headers: { Upgrade: "websocket" },
+      signal: controller.signal,
+      // workerd supports follow/manual only. Do not follow a signed URL to another host.
+      redirect: "manual",
+    });
+    const socket = response.webSocket;
+    if (!socket) throw new Error(`ElevenLabs WebSocket upgrade failed (${response.status})`);
+    const adapter = new WorkerSocket(socket);
+    socket.accept();
+    return adapter;
+  } finally {
+    // Workers keeps the abort signal attached to the upgraded WebSocket.
+    // Limit connection setup only; an armed timer would cut off the active call.
+    clearTimeout(timer);
+  }
 }

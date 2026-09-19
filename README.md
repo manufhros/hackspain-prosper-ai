@@ -14,14 +14,14 @@ bun install
 bun start
 ```
 
-By default the language model is local Qwen. Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `ollama` is missing. **`bun start` sets up and starts the local stack automatically:**
+By default the language model is local Qwen. Requires Bun 1.4.2+, Apple Silicon macOS, an interactive terminal, and Homebrew if `uv` or `llama-server` is missing. **`bun start` sets up and starts the local stack automatically:**
 
-- Installs missing `uv`/`ollama` using Homebrew and creates a private Python 3.12 environment with locked audio dependencies.
+- Installs missing `uv`/`llama.cpp` using Homebrew and creates a private Python 3.12 environment with locked audio dependencies.
 - Downloads Qwen3.5 4B (~3.4 GB), Whisper small for MLX (~481 MB), and Piper English/Spanish/Catalan voices (~190 MB total), plus Silero VAD (~2.3 MB) and runtime dependencies. Allow several GB of disk space and time for the first launch.
-- Starts its own loopback-only Ollama process and separate persistent recognition and speech workers, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
+- Starts its own loopback-only llama-server process and separate persistent recognition and speech workers, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
 - Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Voice stack**.
 
-The stack is sized for your M4 Pro / 48 GB Mac, but the new concurrency profile has not yet been benchmarked with live models or calls. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
+The stack is sized for your M4 Pro / 48 GB Mac. The first Ollama benchmark exposed serialization and Catalan recognition errors; the replacement llama.cpp profile still needs native benchmarking and live-call validation. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
 
 For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
 
@@ -31,18 +31,21 @@ Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVID
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `LOCAL_LLM_PARALLEL` | `4` | Concurrent requests to one resident Qwen3.5 4B model, 1–8. Remaining turns wait in a bounded queue. |
+| `LOCAL_LLM_BACKEND` | `llama` | Native llama.cpp server; `ollama` retains the serialized baseline for comparison. |
+| `LOCAL_LLM_PARALLEL` | `4` | llama-server slots for one resident Qwen3.5 4B model, 1–8. Remaining turns wait in a bounded queue. Ollama is explicitly limited to one slot. |
 | `LOCAL_LLM_CONTEXT` | `16384` | Context tokens per model request, 4096–32768; preserves the previous request context budget. More parallel slots/context increase memory usage. |
 | `LOCAL_LLM_MAX_TOKENS` | `512` | Output limit, 128–2048. Thinking stays disabled; truncated responses fail visibly. |
 | `LOCAL_TTS_WORKERS` | `2` | Independent persistent Piper workers, 1–4, each loading all three voices. |
 | `LOCAL_TTS_THREADS` | `2` | CPU threads per Piper ONNX session, 1–4; inter-op threads are fixed at one. |
 | `LOCAL_ASR_MODEL` | `small` | MLX multilingual Whisper; `large-v3-turbo` downloads separate pinned ~1.6 GB weights for comparison. |
 
-The current native Ollama adapter remains the LLM backend. Whisper uses MLX; no Core ML encoder or alternate llama-server backend is claimed. Increasing slot/worker counts is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
+The default llama-server uses Metal, continuous batching and the GGUF's embedded Jinja tool template, with thinking disabled. Startup verifies the server's reported slot count and per-slot context; the total context allocation is `LOCAL_LLM_CONTEXT × LOCAL_LLM_PARALLEL`. Existing pinned Qwen Q4_K_M weights in the private Ollama cache are reused without duplication; fresh installs download the same ~3.4 GB GGUF by digest. If an older installed server rejects the model or flags, run `brew upgrade llama.cpp`. Whisper remains on MLX and Piper on CPU. Increasing slots is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
+
+[Ollama 0.34.1 forces Qwen3.5 to one slot](https://github.com/ollama/ollama/blob/v0.34.1/server/sched.go), ignoring a larger `OLLAMA_NUM_PARALLEL`. The previous four-client configuration therefore did not provide four active model slots. The optional Ollama baseline now uses one explicit client/server slot so the wait is visible in the application queue. [llama-server documents parallel decoding, continuous batching and tool calls](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
 
 Platform speech is validated before synthesis. The first short chunk can play while the next is synthesized; only one chunk is prefetched per caller. Interrupted or partially played offers never count as delivered consent. Static greetings/notices retain shared caching; patient-specific speech is not cached. The TUI retains its complete-utterance playback.
 
-Reports include local model queue, prefill, decode, load, and token metrics. ASR/TTS events retain separate worker/queue timings; TTS events now include chunk indices. Silero state is isolated per call, queued detection is bounded, and disconnect drains already received frames before the final transcription.
+Reports include local model queue, prefill, decode and token metrics when the backend provides them; Ollama also supplies load/inference duration. ASR/TTS events retain separate worker/queue timings; TTS events now include chunk indices. Silero state is isolated per call, queued detection is bounded, and disconnect drains already received frames before the final transcription.
 
 ### Measure the local profile
 
@@ -52,9 +55,20 @@ Stop the voice TUI/server first, then run this yourself. **The benchmark starts 
 LLM_PROVIDER=local bun run benchmark
 ```
 
-The default runs three synchronized batches at each concurrency of 1, 5, 10 and 20. It records ASR word error rate, structured intent accuracy, native/queue timings and time to the first synthesized response chunk in `.workbench/benchmark-*.json`. Failures remain in the attempted-count denominator. First-chunk latency excludes endpoint detection, transport and playback. Inputs are clean Piper-generated English/Spanish/Catalan speech roundtripped through 8 kHz mu-law: this is an inference stress test, **not human speech quality or live-call capacity proof**. Tool calling, appointment correctness, consent, noise and actual interruption require platform rehearsals separately.
+The default runs three synchronized batches at each concurrency of 1, 5, 10 and 20. It records ASR word error rate, structured intent accuracy, native/queue timings and time to the first synthesized response chunk in `.workbench/benchmark-*.json`. Reports also retain the server build/slots/context, expected and recognized synthetic text, detected language and full operational model metrics. An untimed diagnostic compares automatic language detection with an explicit language hint; production calls still detect language automatically. `successful`/`okay` mean completed jobs with correct intent, not error-free transcription; exact transcription and language scores are separate. Failures remain in the attempted-count denominator. First-chunk latency excludes endpoint detection, transport and playback. Inputs are clean Piper-generated English/Spanish/Catalan speech roundtripped through 8 kHz mu-law: this is an inference stress test, **not human speech quality or live-call capacity proof**. Tool calling, appointment correctness, consent, noise and actual interruption require platform rehearsals separately.
 
-Compare one variable at a time, retaining each report:
+The first run (`benchmark-1789817239476.json`, Ollama 0.34.1, Whisper small) measured:
+
+| Simultaneous synthetic turns | First chunk p50 | First chunk p95 |
+| --- | --- | --- |
+| 1 | 1.04 s | 1.11 s |
+| 5 | 2.47 s | 3.54 s |
+| 10 | 4.27 s | 6.90 s |
+| 20 | 8.28 s | 13.19 s |
+
+All 108 intents were correct, but the single Catalan source phrase repeatedly had 50% word error rate (English/Spanish: 0%). This is not a general language accuracy estimate. At 20 turns, ASR queue p95 was 5.09 s and model total p95 was 7.60 s; TTS had no measured queue. These are baseline measurements, not results for the new backend.
+
+Run the new default profile first with the same Whisper model. Compare one variable at a time, retaining each report:
 
 ```sh
 LLM_PROVIDER=local LOCAL_LLM_PARALLEL=8 bun run benchmark
@@ -78,7 +92,7 @@ Replace `provider/model-id` with the exact ID of your chosen [OpenRouter model](
 
 Set `OPENROUTER_API_KEY` to your key; never commit your real `.env`. A nonblank environment key takes precedence over Keychain. Alternatively, store the key using `bun start --offline` → **Setup → OpenRouter API key · .env or Keychain**. Input is masked and stored in macOS Keychain under service `el-turno-openrouter`, account `https://openrouter.ai`. Restart after changing the model or key. Set `LLM_PROVIDER=local` to return to Qwen.
 
-In OpenRouter mode, setup **does not install, download or start Ollama/Qwen**. Whisper recognition and Piper synthesis still run locally and still require Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are not. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
+In OpenRouter mode, setup **does not install, download or start llama.cpp/Ollama/Qwen**. Whisper recognition and Piper synthesis still run locally and still require Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are not. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
 
 The adapter implements OpenRouter's [tool-calling protocol](https://openrouter.ai/docs/guides/features/tool-calling) and [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), including tool-call IDs and preserved reasoning metadata. `OPENROUTER_MAX_TOKENS` accepts 256–32768; increase it if the provider reports truncated output. Requests prefer providers by latency (`OPENROUTER_PROVIDER_SORT=latency`, also accepts `price` or `throughput`), which can select a more expensive provider. `OPENROUTER_TIMEOUT_MS` defaults to 20000. `OPENROUTER_REASONING_EFFORT=auto` requests low effort for Gemini 3 and leaves other models unchanged; use `default` to omit reasoning configuration, or a supported `none`, `minimal`, `low`, `medium`, or `high` value. These follow OpenRouter's [reasoning controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens) and [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection). Reports include available provider/model IDs and token counts, never reasoning text. No live OpenRouter or speech benchmark is implied by the offline tests.
 

@@ -50,10 +50,10 @@ function line(parts: unknown[]): string {
   return `[${stamp}] ${text}\n`;
 }
 
-/** Writes every call event to stdout and to a new logs/calls-<start>.log per process. */
+/** Raw call details stay local. Workers persist their redacted audit events in D1. */
 export function callLog(...parts: unknown[]): void {
-  console.log(...parts);
   if (process.env.VOICE_STORAGE === "d1") return;
+  console.log(...parts);
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(parts)))
     .catch((error: unknown) => {
@@ -62,8 +62,11 @@ export function callLog(...parts: unknown[]): void {
 }
 
 export function callLogError(...parts: unknown[]): void {
+  if (process.env.VOICE_STORAGE === "d1") {
+    console.error(JSON.stringify({ event: "voice.error", detail: "Consult the D1 agent audit trail" }));
+    return;
+  }
   console.error(...parts);
-  if (process.env.VOICE_STORAGE === "d1") return;
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(["ERROR", ...parts])))
     .catch((error: unknown) => {
@@ -72,8 +75,11 @@ export function callLogError(...parts: unknown[]): void {
 }
 
 export function callLogWarn(...parts: unknown[]): void {
+  if (process.env.VOICE_STORAGE === "d1") {
+    console.warn(JSON.stringify({ event: "voice.warning", detail: "Consult the D1 agent audit trail" }));
+    return;
+  }
   console.warn(...parts);
-  if (process.env.VOICE_STORAGE === "d1") return;
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(["WARN", ...parts])))
     .catch((error: unknown) => {

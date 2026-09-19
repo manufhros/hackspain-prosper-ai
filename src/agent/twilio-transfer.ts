@@ -1,4 +1,5 @@
 import type { AuditAction } from "./audit.ts";
+import { callLogError } from "./call-log.ts";
 
 function xml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
@@ -122,7 +123,7 @@ async function twilioPost(path: string, body: URLSearchParams, audit?: AuditActi
     payload = { message: raw.slice(0, 240) };
   }
   if (!response.ok) {
-    console.error("twilio transfer failed", response.status, payload.message ?? raw.slice(0, 240));
+    callLogError("twilio transfer failed", response.status, payload.message ?? raw.slice(0, 240));
   }
   await audit?.("handoff.completed", { requestId, provider: "twilio", status: response.status, callSid: payload.sid ?? null });
   return {

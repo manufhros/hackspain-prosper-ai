@@ -2,11 +2,6 @@
 [2026-09-19T17:15:35,394 CEST] listening ws://0.0.0.0:7860/ws
 [2026-09-19T17:17:54,157 CEST] socket open 1 live
 [2026-09-19T17:27:53,634 CEST] socket open 1 live
-[2026-09-19T17:27:53,719 CEST] call start 69f4e4ba-4a3d-57cb-b584-3cccf06c2445 +34740021904
-[2026-09-19T17:27:53,947 CEST] directory hint 69f4e4ba-4a3d-57cb-b584-3cccf06c2445 [{"patient_id":"P00023","name":"Sonia Vázquez Alonso","insurer":"mapfre","has_visited_before":true,"note":"An old patient of the clinic; nothing since May 2024. A single visit on the chart, with D. Ál
-[2026-09-19T17:27:54,572 CEST] 69f4e4ba eleven conversation_initiation_metadata
-[2026-09-19T17:27:54,919 CEST] 69f4e4ba eleven agent_response
-[2026-09-19T17:27:54,919 CEST] 69f4e4ba agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
 [2026-09-19T17:28:06,561 CEST] socket open 2 live
 [2026-09-19T17:28:06,637 CEST] call start 548a286d-55f6-41e2-ac30-47b2e602bdb3 +34711330529
 [2026-09-19T17:28:06,802 CEST] directory hint 548a286d-55f6-41e2-ac30-47b2e602bdb3 [{"patient_id":"P00001","name":"Josefa Domínguez Navarro","insurer":"mapfre","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vid
@@ -21,7 +16,6 @@
 [2026-09-19T17:28:37,089 CEST] 548a286d eleven agent_tool_response
 [2026-09-19T17:28:38,002 CEST] 548a286d agent ¿Es usted Josefa Domínguez Navarro?
 [2026-09-19T17:28:38,003 CEST] 548a286d eleven agent_response
-[2026-09-19T17:28:51,617 CEST] 69f4e4ba elevenlabs closed 1002 Generating the LLM response took too long.
 [2026-09-19T17:28:54,444 CEST] 548a286d user ...
 [2026-09-19T17:28:54,445 CEST] 548a286d eleven user_transcript
 [2026-09-19T17:28:54,457 CEST] 548a286d eleven agent_response
@@ -32,8 +26,3 @@
 [2026-09-19T17:28:59,638 CEST] 548a286d eleven agent_response
 [2026-09-19T17:29:15,311 CEST] 548a286d elevenlabs closed 1005 
 [2026-09-19T17:34:23,894 CEST] socket open 1 live
-[2026-09-19T17:34:23,952 CEST] call start 5d588263-5e54-55b8-9da3-f2abb4bf37bf +34740021904
-[2026-09-19T17:34:24,166 CEST] directory hint 5d588263-5e54-55b8-9da3-f2abb4bf37bf [{"patient_id":"P00023","name":"Sonia Vázquez Alonso","insurer":"mapfre","has_visited_before":true,"note":"An old patient of the clinic; nothing since May 2024. A single visit on the chart, with D. Ál
-[2026-09-19T17:34:24,647 CEST] 5d588263 eleven conversation_initiation_metadata
-[2026-09-19T17:34:25,010 CEST] 5d588263 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T17:34:25,010 CEST] 5d588263 eleven agent_response

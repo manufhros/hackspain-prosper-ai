@@ -237,25 +237,8 @@ I am looking for the earliest available gynecology appointment for you. Please h
 [2026-09-19T01:09:13.199Z] cf56ea68 elevenlabs closed 1005 
 [2026-09-19T01:09:13.200Z] e8918744 elevenlabs closed 1005 
 [2026-09-19T01:09:25.694Z] socket open 1 live
-[2026-09-19T01:09:25.836Z] call start 019b89ff-428b-5d9c-beb9-be0bab2e3a74 +34618858185
-[2026-09-19T01:09:26.000Z] directory hint 019b89ff-428b-5d9c-beb9-be0bab2e3a74 [{"patient_id":"P00476","name":"Miguel Fernández López","insurer":"privado","has_visited_before":true}]
 [2026-09-19T01:09:26.054Z] socket open 2 live
-[2026-09-19T01:09:26.126Z] call start 6f067db3-e26a-51bc-8c9f-60321a515a09 +34671868258
-[2026-09-19T01:09:26.192Z] directory hint 6f067db3-e26a-51bc-8c9f-60321a515a09 [{"patient_id":"P00480","name":"Concepción Molina Suárez","insurer":"sanitas","has_visited_before":true}]
-[2026-09-19T01:09:26.281Z] 019b89ff eleven conversation_initiation_metadata
-[2026-09-19T01:09:26.527Z] 6f067db3 eleven conversation_initiation_metadata
 [2026-09-19T01:09:26.577Z] socket open 3 live
-[2026-09-19T01:09:26.683Z] call start ff0b9405-8245-5222-b356-d93cb628423f +34751213934
-[2026-09-19T01:09:26.747Z] directory hint ff0b9405-8245-5222-b356-d93cb628423f [{"patient_id":"P00159","name":"Beatriz Sánchez Medina","insurer":"cigna","has_visited_before":true}]
-[2026-09-19T01:09:26.854Z] 6f067db3 agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T01:09:26.854Z] 6f067db3 eleven agent_response
-[2026-09-19T01:09:26.867Z] 019b89ff eleven agent_response
-[2026-09-19T01:09:26.868Z] 019b89ff agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T01:09:27.090Z] ff0b9405 eleven conversation_initiation_metadata
-[2026-09-19T01:09:27.435Z] ff0b9405 agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T01:09:27.435Z] ff0b9405 eleven agent_response
-[2026-09-19T01:09:36.547Z] 019b89ff eleven user_transcript
-[2026-09-19T01:09:36.547Z] 019b89ff user Hello.
 [2026-09-19T01:09:49.840Z] listening ws://0.0.0.0:7860/ws
 [2026-09-19T01:10:27.804Z] socket open 1 live
 [2026-09-19T01:10:27.912Z] call start 716abe70-c73d-56dc-aaa1-a0047e54f713 +34637073696

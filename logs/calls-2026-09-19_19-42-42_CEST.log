@@ -12,12 +12,6 @@
 [2026-09-19T19:49:41,298 CEST] socket open 2 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T19:49:41,299 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T19:49:41,353 CEST] stream connected
-[2026-09-19T19:49:41,354 CEST] call start 903952bb-e484-5726-aa85-1dc2a071aaca +34741388118
-[2026-09-19T19:49:41,354 CEST] stream start 903952bb-e484-5726-aa85-1dc2a071aaca {"call_id":"903952bb-e484-5726-aa85-1dc2a071aaca","from_number":"+34741388118"}
-[2026-09-19T19:49:41,451 CEST] directory hint 903952bb-e484-5726-aa85-1dc2a071aaca [{"patient_id":"P00908","name":"Andrea Martínez Romero","insurer":"mapfre","has_visited_before":false,"note":"Registered but never seen -- nothing on the chart yet. A GP referral for Physiotherapy is 
-[2026-09-19T19:49:41,861 CEST] 903952bb eleven conversation_initiation_metadata
-[2026-09-19T19:49:42,494 CEST] 903952bb agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:49:42,495 CEST] 903952bb eleven agent_response
 [2026-09-19T19:49:42,798 CEST] socket open 3 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T19:49:42,798 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T19:49:42,855 CEST] call start f18a9642-d027-5ba0-ab4f-f6ee0153a800 +34718729218
@@ -30,12 +24,6 @@
 [2026-09-19T19:49:44,310 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T19:49:44,311 CEST] socket open 4 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T19:49:44,369 CEST] stream connected
-[2026-09-19T19:49:44,370 CEST] stream start dde8e3ec-c5dc-54e7-a092-4547baa5e31a {"call_id":"dde8e3ec-c5dc-54e7-a092-4547baa5e31a","from_number":"+34655296520"}
-[2026-09-19T19:49:44,371 CEST] call start dde8e3ec-c5dc-54e7-a092-4547baa5e31a +34655296520
-[2026-09-19T19:49:44,430 CEST] directory hint dde8e3ec-c5dc-54e7-a092-4547baa5e31a [{"patient_id":"P00249","name":"Irene Díaz González","insurer":"caser","has_visited_before":false,"note":"New to the clinic; no visit history. Will ask what is available soonest before anything else."
-[2026-09-19T19:49:44,811 CEST] dde8e3ec eleven conversation_initiation_metadata
-[2026-09-19T19:49:45,121 CEST] dde8e3ec agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:49:45,121 CEST] dde8e3ec eleven agent_response
 [2026-09-19T19:49:47,263 CEST] 96972e6d user Hello?
 [2026-09-19T19:49:47,264 CEST] 96972e6d eleven user_transcript
 [2026-09-19T19:49:47,265 CEST] 96972e6d eleven agent_tool_response

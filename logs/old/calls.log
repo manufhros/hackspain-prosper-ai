@@ -661,7 +661,6 @@
 [2026-09-19T01:45:59.658Z] d56bb8b6 eleven agent_response_correction
 [2026-09-19T01:45:59.658Z] d56bb8b6 eleven interruption
 [2026-09-19T01:46:04.352Z] socket open 4 live
-[2026-09-19T01:46:05.149Z] call start 0787f91a-14a3-56a8-bafd-b52267133b9a +34610653311
 [2026-09-19T01:46:05.877Z] d56bb8b6 eleven user_transcript
 [2026-09-19T01:46:05.877Z] d56bb8b6 user Navarro.
 [2026-09-19T01:46:06.829Z] d56bb8b6 eleven agent_response
@@ -678,7 +677,6 @@
 [2026-09-19T01:46:09.808Z] d56bb8b6 eleven agent_response
 [2026-09-19T01:46:09.808Z] d56bb8b6 agent Thank you. Could you please...
 [2026-09-19T01:46:11.068Z] socket open 5 live
-[2026-09-19T01:46:11.246Z] call start 99924513-ff06-5d38-b286-354d246b24e4 +34655170537
 [2026-09-19T01:46:15.648Z] ERROR failed to open elevenlabs 0787f91a-14a3-56a8-bafd-b52267133b9a TypeError: fetch failed
     at node:internal/deps/undici/undici:15845:13
     at processTicksAndRejections (node:internal/process/task_queues:103:5)
@@ -694,32 +692,20 @@
 [2026-09-19T01:46:22.627Z] 304b399f eleven user_transcript
 [2026-09-19T01:46:22.628Z] 304b399f tool search_directory {"phone":"+34776542253"}
 [2026-09-19T01:46:25.739Z] socket open 6 live
-[2026-09-19T01:46:27.544Z] call start f314c1ed-6bb4-5338-8bcd-36879512b45b +34652411288
 [2026-09-19T01:46:33.533Z] d56bb8b6 user The 9th of December, 1994. My national ID is 48644914Y.
 [2026-09-19T01:46:33.533Z] d56bb8b6 eleven user_transcript
 [2026-09-19T01:46:33.688Z] d56bb8b6 agent Thank you. Could you please...
 [2026-09-19T01:46:33.688Z] d56bb8b6 eleven agent_response
 [2026-09-19T01:46:34.047Z] c6c69054 eleven user_transcript
 [2026-09-19T01:46:34.047Z] c6c69054 user Uh, it's 19229333E.
-[2026-09-19T01:46:34.130Z] directory hint 0787f91a-14a3-56a8-bafd-b52267133b9a [{"patient_id":"P00143","name":"Antonia Rodríguez Domínguez","insurer":"dkv","has_visited_before":true}]
-[2026-09-19T01:46:34.137Z] directory hint 99924513-ff06-5d38-b286-354d246b24e4 [{"patient_id":"P01228","name":"Liam Evans Clarke","insurer":"sanitas","has_visited_before":false}]
-[2026-09-19T01:46:34.144Z] directory hint f314c1ed-6bb4-5338-8bcd-36879512b45b [{"patient_id":"P01064","name":"Lily Harris Lewis","insurer":"sanitas","has_visited_before":false}]
 [2026-09-19T01:46:34.146Z] 304b399f tool result search_directory {"matches":[{"patient_id":"P01186","given_name":"Juan","first_surname":"Hernández","second_surname":"Delgado","national_id":"35226852Y","date_of_birth":"2013-06-04","phone":"776542253","sex":"M","has_visited_before":true,"insurer":"asisa","referrals":["dermatology","orthopaedics"],"note":"Their most recent visit was October 2025. Two visits on the chart, spread across dermatology and paediatrics. Seen at more than one site -- Arenal Norte and Arenal Centro -- so the usual place settles nothing; ask which. The caller gives their own name first; the patient is the child.","match_score":1,"matched_fields":["phone"]}]}
 [2026-09-19T01:46:34.276Z] 304b399f eleven agent_tool_response
-[2026-09-19T01:46:34.293Z] f314c1ed eleven conversation_initiation_metadata
 [2026-09-19T01:46:34.429Z] c6c69054 eleven agent_response
 [2026-09-19T01:46:34.429Z] c6c69054 agent Thank you. What is your date of birth, please? Use the format of day, month, and year.
-[2026-09-19T01:46:34.629Z] f314c1ed eleven agent_response
-[2026-09-19T01:46:34.629Z] f314c1ed agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T01:46:35.634Z] 304b399f eleven agent_response
 [2026-09-19T01:46:35.634Z] 304b399f agent One moment. thought
 Is the appointment for Juan Hernández Delgado?
 [2026-09-19T01:46:35.850Z] socket open 7 live
-[2026-09-19T01:46:35.931Z] call start 77f6a3b4-c176-59c1-aa36-41cf68e6e1bd +34720634353
-[2026-09-19T01:46:36.008Z] directory hint 77f6a3b4-c176-59c1-aa36-41cf68e6e1bd [{"patient_id":"P00257","name":"María Rubio González","insurer":"sanitas","has_visited_before":true}]
-[2026-09-19T01:46:36.573Z] 77f6a3b4 eleven conversation_initiation_metadata
-[2026-09-19T01:46:37.046Z] 77f6a3b4 eleven agent_response
-[2026-09-19T01:46:37.046Z] 77f6a3b4 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T01:51:21.305Z] listening ws://0.0.0.0:7860/ws
 [2026-09-19T01:51:26.440Z] socket open 1 live
 [2026-09-19T01:51:26.457Z] socket open 2 live
@@ -2914,9 +2900,6 @@ Yes, you can absolutely reschedule it later if needed. I have successfully booke
 [2026-09-19T02:10:41.985Z] 2e407d1d agent Are you Isabel Ortega Romero?
 [2026-09-19T02:10:41.985Z] 2e407d1d eleven agent_response
 [2026-09-19T02:10:42.780Z] socket open 9 live
-[2026-09-19T02:10:43.648Z] call start fbd797b9-f9d6-5ddc-9b5a-5e911af379a7 +34798724522
-[2026-09-19T02:10:43.709Z] directory hint fbd797b9-f9d6-5ddc-9b5a-5e911af379a7 [{"patient_id":"P00301","name":"Andrés Álvarez Marín","insurer":"adeslas","has_visited_before":true,"note":"An old patient of the clinic; nothing since November 2024. Has been seen twice, in general p
-[2026-09-19T02:10:44.225Z] fbd797b9 eleven conversation_initiation_metadata
 [2026-09-19T02:10:45.638Z] listening ws://0.0.0.0:7860/ws
 [2026-09-19T02:11:15.686Z] socket open 1 live
 [2026-09-19T02:11:15.760Z] call start c0a09b06-4109-5cfc-a27d-91f3a9c06aec +34634447946
@@ -2973,37 +2956,23 @@ Yes, you can absolutely reschedule it later if needed. I have successfully booke
 [2026-09-19T02:11:42.304Z] c0a09b06 eleven client_tool_call
 [2026-09-19T02:11:42.304Z] c0a09b06 eleven user_transcript
 [2026-09-19T02:11:42.304Z] c0a09b06 tool search_directory {"phone":"+34634447946"}
-[2026-09-19T02:11:42.323Z] call start c5eae358-6282-5758-8b8f-bb5bba07696d +34755897957
 [2026-09-19T02:11:42.525Z] b5fff6ba eleven user_transcript
 [2026-09-19T02:11:42.525Z] b5fff6ba eleven client_tool_call
 [2026-09-19T02:11:42.525Z] b5fff6ba user Yeah. So, um, I need an appointment with Dr. Iglesias about a mole on my back that looks different from last year.
 [2026-09-19T02:11:42.525Z] b5fff6ba tool search_directory {"phone":"+34787794224"}
 [2026-09-19T02:11:42.652Z] c0a09b06 tool result search_directory {"matches":[{"patient_id":"P00747","given_name":"Nuria","first_surname":"Marín","second_surname":"Romero","national_id":"74338226H","date_of_birth":"1997-02-18","phone":"634447946","sex":"F","has_visited_before":true,"insurer":"sanitas","referrals":["dermatology","orthopaedics","physiotherapy"],"note":"Has not been in since June 2025. A single visit on the chart, with Dra. Carmen Ortiz Vidal. Spells their surname unprompted, and it is worth taking the spelling.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Nuria Marín Romero. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: Has not been in since June 2025. A single visit on the chart, with Dra. Carmen Ortiz Vidal. Spells their surname unprompted, an
-[2026-09-19T02:11:42.681Z] directory hint c5eae358-6282-5758-8b8f-bb5bba07696d [{"patient_id":"P00501","name":"Concepción Navarro Gil","insurer":"asisa","has_visited_before":false,"note":"On file, never attended. Treat everything as a first visit. A GP referral for Dermatology i
 [2026-09-19T02:11:42.684Z] b5fff6ba tool result search_directory {"matches":[{"patient_id":"P00882","given_name":"Thomas","first_surname":"Wilson","second_surname":"Davies","national_id":"X1609492K","date_of_birth":"1994-03-19","phone":"787794224","sex":"M","has_visited_before":false,"insurer":"dkv","referrals":["dermatology"],"note":"First contact with the clinic; the record is empty behind them. Holds a referral for Dermatology; no need to ask whether they have one. Spells their surname unprompted, and it is worth taking the spelling.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Thomas Wilson Davies. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: First contact with the clinic; the record is empty behind them. Holds a referral for Dermatology; no need to ask 
 [2026-09-19T02:11:42.756Z] c0a09b06 eleven agent_tool_response
 [2026-09-19T02:11:42.792Z] b5fff6ba eleven agent_tool_response
-[2026-09-19T02:11:42.988Z] c5eae358 eleven conversation_initiation_metadata
-[2026-09-19T02:11:43.327Z] c5eae358 eleven agent_response
-[2026-09-19T02:11:43.327Z] c5eae358 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T02:11:43.675Z] b5fff6ba eleven agent_response
 [2026-09-19T02:11:43.675Z] b5fff6ba agent Are you Thomas Wilson Davies?
 [2026-09-19T02:11:43.695Z] c0a09b06 agent Are you Nuria Marín Romero?
 [2026-09-19T02:11:43.695Z] c0a09b06 eleven agent_response
 [2026-09-19T02:11:45.787Z] socket open 7 live
-[2026-09-19T02:11:45.839Z] call start aa54dbb7-7e2a-5cf5-bfc4-d5e9a9ac5907 +34771458228
-[2026-09-19T02:11:45.909Z] directory hint aa54dbb7-7e2a-5cf5-bfc4-d5e9a9ac5907 [{"patient_id":"P01737","name":"Noah Parker Wilson","insurer":"asisa","has_visited_before":true,"note":"Their most recent visit was December 2025. Four visits, most recently with Dra. Carmen Ortiz Vid
-[2026-09-19T02:11:46.339Z] aa54dbb7 eleven conversation_initiation_metadata
-[2026-09-19T02:11:46.951Z] aa54dbb7 agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T02:11:46.951Z] aa54dbb7 eleven agent_response
 [2026-09-19T02:11:48.430Z] 83bb451e user Yeah. So, um, I need the earliest GP appointment for my son. He's had a cough for a couple of weeks. Mm, shh, sweetheart.
 [2026-09-19T02:11:48.430Z] 83bb451e eleven user_transcript
 [2026-09-19T02:11:48.430Z] 83bb451e tool search_directory {"phone":"+34793488358"}
 [2026-09-19T02:11:48.430Z] 83bb451e eleven client_tool_call
-[2026-09-19T02:11:49.699Z] c5eae358 user Hello.
-[2026-09-19T02:11:49.699Z] c5eae358 eleven user_transcript
-[2026-09-19T02:11:49.996Z] c5eae358 eleven agent_response
-[2026-09-19T02:11:49.996Z] c5eae358 agent Hello. How can I help you today?
 [2026-09-19T02:11:49.997Z] 83bb451e tool result search_directory {"matches":[{"patient_id":"P00036","given_name":"Benjamin","first_surname":"Harris","second_surname":"Davies","national_id":"44717296Y","date_of_birth":"2015-11-04","phone":"793488358","sex":"M","has_visited_before":true,"insurer":"privado","referrals":["dermatology","orthopaedics","physiotherapy"],"note":"Lapsed -- the chart stops at May 2024. Seen once, by Dr. Javier Ocaña. The child is audible in the background; expect to repeat things.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Benjamin Harris Davies. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: Lapsed -- the chart stops at May 2024. Seen once, by Dr. Javier Ocaña. The child is audible in the background; expect to repeat things.. If hard 
 [2026-09-19T02:11:50.690Z] 83bb451e eleven agent_tool_response
 [2026-09-19T02:11:50.859Z] e33256e0 user Yeah. So, um, I need the earliest physiotherapy appointment you have. My GP said physio would help with my back.
@@ -3021,10 +2990,6 @@ Is the appointment for Benjamin Harris Davies?
 [2026-09-19T02:11:52.019Z] ed4bdd71 tool search_directory {"phone":"+34737825222"}
 [2026-09-19T02:11:52.081Z] ed4bdd71 tool result search_directory {"matches":[{"patient_id":"P00115","given_name":"María","first_surname":"Marín","second_surname":"Rodríguez","national_id":"38684212Y","date_of_birth":"1982-05-28","phone":"737825222","sex":"F","has_visited_before":false,"insurer":"cigna","referrals":["dermatology","physiotherapy"],"note":"New to the clinic -- the appointment on file is their first visit, with Dr. Tomás Vilar. A GP referral for Dermatology is on file -- the gated specialties need one. Gets the date right and the weekday wrong; say both back.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is María Marín Rodríguez. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: New to the clinic -- the appointment on file is their first visit, with Dr. 
 [2026-09-19T02:11:52.184Z] ed4bdd71 eleven agent_tool_response
-[2026-09-19T02:11:52.212Z] aa54dbb7 user Hello.
-[2026-09-19T02:11:52.212Z] aa54dbb7 eleven user_transcript
-[2026-09-19T02:11:52.291Z] aa54dbb7 eleven agent_response
-[2026-09-19T02:11:52.291Z] aa54dbb7 agent Hello. How can I help you today?
 [2026-09-19T02:11:52.327Z] e33256e0 agent Are you Cristina Moreno Navarro?
 [2026-09-19T02:11:52.327Z] e33256e0 eleven agent_response
 [2026-09-19T02:11:56.757Z] ed4bdd71 eleven agent_response

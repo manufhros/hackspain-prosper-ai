@@ -517,7 +517,6 @@
 [2026-09-19T00:48:04.952Z] ab57900c elevenlabs closed 1005 
 [2026-09-19T00:48:23.475Z] 1a6f879e elevenlabs closed 1005 
 [2026-09-19T00:48:32.190Z] socket open 1 live
-[2026-09-19T00:48:35.209Z] call start 159d6ccf-870c-5b85-a546-334b7d314533 +34671868258
 [2026-09-19T00:51:24.438Z] listening ws://0.0.0.0:7860/ws
 [2026-09-19T00:52:03.183Z] socket open 1 live
 [2026-09-19T00:52:03.554Z] socket open 2 live

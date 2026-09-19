@@ -84,18 +84,12 @@
 [2026-09-19T19:36:04,365 CEST] b6355244 eleven client_tool_call
 [2026-09-19T19:36:04,481 CEST] socket open 6 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T19:36:04,482 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
-[2026-09-19T19:36:04,538 CEST] stream start 8678095d-7e67-5d10-aa11-1580b6d4cb9a {"call_id":"8678095d-7e67-5d10-aa11-1580b6d4cb9a","from_number":"+34696334084"}
-[2026-09-19T19:36:04,538 CEST] call start 8678095d-7e67-5d10-aa11-1580b6d4cb9a +34696334084
 [2026-09-19T19:36:04,538 CEST] stream connected
-[2026-09-19T19:36:04,598 CEST] directory hint 8678095d-7e67-5d10-aa11-1580b6d4cb9a [{"patient_id":"P01245","name":"Rubén Fernández Medina","insurer":"sanitas","has_visited_before":false,"note":"New to the clinic; no visit history. Spells their surname unprompted, and it is worth tak
 [2026-09-19T19:36:04,932 CEST] ERROR b6355244 tool error submit_book PlatformApiError: Platform API 404 /api/v1/submit/book: {"detail":"unknown call b6355244-c9db-4c78-8e9c-c515b018fb34"}
     at PlatformClient.request (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/platform/client.ts:122:21)
     at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
     at async runClinicTool (/Users/lucia/Documents/Github/hackspain-prosper-ai/src/agent/tools.ts:772:22)
-[2026-09-19T19:36:04,989 CEST] 8678095d eleven conversation_initiation_metadata
 [2026-09-19T19:36:05,033 CEST] b6355244 eleven agent_tool_response
-[2026-09-19T19:36:05,309 CEST] 8678095d agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:36:05,309 CEST] 8678095d eleven agent_response
 [2026-09-19T19:36:06,186 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T19:36:06,187 CEST] socket open 7 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T19:36:06,241 CEST] stream connected

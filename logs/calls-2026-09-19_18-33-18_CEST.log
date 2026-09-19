@@ -89,32 +89,8 @@
 [2026-09-19T18:41:25,759 CEST] 4e362aa4 eleven agent_response
 [2026-09-19T18:41:25,759 CEST] 4e362aa4 agent Le conecto de inmediato con un agente para que pueda ayudarle con su gestión. Un momento, por favor.
 [2026-09-19T18:41:45,277 CEST] socket open 2 live
-[2026-09-19T18:41:45,346 CEST] call start 5bf24556-525e-45ea-853b-c0597894262e +34687275510
 [2026-09-19T18:41:45,462 CEST] socket open 3 live
-[2026-09-19T18:41:45,513 CEST] directory hint 5bf24556-525e-45ea-853b-c0597894262e []
-[2026-09-19T18:41:45,578 CEST] call start 4259d783-f2b3-47d3-9946-6cdd5535e42f +34611000002
-[2026-09-19T18:41:45,638 CEST] directory hint 4259d783-f2b3-47d3-9946-6cdd5535e42f []
 [2026-09-19T18:41:45,772 CEST] socket open 4 live
-[2026-09-19T18:41:45,849 CEST] call start 65ecca35-33b7-412e-9128-0f1dcdaf0ea0 +34611000003
-[2026-09-19T18:41:45,966 CEST] 5bf24556 eleven conversation_initiation_metadata
-[2026-09-19T18:41:46,039 CEST] directory hint 65ecca35-33b7-412e-9128-0f1dcdaf0ea0 []
-[2026-09-19T18:41:46,101 CEST] 4259d783 eleven conversation_initiation_metadata
-[2026-09-19T18:41:46,280 CEST] 5bf24556 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T18:41:46,280 CEST] 5bf24556 eleven agent_response
-[2026-09-19T18:41:46,418 CEST] 4259d783 eleven agent_response
-[2026-09-19T18:41:46,418 CEST] 4259d783 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T18:41:46,437 CEST] 65ecca35 eleven conversation_initiation_metadata
-[2026-09-19T18:41:46,766 CEST] 65ecca35 eleven agent_response
-[2026-09-19T18:41:46,766 CEST] 65ecca35 agent Clínica Sanitas, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T18:41:59,796 CEST] 65ecca35 elevenlabs closed 1006 
-[2026-09-19T18:41:59,798 CEST] 4259d783 elevenlabs closed 1005 
-[2026-09-19T18:41:59,798 CEST] 5bf24556 elevenlabs closed 1006 
 [2026-09-19T18:42:14,218 CEST] socket open 2 live
-[2026-09-19T18:42:14,292 CEST] call start 84c2edc9-705d-43bb-917a-9817b283035c +34600000000
-[2026-09-19T18:42:14,442 CEST] directory hint 84c2edc9-705d-43bb-917a-9817b283035c []
-[2026-09-19T18:42:14,916 CEST] 84c2edc9 eleven conversation_initiation_metadata
-[2026-09-19T18:42:15,248 CEST] 84c2edc9 eleven agent_response
-[2026-09-19T18:42:15,249 CEST] 84c2edc9 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T18:42:21,695 CEST] 84c2edc9 elevenlabs closed 1005 
 [2026-09-19T18:42:24,201 CEST] 4e362aa4 elevenlabs closed 1005 
 [2026-09-19T18:42:24,202 CEST] 4e362aa4 flushed book on eleven close

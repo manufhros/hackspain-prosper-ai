@@ -423,30 +423,6 @@
 [2026-09-19T16:36:13,007 CEST] c3f90623 elevenlabs closed 1005 
 [2026-09-19T16:36:13,008 CEST] c3f90623 flushed book on eleven close
 [2026-09-19T16:36:39,689 CEST] socket open 1 live
-[2026-09-19T16:36:39,782 CEST] call start dcee62ea-40d3-4666-bcc7-fc1fd5be54c4 +34755842366
-[2026-09-19T16:36:39,961 CEST] directory hint dcee62ea-40d3-4666-bcc7-fc1fd5be54c4 [{"patient_id":"P00015","name":"Josefa Sánchez Gutiérrez","insurer":"adeslas","has_visited_before":false,"note":"First contact with the clinic; the record is empty behind them. Asks whether an appoint
-[2026-09-19T16:36:40,283 CEST] dcee62ea eleven conversation_initiation_metadata
-[2026-09-19T16:36:40,634 CEST] dcee62ea eleven agent_response
-[2026-09-19T16:36:40,635 CEST] dcee62ea agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T16:36:48,487 CEST] dcee62ea user Hola.
-[2026-09-19T16:36:48,488 CEST] dcee62ea eleven user_transcript
-[2026-09-19T16:36:48,671 CEST] dcee62ea agent Hola, buenas. ¿En qué puedo ayudarle hoy?
-[2026-09-19T16:36:48,672 CEST] dcee62ea eleven agent_response
-[2026-09-19T16:36:52,909 CEST] dcee62ea eleven user_transcript
-[2026-09-19T16:36:52,910 CEST] dcee62ea user Hola.
-[2026-09-19T16:36:53,017 CEST] dcee62ea eleven agent_response
-[2026-09-19T16:36:53,018 CEST] dcee62ea agent ¿Me escucha bien? ¿En qué puedo ayudarle hoy?
-[2026-09-19T16:36:54,326 CEST] dcee62ea eleven interruption
-[2026-09-19T16:36:54,327 CEST] dcee62ea eleven agent_response_correction
-[2026-09-19T16:36:55,681 CEST] dcee62ea eleven user_transcript
-[2026-09-19T16:36:55,682 CEST] dcee62ea user I'm sorry.
-[2026-09-19T16:36:55,777 CEST] dcee62ea eleven agent_response
-[2026-09-19T16:36:55,778 CEST] dcee62ea agent No se preocupe. ¿En qué puedo ayudarle hoy?
-[2026-09-19T16:37:00,997 CEST] dcee62ea user Okay.
-[2026-09-19T16:37:00,998 CEST] dcee62ea eleven user_transcript
-[2026-09-19T16:37:01,094 CEST] dcee62ea agent ¿Desea pedir una cita o realizar alguna consulta?
-[2026-09-19T16:37:01,095 CEST] dcee62ea eleven agent_response
-[2026-09-19T16:37:12,539 CEST] dcee62ea elevenlabs closed 1005 
 [2026-09-19T16:38:04,735 CEST] socket open 1 live
 [2026-09-19T16:38:04,796 CEST] call start 210ab3e3-4b59-5f32-bf31-a682a304c90b +34740347051
 [2026-09-19T16:38:05,021 CEST] directory hint 210ab3e3-4b59-5f32-bf31-a682a304c90b [{"patient_id":"P00947","name":"Ignacio Sánchez Domínguez","insurer":"sanitas","has_visited_before":true,"note":"Nothing since May 2025, but an established patient. Three visits, nearly all of them wi
@@ -499,12 +475,6 @@
 [2026-09-19T16:39:16,716 CEST] 210ab3e3 elevenlabs closed 1005 
 [2026-09-19T16:39:16,717 CEST] 210ab3e3 flushed book on eleven close
 [2026-09-19T16:39:44,319 CEST] socket open 1 live
-[2026-09-19T16:39:44,400 CEST] call start 58250b3d-6725-4687-ad81-31dd06972ec4 +34669394942
-[2026-09-19T16:39:44,571 CEST] directory hint 58250b3d-6725-4687-ad81-31dd06972ec4 [{"patient_id":"P00004","name":"Teresa López García","insurer":"asisa","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. One visit only, with Dra. Isabel Montoro.
-[2026-09-19T16:39:44,910 CEST] 58250b3d eleven conversation_initiation_metadata
-[2026-09-19T16:39:45,248 CEST] 58250b3d eleven agent_response
-[2026-09-19T16:39:45,249 CEST] 58250b3d agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T16:40:05,978 CEST] 58250b3d elevenlabs closed 1005 
 [2026-09-19T16:44:56,893 CEST] socket open 1 live
 [2026-09-19T16:44:56,954 CEST] call start 35416069-a83b-5381-a42c-f3831cdddd41 +34760170823
 [2026-09-19T16:44:57,135 CEST] directory hint 35416069-a83b-5381-a42c-f3831cdddd41 [{"patient_id":"P01013","name":"Emilio Moreno Domínguez","insurer":"adeslas","has_visited_before":true,"note":"An existing patient with nothing on the chart behind them. Holds a referral for Dermatolo
@@ -558,28 +528,6 @@
 [2026-09-19T16:46:16,762 CEST] 35416069 flushed book on eleven close
 [2026-09-19T16:46:16,763 CEST] 35416069 elevenlabs closed 1006 
 [2026-09-19T16:50:42,005 CEST] socket open 1 live
-[2026-09-19T16:50:42,083 CEST] call start 0874103b-2337-456e-9b66-f9555fa8accc +34669394942
-[2026-09-19T16:50:42,246 CEST] directory hint 0874103b-2337-456e-9b66-f9555fa8accc [{"patient_id":"P00004","name":"Teresa López García","insurer":"asisa","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. One visit only, with Dra. Isabel Montoro.
-[2026-09-19T16:50:42,536 CEST] 0874103b eleven conversation_initiation_metadata
-[2026-09-19T16:50:42,859 CEST] 0874103b eleven agent_response
-[2026-09-19T16:50:42,860 CEST] 0874103b agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T16:50:51,660 CEST] 0874103b eleven user_transcript
-[2026-09-19T16:50:51,661 CEST] 0874103b user Hello.
-[2026-09-19T16:50:51,738 CEST] 0874103b eleven agent_response
-[2026-09-19T16:50:51,739 CEST] 0874103b agent Hello. How can I help you today?
-[2026-09-19T16:50:52,147 CEST] 0874103b eleven interruption
-[2026-09-19T16:50:52,147 CEST] 0874103b eleven agent_response_correction
-[2026-09-19T16:50:54,701 CEST] 0874103b user Hello.
-[2026-09-19T16:50:54,701 CEST] 0874103b eleven user_transcript
-[2026-09-19T16:50:54,782 CEST] 0874103b eleven agent_response
-[2026-09-19T16:50:54,783 CEST] 0874103b agent Hello. How can I help you today?
-[2026-09-19T16:50:55,794 CEST] 0874103b eleven interruption
-[2026-09-19T16:50:55,795 CEST] 0874103b eleven agent_response_correction
-[2026-09-19T16:50:57,838 CEST] 0874103b eleven user_transcript
-[2026-09-19T16:50:57,839 CEST] 0874103b user Hello.
-[2026-09-19T16:50:57,918 CEST] 0874103b eleven agent_response
-[2026-09-19T16:50:57,919 CEST] 0874103b agent Hello, how can I help you today?
-[2026-09-19T16:51:01,956 CEST] 0874103b elevenlabs closed 1005 
 [2026-09-19T16:58:06,594 CEST] socket open 1 live
 [2026-09-19T16:58:06,655 CEST] call start 81a1e237-eecc-59e4-9e7e-2697c484fa47 +34623468264
 [2026-09-19T16:58:06,817 CEST] directory hint 81a1e237-eecc-59e4-9e7e-2697c484fa47 [{"patient_id":"P00548","name":"Margaret Brown Lewis","insurer":"dkv","has_visited_before":true,"note":"Nothing since May 2025, but an established patient. Coming here since November 2024 -- three vis
@@ -597,18 +545,12 @@
 [2026-09-19T16:58:40,025 CEST] 81a1e237 eleven interruption
 [2026-09-19T16:58:40,027 CEST] 81a1e237 eleven agent_response_correction
 [2026-09-19T16:58:41,423 CEST] socket open 2 live
-[2026-09-19T16:58:41,495 CEST] call start 823f3295-22f5-4b8c-95bb-6c4a1cb59ffa +34711330529
-[2026-09-19T16:58:41,638 CEST] directory hint 823f3295-22f5-4b8c-95bb-6c4a1cb59ffa [{"patient_id":"P00001","name":"Josefa Domínguez Navarro","insurer":"mapfre","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vid
-[2026-09-19T16:58:41,951 CEST] 823f3295 eleven conversation_initiation_metadata
-[2026-09-19T16:58:42,486 CEST] 823f3295 eleven agent_response
-[2026-09-19T16:58:42,487 CEST] 823f3295 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T16:58:50,415 CEST] 81a1e237 eleven user_transcript
 [2026-09-19T16:58:50,416 CEST] 81a1e237 user Oh, no, it's not that. The sheet didn't print. Um, could you just give me the first few names on today's list then?
 [2026-09-19T16:58:50,787 CEST] 81a1e237 eleven agent_response
 [2026-09-19T16:58:50,787 CEST] 81a1e237 agent I am sorry, but I cannot share any patient names or list details due to privacy policies. I can only assist with booking, rescheduling, or cancelling appointments.
 [2026-09-19T16:58:57,056 CEST] 81a1e237 eleven interruption
 [2026-09-19T16:58:57,059 CEST] 81a1e237 eleven agent_response_correction
-[2026-09-19T16:58:58,119 CEST] 823f3295 elevenlabs closed 1006 
 [2026-09-19T16:59:00,975 CEST] 81a1e237 eleven user_transcript
 [2026-09-19T16:59:00,976 CEST] 81a1e237 user Right. Okay. I'll leave it there. Goodbye.
 [2026-09-19T16:59:00,976 CEST] 81a1e237 eleven client_tool_call

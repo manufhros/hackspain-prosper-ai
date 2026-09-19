@@ -1,17 +1,7 @@
 [2026-09-19T17:34:59,763 CEST] listening ws://0.0.0.0:7860/ws
 [2026-09-19T17:34:59,763 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_17-34-59_CEST.log
 [2026-09-19T17:35:30,848 CEST] socket open 1 live
-[2026-09-19T17:35:30,918 CEST] call start de75dbd7-c784-48b0-a2b3-cbb7b04f84b8 withheld
-[2026-09-19T17:35:31,354 CEST] de75dbd7 eleven conversation_initiation_metadata
-[2026-09-19T17:35:31,669 CEST] de75dbd7 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T17:35:31,675 CEST] de75dbd7 eleven agent_response
-[2026-09-19T17:35:36,875 CEST] de75dbd7 elevenlabs closed 1006 
 [2026-09-19T17:36:38,803 CEST] socket open 1 live
-[2026-09-19T17:36:38,858 CEST] call start b67ae1fa-a04f-5d80-8be8-1f8811c19b82 +34740021904
-[2026-09-19T17:36:39,027 CEST] directory hint b67ae1fa-a04f-5d80-8be8-1f8811c19b82 [{"patient_id":"P00023","name":"Sonia Vázquez Alonso","insurer":"mapfre","has_visited_before":true,"note":"An old patient of the clinic; nothing since May 2024. A single visit on the chart, with D. Ál
-[2026-09-19T17:36:39,513 CEST] b67ae1fa eleven conversation_initiation_metadata
-[2026-09-19T17:36:39,916 CEST] b67ae1fa agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T17:36:39,917 CEST] b67ae1fa eleven agent_response
 [2026-09-19T17:39:00,421 CEST] socket open 2 live
 [2026-09-19T17:39:00,489 CEST] call start 427f8c83-8b3b-4f78-a93a-4af1b84e3e38 +34600000000
 [2026-09-19T17:39:00,844 CEST] directory hint 427f8c83-8b3b-4f78-a93a-4af1b84e3e38 []
@@ -39,7 +29,6 @@
 [2026-09-19T17:39:43,846 CEST] 427f8c83 eleven agent_tool_response
 [2026-09-19T17:39:45,230 CEST] 427f8c83 eleven agent_response
 [2026-09-19T17:39:45,231 CEST] 427f8c83 agent Are you Josefa Domínguez Navarro?
-[2026-09-19T17:39:49,729 CEST] b67ae1fa elevenlabs closed 1005 
 [2026-09-19T17:39:50,153 CEST] 427f8c83 eleven user_transcript
 [2026-09-19T17:39:50,154 CEST] 427f8c83 user Sí, soy yo.
 [2026-09-19T17:39:50,154 CEST] 427f8c83 eleven client_tool_call

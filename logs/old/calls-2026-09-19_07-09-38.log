@@ -1,21 +1,7 @@
 [2026-09-19T07:09:38.410Z] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_07-09-38.log
 [2026-09-19T07:09:38.410Z] listening ws://0.0.0.0:7860/ws
 [2026-09-19T07:14:59.745Z] socket open 1 live
-[2026-09-19T07:14:59.916Z] call start 8c31abb1-5615-5809-a316-7740e6800743 +34687972771
-[2026-09-19T07:15:00.527Z] directory hint 8c31abb1-5615-5809-a316-7740e6800743 [{"patient_id":"P00075","name":"Álvaro Fernández González","insurer":"privado","has_visited_before":true,"note":"An old patient of the clinic; nothing since November 2024. Two visits across gynaecolog
-[2026-09-19T07:15:00.899Z] 8c31abb1 eleven conversation_initiation_metadata
-[2026-09-19T07:15:01.528Z] 8c31abb1 eleven agent_response
-[2026-09-19T07:15:01.528Z] 8c31abb1 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T07:15:16.854Z] socket open 2 live
-[2026-09-19T07:15:20.976Z] call start 6daf5881-fefe-56c3-8724-74de01050a30 +34774173891
-[2026-09-19T07:15:21.131Z] directory hint 6daf5881-fefe-56c3-8724-74de01050a30 []
-[2026-09-19T07:15:21.404Z] 6daf5881 eleven conversation_initiation_metadata
-[2026-09-19T07:15:21.733Z] 6daf5881 eleven agent_response
-[2026-09-19T07:15:21.733Z] 6daf5881 agent Hello, Centro Arenal. How can I help you?
-[2026-09-19T07:15:23.120Z] 8c31abb1 eleven agent_response
-[2026-09-19T07:15:23.120Z] 8c31abb1 eleven user_transcript
-[2026-09-19T07:15:23.120Z] 8c31abb1 agent Hello. How can I help you today?
-[2026-09-19T07:15:23.120Z] 8c31abb1 user Hello.
 [2026-09-19T07:15:45.765Z] socket open 3 live
 [2026-09-19T07:15:46.434Z] call start 3af721f8-66e6-54e6-b675-d7a8df246ed1 +34622955161
 [2026-09-19T07:15:49.386Z] directory hint 3af721f8-66e6-54e6-b675-d7a8df246ed1 [{"patient_id":"P01006","name":"Laura Rodríguez Delgado","insurer":"privado","has_visited_before":true,"note":"Nothing since April 2025, but an established patient. A regular of Dr. Martín Sáez, three
@@ -34,8 +20,6 @@
 [2026-09-19T07:16:25.770Z] 0e458cb2 eleven conversation_initiation_metadata
 [2026-09-19T07:16:26.623Z] 0e458cb2 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T07:16:26.623Z] 0e458cb2 eleven agent_response
-[2026-09-19T07:16:26.881Z] 8c31abb1 elevenlabs closed 1005 
-[2026-09-19T07:16:30.548Z] 6daf5881 elevenlabs closed 1005 
 [2026-09-19T07:16:35.683Z] d2118a63 user Hello.
 [2026-09-19T07:16:35.683Z] d2118a63 eleven user_transcript
 [2026-09-19T07:16:35.756Z] d2118a63 agent Hello. How can I help you today?
@@ -69,13 +53,8 @@
 [2026-09-19T07:16:53.076Z] socket open 5 live
 [2026-09-19T07:16:53.122Z] 6ac6b563 eleven user_transcript
 [2026-09-19T07:16:53.122Z] 6ac6b563 user Hello. Hi.
-[2026-09-19T07:16:53.146Z] call start 97d19943-f47e-59b6-8ddc-94ee164cc665 +34632779137
 [2026-09-19T07:16:53.223Z] 6ac6b563 eleven agent_response
 [2026-09-19T07:16:53.223Z] 6ac6b563 agent Hello. How can I help you today?
-[2026-09-19T07:16:53.285Z] directory hint 97d19943-f47e-59b6-8ddc-94ee164cc665 []
-[2026-09-19T07:16:53.591Z] 97d19943 eleven conversation_initiation_metadata
-[2026-09-19T07:16:53.925Z] 97d19943 eleven agent_response
-[2026-09-19T07:16:53.925Z] 97d19943 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T07:16:55.940Z] 0e458cb2 user Yeah. So, I'm new to the clinic and need to register as a patient. My old clinic closed. I'm not looking to book anything today.
 [2026-09-19T07:16:55.940Z] 0e458cb2 eleven user_transcript
 [2026-09-19T07:16:56.190Z] 0e458cb2 agent I can certainly help you register as a new patient. Could you please tell me your full name?
@@ -88,10 +67,6 @@
 [2026-09-19T07:16:58.403Z] d2118a63 eleven agent_tool_response
 [2026-09-19T07:16:59.151Z] d2118a63 agent Are you Marcos Gomez Diaz?
 [2026-09-19T07:16:59.151Z] d2118a63 eleven agent_response
-[2026-09-19T07:17:11.586Z] 97d19943 eleven user_transcript
-[2026-09-19T07:17:11.586Z] 97d19943 user ...
-[2026-09-19T07:17:11.682Z] 97d19943 eleven agent_response
-[2026-09-19T07:17:11.682Z] 97d19943 agent Hello, is anyone there? How can I help you today?
 [2026-09-19T07:17:12.278Z] 3af721f8 eleven user_transcript
 [2026-09-19T07:17:12.278Z] 3af721f8 user Yeah. So, um, I need an appointment with Dr. Peral. My hip clicks and aches getting out of a chair. Yeah, sorry. I need to see Dr. Peral about my hip. It clicks and aches getting out of a chair.
 [2026-09-19T07:17:12.536Z] 3af721f8 eleven agent_response

@@ -90,57 +90,13 @@
 [2026-09-19T21:19:32,244 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T21:19:32,245 CEST] socket open 2 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T21:19:32,656 CEST] stream connected
-[2026-09-19T21:19:32,657 CEST] stream start 383fa086-32c8-546e-93f7-ff63582b9636 {"call_id":"383fa086-32c8-546e-93f7-ff63582b9636","from_number":"+34664460020"}
-[2026-09-19T21:19:32,658 CEST] call start 383fa086-32c8-546e-93f7-ff63582b9636 +34664460020
 [2026-09-19T21:19:32,769 CEST] stream connected
-[2026-09-19T21:19:32,779 CEST] call start 182e3998-aabc-5280-b869-75720b9c4600 +34759992505
-[2026-09-19T21:19:32,780 CEST] stream start 182e3998-aabc-5280-b869-75720b9c4600 {"call_id":"182e3998-aabc-5280-b869-75720b9c4600","from_number":"+34759992505"}
-[2026-09-19T21:19:32,833 CEST] directory hint 383fa086-32c8-546e-93f7-ff63582b9636 [{"patient_id":"P01210","name":"Irene Rubio Sánchez","insurer":"dkv","has_visited_before":true,"note":"An old patient of the clinic; nothing since February 2024. One visit only, with Dr. Javier Ocaña.
-[2026-09-19T21:19:32,933 CEST] directory hint 182e3998-aabc-5280-b869-75720b9c4600 [{"patient_id":"P01029","name":"Sergio Vázquez Medina","insurer":"dkv","has_visited_before":true,"note":"Nothing since January 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. 
-[2026-09-19T21:19:33,272 CEST] 383fa086 eleven conversation_initiation_metadata
-[2026-09-19T21:19:33,353 CEST] 182e3998 eleven conversation_initiation_metadata
-[2026-09-19T21:19:33,634 CEST] 383fa086 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:19:33,635 CEST] 383fa086 eleven agent_response
-[2026-09-19T21:19:33,745 CEST] 182e3998 eleven agent_response
-[2026-09-19T21:19:33,746 CEST] 182e3998 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
 [2026-09-19T21:19:35,535 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T21:19:35,535 CEST] socket open 3 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T21:19:35,611 CEST] stream connected
-[2026-09-19T21:19:35,612 CEST] stream start 2a62e687-0717-5820-8083-92068db41674 {"call_id":"2a62e687-0717-5820-8083-92068db41674","from_number":"+34770084692"}
-[2026-09-19T21:19:35,612 CEST] call start 2a62e687-0717-5820-8083-92068db41674 +34770084692
 [2026-09-19T21:19:35,786 CEST] socket open 4 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T21:19:35,786 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
 [2026-09-19T21:19:35,843 CEST] stream connected
-[2026-09-19T21:19:35,845 CEST] stream start ba5f53d2-1de5-5219-91c4-4bcb07667fdc {"call_id":"ba5f53d2-1de5-5219-91c4-4bcb07667fdc","from_number":"+34695588432"}
-[2026-09-19T21:19:35,845 CEST] call start ba5f53d2-1de5-5219-91c4-4bcb07667fdc +34695588432
-[2026-09-19T21:19:39,199 CEST] 2a62e687 eleven conversation_initiation_metadata
-[2026-09-19T21:19:39,199 CEST] ba5f53d2 eleven conversation_initiation_metadata
-[2026-09-19T21:19:40,337 CEST] 2a62e687 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:19:40,338 CEST] 2a62e687 eleven agent_response
-[2026-09-19T21:19:40,787 CEST] ba5f53d2 eleven agent_response
-[2026-09-19T21:19:40,787 CEST] ba5f53d2 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:20:21,004 CEST] 182e3998 elevenlabs closed 1006 
-[2026-09-19T21:20:21,004 CEST] 2a62e687 elevenlabs closed 1006 
-[2026-09-19T21:20:21,004 CEST] ba5f53d2 elevenlabs closed 1006 
-[2026-09-19T21:20:21,904 CEST] 383fa086 elevenlabs closed 1006 
 [2026-09-19T21:20:48,716 CEST] socket open 1 /ws Python/3.12 websockets/15.0.1
 [2026-09-19T21:20:48,718 CEST] ws upgrade /ws Python/3.12 websockets/15.0.1 permessage-deflate; client_max_window_bits
-[2026-09-19T21:20:48,990 CEST] call start e7d5ed29-f86e-59c8-81b1-63fa3d900da0 +34695588432
-[2026-09-19T21:20:48,990 CEST] stream start e7d5ed29-f86e-59c8-81b1-63fa3d900da0 {"call_id":"e7d5ed29-f86e-59c8-81b1-63fa3d900da0","from_number":"+34695588432"}
 [2026-09-19T21:20:48,991 CEST] stream connected
-[2026-09-19T21:20:49,157 CEST] directory hint e7d5ed29-f86e-59c8-81b1-63fa3d900da0 [{"patient_id":"P00280","name":"Ángel Molina González","insurer":"mapfre","has_visited_before":true,"note":"Seen here before, but there is no visit on the chart to read back. A GP referral for Physiot
-[2026-09-19T21:20:51,085 CEST] e7d5ed29 eleven conversation_initiation_metadata
-[2026-09-19T21:20:51,392 CEST] e7d5ed29 eleven agent_response
-[2026-09-19T21:20:51,393 CEST] e7d5ed29 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:20:59,670 CEST] e7d5ed29 eleven user_transcript
-[2026-09-19T21:20:59,671 CEST] e7d5ed29 user ...
-[2026-09-19T21:20:59,748 CEST] e7d5ed29 eleven agent_response
-[2026-09-19T21:20:59,748 CEST] e7d5ed29 agent ¿Hola? ¿Hay algo en lo que pueda ayudarle hoy?
-[2026-09-19T21:21:14,556 CEST] e7d5ed29 eleven user_transcript
-[2026-09-19T21:21:14,556 CEST] e7d5ed29 user "Hello? Are you still there?"
-[2026-09-19T21:21:14,638 CEST] e7d5ed29 agent Hello, yes, I am here. How can I help you today?
-[2026-09-19T21:21:14,638 CEST] e7d5ed29 eleven agent_response
-[2026-09-19T21:21:22,413 CEST] e7d5ed29 eleven user_transcript
-[2026-09-19T21:21:22,414 CEST] e7d5ed29 user Hi.
-[2026-09-19T21:21:22,437 CEST] e7d5ed29 agent Hi. How can I help you today?
-[2026-09-19T21:21:22,437 CEST] e7d5ed29 eleven agent_response

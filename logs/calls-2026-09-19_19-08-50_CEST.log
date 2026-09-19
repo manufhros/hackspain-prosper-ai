@@ -73,47 +73,6 @@
 [2026-09-19T19:09:47,273 CEST] 699c1862 elevenlabs closed 1005 
 [2026-09-19T19:09:47,274 CEST] 348070a7 flushed book on eleven close
 [2026-09-19T19:11:19,142 CEST] socket open 1 live
-[2026-09-19T19:11:19,202 CEST] call start b8e391e5-fd74-50a5-9092-3b372338e071 +34618858185
-[2026-09-19T19:11:19,507 CEST] directory hint b8e391e5-fd74-50a5-9092-3b372338e071 [{"patient_id":"P00476","name":"Miguel Fernández López","insurer":"privado","has_visited_before":true,"note":"Still attending; the last visit was October 2025. Four visits, most recently with Dr. Pabl
-[2026-09-19T19:11:19,942 CEST] b8e391e5 eleven conversation_initiation_metadata
-[2026-09-19T19:11:20,280 CEST] b8e391e5 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:11:20,280 CEST] b8e391e5 eleven agent_response
 [2026-09-19T19:11:20,627 CEST] socket open 2 live
-[2026-09-19T19:11:20,683 CEST] call start e3035ace-3f92-50a7-9bf3-213877863d71 +34799158810
-[2026-09-19T19:11:20,752 CEST] directory hint e3035ace-3f92-50a7-9bf3-213877863d71 [{"patient_id":"P00409","name":"Andrea Jiménez Blanco","insurer":"axa","has_visited_before":false,"note":"Registered but never seen -- nothing on the chart yet. Asks whether an appointment can be move
-[2026-09-19T19:11:21,150 CEST] e3035ace eleven conversation_initiation_metadata
-[2026-09-19T19:11:21,493 CEST] e3035ace agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:11:21,494 CEST] e3035ace eleven agent_response
 [2026-09-19T19:11:22,138 CEST] socket open 3 live
-[2026-09-19T19:11:22,196 CEST] call start 3ff61531-5cdd-5b42-b232-a27f74cc316e +34756880823
-[2026-09-19T19:11:22,288 CEST] directory hint 3ff61531-5cdd-5b42-b232-a27f74cc316e [{"patient_id":"P01555","name":"Gonzalo Fernández Muñoz","insurer":"mapfre","has_visited_before":true,"note":"Still attending; the last visit was November 2025. Has been seen four times, in orthopaedi
-[2026-09-19T19:11:22,776 CEST] 3ff61531 eleven conversation_initiation_metadata
-[2026-09-19T19:11:23,163 CEST] 3ff61531 eleven agent_response
-[2026-09-19T19:11:23,163 CEST] 3ff61531 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
 [2026-09-19T19:11:23,639 CEST] socket open 4 live
-[2026-09-19T19:11:23,695 CEST] call start d906a7d4-41bd-5bce-bea0-564ebfbf1cd7 +34636899157
-[2026-09-19T19:11:23,756 CEST] directory hint d906a7d4-41bd-5bce-bea0-564ebfbf1cd7 [{"patient_id":"P00645","name":"Alejandro Sanz Díaz","insurer":"sanitas","has_visited_before":true,"note":"Seen here before, but there is no visit on the chart to read back. Already has an appointment
-[2026-09-19T19:11:24,134 CEST] d906a7d4 eleven conversation_initiation_metadata
-[2026-09-19T19:11:24,504 CEST] d906a7d4 eleven agent_response
-[2026-09-19T19:11:24,505 CEST] d906a7d4 agent Clínica Arenal, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T19:11:30,414 CEST] 3ff61531 user ...
-[2026-09-19T19:11:30,414 CEST] 3ff61531 eleven user_transcript
-[2026-09-19T19:11:30,494 CEST] 3ff61531 eleven agent_response
-[2026-09-19T19:11:30,495 CEST] 3ff61531 agent ¿Hola? ¿Sigue ahí? ¿En qué puedo ayudarle hoy?
-[2026-09-19T19:11:44,176 CEST] 3ff61531 eleven user_transcript
-[2026-09-19T19:11:44,177 CEST] 3ff61531 user Hello?
-[2026-09-19T19:11:44,267 CEST] 3ff61531 agent Buenos días, le atiendo en Clínica Arenal. ¿En qué puedo ayudarle?
-[2026-09-19T19:11:44,268 CEST] 3ff61531 eleven agent_response
-[2026-09-19T19:11:53,214 CEST] 3ff61531 eleven user_transcript
-[2026-09-19T19:11:53,214 CEST] 3ff61531 user ...
-[2026-09-19T19:11:53,214 CEST] 3ff61531 eleven agent_tool_response
-[2026-09-19T19:11:54,329 CEST] 3ff61531 agent Hello, this is Clínica Arenal. How can I help you today?
-[2026-09-19T19:11:54,330 CEST] 3ff61531 eleven agent_response
-[2026-09-19T19:12:08,363 CEST] 3ff61531 user "Um, are you still there?"
-[2026-09-19T19:12:08,364 CEST] 3ff61531 eleven user_transcript
-[2026-09-19T19:12:08,443 CEST] 3ff61531 eleven agent_response
-[2026-09-19T19:12:08,444 CEST] 3ff61531 agent Yes, I am here. How can I help you today?
-[2026-09-19T19:12:57,977 CEST] 3ff61531 elevenlabs closed 1002 Generating the LLM response took too long.
-[2026-09-19T19:14:28,815 CEST] b8e391e5 elevenlabs closed 1006 
-[2026-09-19T19:14:33,175 CEST] e3035ace elevenlabs closed 1005 
-[2026-09-19T19:14:35,577 CEST] d906a7d4 elevenlabs closed 1006 

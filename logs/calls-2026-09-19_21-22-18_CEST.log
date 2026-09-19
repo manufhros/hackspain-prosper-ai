@@ -1,34 +1,22 @@
 [2026-09-19T21:22:18,330 CEST] listening ws://0.0.0.0:7860/ws
 [2026-09-19T21:22:18,330 CEST] log file /Users/lucia/Documents/Github/hackspain-prosper-ai/logs/calls-2026-09-19_21-22-18_CEST.log
 [2026-09-19T21:22:47,115 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
-[2026-09-19T21:22:47,115 CEST] stream start c44c86f1-3d94-4770-9b7e-e54579ed6c5b {"call_id":"c44c86f1-3d94-4770-9b7e-e54579ed6c5b","from_number":"+34687275510","org_slug":"quironsalud","simulation":"live-talk-quiron"}
 [2026-09-19T21:22:47,115 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
-[2026-09-19T21:22:47,115 CEST] call start c44c86f1-3d94-4770-9b7e-e54579ed6c5b +34687275510
 [2026-09-19T21:22:47,116 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
 [2026-09-19T21:22:47,116 CEST] socket open 2 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
 [2026-09-19T21:22:47,119 CEST] stream start 2444da89-ffad-4159-aecd-304e85828506 {"call_id":"2444da89-ffad-4159-aecd-304e85828506","from_number":"+34711330529","org_slug":"arenal","simulation":"live-book-arenal"}
 [2026-09-19T21:22:47,119 CEST] call start 2444da89-ffad-4159-aecd-304e85828506 +34711330529
 [2026-09-19T21:22:47,127 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
 [2026-09-19T21:22:47,128 CEST] socket open 3 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36
-[2026-09-19T21:22:47,133 CEST] stream start ffd774cf-976b-4733-859e-25e4ab4fc1bb {"call_id":"ffd774cf-976b-4733-859e-25e4ab4fc1bb","from_number":"+34611926767","org_slug":"sanitas","simulation":"live-faq-sanitas"}
-[2026-09-19T21:22:47,133 CEST] call start ffd774cf-976b-4733-859e-25e4ab4fc1bb +34611926767
-[2026-09-19T21:22:54,766 CEST] c44c86f1 eleven conversation_initiation_metadata
-[2026-09-19T21:22:54,776 CEST] ffd774cf eleven conversation_initiation_metadata
 [2026-09-19T21:22:54,797 CEST] 2444da89 eleven conversation_initiation_metadata
 [2026-09-19T21:22:54,925 CEST] 2444da89 user Hola, quiero la primera cita de medicina general, lo antes posible.
-[2026-09-19T21:22:55,095 CEST] c44c86f1 eleven agent_response
-[2026-09-19T21:22:55,096 CEST] c44c86f1 agent Clínica Quirón, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:22:55,102 CEST] ffd774cf agent Clínica Sanitas, buenos días. ¿En qué puedo ayudarle?
-[2026-09-19T21:22:55,102 CEST] ffd774cf eleven agent_response
 [2026-09-19T21:22:55,796 CEST] 2444da89 tool search_directory {"phone":"+34711330529"}
 [2026-09-19T21:22:55,797 CEST] 2444da89 eleven client_tool_call
 [2026-09-19T21:22:55,869 CEST] 2444da89 tool result search_directory {"matches":[{"patient_id":"P00001","given_name":"Josefa","first_surname":"Domínguez","second_surname":"Navarro","national_id":"48064716Y","date_of_birth":"2001-09-19","phone":"711330529","sex":"F","has_visited_before":true,"insurer":"mapfre","referrals":["dermatology"],"note":"Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.","match_score":1,"matched_fields":["phone"]}],"next_step":"This is Josefa Domínguez Navarro. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: Nothing since April 2025, but an established patient. Seen once, by Dra. Carmen Ortiz Vidal. Calling from somewhere busy; expect to repeat the date.. If hard of
 [2026-09-19T21:22:55,978 CEST] 2444da89 eleven agent_tool_response
-[2026-09-19T21:22:58,642 CEST] c44c86f1 elevenlabs closed 1005 
 [2026-09-19T21:22:59,663 CEST] 2444da89 agent Hola, buenas tardes. ¿Es usted Josefa Domínguez Navarro?
 [2026-09-19T21:22:59,664 CEST] 2444da89 eleven agent_response
 [2026-09-19T21:23:01,888 CEST] 2444da89 elevenlabs closed 1006 
-[2026-09-19T21:23:01,893 CEST] ffd774cf elevenlabs closed 1006 
 [2026-09-19T21:27:53,400 CEST] ws upgrade /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 permessage-deflate; client_max_window_bits
 [2026-09-19T21:27:53,401 CEST] call start 375b0f42-e6c3-4c0b-b844-bdf504ace03b +34687275510
 [2026-09-19T21:27:53,401 CEST] socket open 1 /ws Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36

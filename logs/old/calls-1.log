@@ -105,11 +105,6 @@
 [2026-09-19T00:25:48.941Z] d7ba1aee eleven user_transcript
 [2026-09-19T00:25:48.941Z] d7ba1aee user Yeah. So, I need a GP appointment about high blood pressure readings as soon as you've got one.
 [2026-09-19T00:25:48.941Z] d7ba1aee agent I can help you with that. May I have your full name, please?
-[2026-09-19T00:25:48.971Z] call start c46881e4-3354-5fc0-a95d-c7c7061c0b34 +34653170327
-[2026-09-19T00:25:49.123Z] directory hint c46881e4-3354-5fc0-a95d-c7c7061c0b34 []
-[2026-09-19T00:25:49.429Z] c46881e4 eleven conversation_initiation_metadata
-[2026-09-19T00:25:49.771Z] c46881e4 eleven agent_response
-[2026-09-19T00:25:49.772Z] c46881e4 agent Hello, Centro Arenal. How can I help you?
 [2026-09-19T00:25:50.792Z] f269fb39 eleven user_transcript
 [2026-09-19T00:25:50.792Z] f269fb39 user Yeah. So, I need an orthopedics appointment for my knee. It aches after long walks, and I'd like the first one you've got.
 [2026-09-19T00:25:51.010Z] f269fb39 agent I can certainly help you find the earliest orthopedics appointment. May I have your full name, please?
@@ -119,14 +114,10 @@
 [2026-09-19T00:25:53.482Z] af0a0f1e user Yeah, so I need a general practice appointment to go over some blood test results as soon as you have one.
 [2026-09-19T00:25:53.728Z] af0a0f1e agent I can help you with that. May I have your full name and your national identification number or date of birth to look up your file?
 [2026-09-19T00:25:53.727Z] af0a0f1e eleven agent_response
-[2026-09-19T00:25:54.388Z] c46881e4 user Hello.
-[2026-09-19T00:25:54.388Z] c46881e4 eleven user_transcript
 [2026-09-19T00:25:54.444Z] fae0bc55 eleven user_transcript
 [2026-09-19T00:25:54.444Z] fae0bc55 user Yeah, so I need an appointment with Dr. Iglesias, the dermatologist, about a dry, itchy patch on my scalp.
 [2026-09-19T00:25:54.453Z] fae0bc55 tool search_directory {"phone":"+34644455831"}
 [2026-09-19T00:25:54.453Z] fae0bc55 eleven client_tool_call
-[2026-09-19T00:25:54.472Z] c46881e4 agent Hello. How can I help you today?
-[2026-09-19T00:25:54.472Z] c46881e4 eleven agent_response
 [2026-09-19T00:25:54.938Z] fae0bc55 tool result search_directory {"matches":[{"patient_id":"P00593","given_name":"Raquel","first_surname":"Romero","second_surname":"Morales","national_id":"56744619P","date_of_birth":"1938-12-28","phone":"644455831","sex":"F","has_visited_before":true,"insurer":"cigna","referrals":["dermatology"],"note":"Nothing since May 2025, but an established patient. Eight visits, the first of them back in October 2024. A GP referral for Dermatology is on file -- the gated specialties need one. Writes it down while you wait; leave a pause after the date.","match_score":1,"matched_fields":["phone"]}]}
 [2026-09-19T00:25:55.044Z] fae0bc55 eleven agent_tool_response
 [2026-09-19T00:25:55.881Z] fae0bc55 eleven agent_response

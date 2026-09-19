@@ -5,6 +5,8 @@ dist/
 !.env.example
 data/*.json
 data/*.tmp
+data/*.sqlite
+data/*.sqlite-*
 !data/.gitkeep
 .DS_Store
 *.tsbuildinfo

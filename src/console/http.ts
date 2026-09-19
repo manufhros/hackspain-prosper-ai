@@ -4,6 +4,7 @@ import { extname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { CallStore, CallSummary } from "./calls.ts";
 import type { ProviderSettings } from "./provider.ts";
+import type { MetricPeriod } from "./metrics.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const roots: Record<string, string> = {
@@ -119,6 +120,22 @@ export function createConsoleHandler(
           clearInterval(heartbeat);
           calls.off("change", changed);
         });
+        return;
+      }
+      if (req.method === "GET" && route === "/api/overview") {
+        const period = url.searchParams.get("period") ?? "30d";
+        if (!["today", "7d", "30d", "all"].includes(period)) {
+          json(res, 400, { error: "El periodo no es válido." });
+          return;
+        }
+        if (calls.storageError) {
+          json(res, 503, {
+            error:
+              "No se pueden mostrar métricas completas: revisa el almacenamiento local y reinicia la aplicación.",
+          });
+          return;
+        }
+        json(res, 200, calls.metrics.overview(period as MetricPeriod));
         return;
       }
       if (req.method === "GET" && route.startsWith("/api/calls/")) {

@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { MetricsStore } from "./metrics.ts";
 
 export type CallStatus =
   | "active"
@@ -70,9 +71,15 @@ export class CallStore extends EventEmitter {
   private calls = new Map<string, Call>();
   private timer: ReturnType<typeof setTimeout> | undefined;
   private writing = Promise.resolve();
-  storageError = false;
+  private historyStorageError = false;
+  get storageError(): boolean {
+    return this.historyStorageError || this.metrics.storageError;
+  }
 
-  constructor(private file: string | undefined = undefined) {
+  constructor(
+    private file: string | undefined = undefined,
+    readonly metrics = new MetricsStore(),
+  ) {
     super();
     this.setMaxListeners(12);
   }
@@ -100,10 +107,12 @@ export class CallStore extends EventEmitter {
           if (tool.status === "running") tool.status = "interrupted";
         }
         this.calls.set(call.id, call);
+        this.metrics.recordCall(call);
+        for (const tool of call.tools) this.metrics.recordTool(call.id, tool);
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-        this.storageError = true;
+        this.historyStorageError = true;
         // Do not overwrite an unreadable history file.
         this.file = undefined;
       }
@@ -171,15 +180,16 @@ export class CallStore extends EventEmitter {
   toolStart(id: string, toolId: string, name: string, input: unknown): void {
     const call = this.get(id);
     if (!call || call.tools.some((tool) => tool.id === toolId)) return;
-    call.tools.push({
+    const tool: ToolRun = {
       id: toolId,
       name,
       input: safePayload(input),
       status: "running",
       startedAt: new Date().toISOString(),
-    });
+    };
+    call.tools.push(tool);
     call.tools = call.tools.slice(-MAX_ITEMS);
-    this.changed(id);
+    this.changed(id, tool);
   }
 
   toolEnd(id: string, toolId: string, result: string, failed = false): void {
@@ -211,7 +221,7 @@ export class CallStore extends EventEmitter {
         .join(" ");
       if (name) call.name = name;
     }
-    this.changed(id);
+    this.changed(id, tool, output);
   }
 
   fail(id: string, message: string): void {
@@ -233,14 +243,19 @@ export class CallStore extends EventEmitter {
     const call = this.get(id);
     if (!call) return;
     for (const tool of call.tools)
-      if (tool.status === "running") tool.status = "interrupted";
+      if (tool.status === "running") {
+        tool.status = "interrupted";
+        this.metrics.recordTool(id, tool);
+      }
     this.changed(id);
   }
 
-  private changed(id: string): void {
+  private changed(id: string, tool?: ToolRun, output?: unknown): void {
     const call = this.get(id);
     if (!call) return;
     call.revision += 1;
+    this.metrics.recordCall(call);
+    if (tool) this.metrics.recordTool(id, tool, output);
     const ended = this.list()
       .filter((item) => item.status !== "active")
       .reverse();
@@ -267,9 +282,9 @@ export class CallStore extends EventEmitter {
         await mkdir(dirname(file), { recursive: true, mode: 0o700 });
         await writeFile(`${file}.tmp`, payload, { mode: 0o600 });
         await rename(`${file}.tmp`, file);
-        this.storageError = false;
+        this.historyStorageError = false;
       } catch {
-        this.storageError = true;
+        this.historyStorageError = true;
       }
     });
     await this.writing;

@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { env } from "../config.ts";
 import { handleCall } from "./session.ts";
+import { MetricsStore } from "../console/metrics.ts";
 import { CallStore } from "../console/calls.ts";
 import { ProviderSettings } from "../console/provider.ts";
 import { createConsoleHandler } from "../console/http.ts";
@@ -9,6 +10,9 @@ import { fileURLToPath } from "node:url";
 
 const calls = new CallStore(
   fileURLToPath(new URL("../../data/calls.json", import.meta.url)),
+  new MetricsStore(
+    fileURLToPath(new URL("../../data/metrics.sqlite", import.meta.url)),
+  ),
 );
 const provider = new ProviderSettings();
 await Promise.all([calls.load(), provider.load()]);
@@ -46,7 +50,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {
     for (const call of calls.list())
       if (call.status === "active") calls.finish(call.id, "interrupted");
-    void calls.flush().finally(() => process.exit(0));
+    void calls.flush().finally(() => {
+      calls.metrics.close();
+      process.exit(0);
+    });
   });
 }
 

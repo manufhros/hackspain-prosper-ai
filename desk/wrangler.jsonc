@@ -1,6 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "prosper-desk",
+  "routes": [
+    { "pattern": "turno.somelabs.dev", "custom_domain": true }
+  ],
   "main": "worker.js",
   "compatibility_date": "2026-09-19",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],

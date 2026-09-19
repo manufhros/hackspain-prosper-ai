@@ -330,6 +330,44 @@ Results have this format. The record below is only a demonstration, not an agent
 
 The CLI prints JSON and does not save input. Exit code `0` means all supplied results passed the **local** comparison, `1` means a failed/unverified/empty evaluation, and `2` means invalid input. A partial batch can exit `0`; the report always shows attempted coverage against all 73 cases. Use the full template when testing complete coverage. Duplicate case IDs in one run are rejected.
 
+## Simulate a call without Prosper's call runner
+
+The standalone caller connects to your already-running `/ws` endpoint, speaking and listening over paced 20 ms, 8 kHz mu-law audio. This exercises the server's VAD, ASR, agent tools, TTS and final resolution. It generates a random **BOOK, CANCEL or RESCHEDULE** request in **English, Spanish or Catalan** from current Prosper directory, appointment and eligible-availability reads. The expected action is computed from those live records, separately from the caller LLM; neither the caller nor receptionist gets the expected record.
+
+In terminal 1, stop any live-mode receptionist and start it yourself in dry-run mode:
+
+```sh
+bun run serve --dry-run
+```
+
+Wait for **Ready**, then in terminal 2, from this same checkout:
+
+```sh
+bun run simulate:call
+```
+
+The existing `PLATFORM_API_KEY` and `OPENROUTER_API_KEY` are enough. The caller uses OpenRouter `openai/gpt-4.1-mini` for conversation, hosted Whisper Turbo to hear the receptionist, and its own single Piper worker to speak. It does not launch another Qwen server or change the receptionist's model/ASR settings. Caller chat and listening incur OpenRouter usage; the normal local runtime may prepare missing Piper dependencies/assets on first use. Override only the caller model with `SIM_CALLER_MODEL` if desired. `VOICE_SERVER_TOKEN` is reused for the socket handshake.
+
+Choose a language/request or repeat a seeded selection:
+
+```sh
+bun run simulate:call --language es --kind book --seed clinic-1
+bun run simulate:call --language ca --kind cancel
+bun run simulate:call --language en --kind reschedule
+```
+
+To inspect a live-data scenario without starting any caller processes or placing a call:
+
+```sh
+bun run simulate:call --prepare-only --language es --kind book --seed clinic-1
+```
+
+`--endpoint ws://127.0.0.1:7861/ws` selects another local port. The default follows `VOICE_PORT`, falling back to 7860. Live-mode servers and non-loopback endpoints are rejected. Synthetic call IDs are never sent to Prosper's submission API: it only accepts IDs created by its own runner. Reads use the real API; resulting actions remain in the receptionist's dry-run report.
+
+The script prints the conversation, expected/actual records and **PASS / FAIL / NEEDS_REVIEW**, then saves `.workbench/simulation-<id>.json`. This includes the live scenario snapshot, actual receptionist report, caller speech, what the caller ASR heard, timing data and action differences. `.workbench/simulation-<id>-audio/` contains playable per-turn WAV recordings for both sides (long turns are split at 30 seconds). Compare caller speech with `receptionist.transcript` and listen to those files when recognition is wrong. The artifacts contain clinic-persona data and are private/Git-ignored. Exit code 0 means a completed, matching local result; 1 also covers incomplete/unverified runs and setup failures.
+
+This follows the [published wire contract](task/contract.md) and [action normalization](task/scoring.md), but is **not the official caller or judge**. It samples adult existing-patient identities from the public personas, then refreshes their records live; it cannot enumerate all 2,900 patients through the lookup-only directory. Requests use a specific eligible slot, or a current appointment to cancel/move. There are no noise beds, deliberate interruptions, third-party/privacy scenarios or simultaneous calls yet. Playback marks determine caller turn boundaries. Caller LLM/ASR delays contribute to total duration, so this is not a receptionist latency benchmark. Selection is repeatable for the same seed, date and DB state; speech and model outputs are nondeterministic. An expired booking calendar fails visibly instead of inventing availability.
+
 ## Run real Prosper platform tests
 
 The separate server mode accepts the track's Twilio Media Streams format at `/ws`, speaks with the existing local models, and submits confirmed resolutions to the six documented test routes using the incoming `start.callSid`. No Twilio account or phone number is needed. The TUI remains local-only.

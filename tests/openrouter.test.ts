@@ -13,7 +13,7 @@ const tool = (id = "call_1", args = '{}') => ({ id, type: "function", function: 
 
 test("provider configuration defaults local and OpenRouter never requires Ollama", () => {
   expect(modelConfig({})).toEqual({ provider: "local", model: "qwen3.5:4b" });
-  expect(runtimeExecutables(modelConfig({}))).toEqual(["uv", "ollama"]);
+  expect(runtimeExecutables(modelConfig({}))).toEqual(["uv", "llama-server"]);
   expect(modelConfig({ LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "test/model" })).toEqual({ ...config, timeoutMs: 20000, sort: "latency" });
   expect(runtimeExecutables(config)).toEqual(["uv"]);
   for (const env of [{ LLM_PROVIDER: "typo" }, { LLM_PROVIDER: "openrouter" }, { LLM_PROVIDER: "openrouter", OPENROUTER_MODEL: "bad model" },

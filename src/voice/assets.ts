@@ -2,6 +2,13 @@ export const MODEL = "qwen3.5:4b";
 const whisper = "https://huggingface.co/mlx-community/whisper-small-mlx/resolve/45f3915923c7a79a5a5b5a7d909d39aeb0e5630e";
 const piper = "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117";
 export interface Asset { path: string; url: string; size?: number; sha256?: string }
+// Same Q4_K_M GGUF already pulled by the private Ollama runtime; embedded Jinja template included.
+const qwenDigest = "81fb60c7daa80fc1123380b98970b320ae233409f0f71a72ed7b9b0d62f40490";
+export const qwenAsset: Asset = {
+  path: "models/qwen3.5-4b-q4_k_m.gguf", size: 3389971840, sha256: qwenDigest,
+  url: `https://registry.ollama.ai/v2/library/qwen3.5/blobs/sha256:${qwenDigest}`,
+};
+export const qwenOllamaBlob = `ollama/blobs/sha256-${qwenDigest}`;
 export const assets: Asset[] = [
   { path: "whisper/config.json", url: `${whisper}/config.json`, size: 266 },
   { path: "whisper/weights.npz", url: `${whisper}/weights.npz`, size: 481307592, sha256: "55b6674c9b339702d486e2b1573839a66f8ec8f821ed2886993ef717a86b09f5" },

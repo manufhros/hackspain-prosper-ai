@@ -7,7 +7,10 @@ export function localSettings(env: Record<string, string | undefined> = process.
   };
   const asrModel = env.LOCAL_ASR_MODEL?.trim() || "small";
   if (!["small", "large-v3-turbo"].includes(asrModel)) throw new Error("LOCAL_ASR_MODEL must be small or large-v3-turbo");
+  const backend = env.LOCAL_LLM_BACKEND?.trim() || "llama";
+  if (!["llama", "ollama"].includes(backend)) throw new Error("LOCAL_LLM_BACKEND must be llama or ollama");
   return {
+    backend: backend as "llama" | "ollama",
     parallel: integer("LOCAL_LLM_PARALLEL", 4, 1, 8),
     context: integer("LOCAL_LLM_CONTEXT", 16384, 4096, 32768),
     maxTokens: integer("LOCAL_LLM_MAX_TOKENS", 512, 128, 2048),

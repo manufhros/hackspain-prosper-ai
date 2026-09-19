@@ -3,10 +3,11 @@ import { dirname, join } from "node:path";
 import { createServer } from "node:net";
 import { root, type ObjectValue } from "../data";
 import { stateDir } from "../storage";
-import { speechAssets, vadAsset, MODEL, type Asset } from "./assets";
+import { speechAssets, vadAsset, qwenAsset, qwenOllamaBlob, MODEL, type Asset } from "./assets";
 import { childEnvironment, modelConfig, openRouterKey, runtimeExecutables } from "./model";
 import { OpenRouterChat } from "./openrouter";
 import { OllamaChat } from "./ollama";
+import { LlamaChat, llamaArguments, llamaCapacity } from "./llama";
 import { localSettings } from "./settings";
 
 type Worker = { process: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>; role: "asr" | "tts"; pending: number };
@@ -64,12 +65,13 @@ export class LocalRuntime implements Inference {
   private stopSignal = new AbortController();
   private workers: Worker[] = [];
   readonly settings = localSettings();
-  private local?: OllamaChat;
+  private local?: OllamaChat | LlamaChat;
+  modelRuntime?: { backend: string; slots: number; context_per_slot: number; build?: string };
   private llm?: ReturnType<typeof Bun.spawn<"pipe", "pipe", "pipe">>;
   private origin = "";
   private remote?: OpenRouterChat;
   get modelLabel() {
-    try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model}` : `OpenRouter ${config.model}`; }
+    try { const config = modelConfig(); return config.provider === "local" ? `Local ${config.model} (${this.settings.backend})` : `OpenRouter ${config.model}`; }
     catch { return "Model configuration incomplete; check LLM_PROVIDER / OPENROUTER_MODEL"; }
   }
   private starting?: Promise<void>;
@@ -136,15 +138,14 @@ export class LocalRuntime implements Inference {
     await mkdir(join(voiceDir, "audio"), { recursive: true, mode: 0o700 });
     await chmod(stateDir, 0o700); await chmod(voiceDir, 0o700);
     const brew = Bun.which("brew") ?? (await Bun.file("/opt/homebrew/bin/brew").exists() ? "/opt/homebrew/bin/brew" : null);
-    let uv = Bun.which("uv"), ollama = Bun.which("ollama");
-    const missing = runtimeExecutables(config).filter(name => name === "uv" ? !uv : !ollama);
+    const executables = runtimeExecutables(config, this.settings.backend);
+    const missing = executables.filter(name => !Bun.which(name));
     if (missing.length) {
       if (!brew) throw new Error("Install Homebrew first (brew.sh), then rerun bun start. No sudo installer is run by the workbench.");
       this.update(`Installing ${missing.join(", ")} through Homebrew…`);
-      await this.command([brew, "install", ...missing]);
-      uv = Bun.which("uv") ?? "/opt/homebrew/bin/uv";
-      ollama = Bun.which("ollama") ?? "/opt/homebrew/bin/ollama";
+      await this.command([brew, "install", ...missing.map(name => name === "llama-server" ? "llama.cpp" : name)]);
     }
+    const executable = (name: string) => Bun.which(name) ?? `/opt/homebrew/bin/${name}`;
     const python = join(voiceDir, "venv/bin/python");
     const requirements = await readFile(join(root, "local-voice/requirements.txt"), "utf8");
     const fingerprint = new Bun.CryptoHasher("sha256").update(requirements).digest("hex");
@@ -152,11 +153,14 @@ export class LocalRuntime implements Inference {
     try { installed = await readFile(join(voiceDir, "dependencies.sha256"), "utf8"); } catch { /* first launch */ }
     if (installed !== fingerprint || !await Bun.file(python).exists()) {
       this.update("Preparing isolated Python 3.12 audio environment…");
-      for (const command of installationCommands(uv!, python, voiceDir)) await this.command(command);
+      for (const command of installationCommands(executable("uv"), python, voiceDir)) await this.command(command);
       await writeFile(join(voiceDir, "dependencies.sha256"), fingerprint, { mode: 0o600 });
     }
     for (const asset of [...speechAssets(this.settings.asrModel), vadAsset]) await this.download(asset);
-    if (config.provider === "local") await this.startOllama(ollama!);
+    if (config.provider === "local") {
+      if (this.settings.backend === "llama") await this.startLlama(executable("llama-server"));
+      else await this.startOllama(executable("ollama"));
+    }
     this.startWorker(python, "asr");
     for (let i = 0; i < this.settings.ttsWorkers; i++) this.startWorker(python, "tts");
     this.update("Warming recognition, speech workers and the language model…");
@@ -165,7 +169,43 @@ export class LocalRuntime implements Inference {
     await this.chat([{ role: "user", content: "Reply with the word ready." }], [], this.stopSignal.signal);
     if (this.workers.some(worker => worker.process.exitCode !== null) || (this.llm && this.llm.exitCode !== null)) throw new Error("Local process exited during warmup; retry setup.");
     this.state = "ready";
-    this.update(`Voice ready: ${this.modelLabel}${config.provider === "local" ? ` (${this.settings.parallel} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+    this.update(`Voice ready: ${this.modelLabel}${this.modelRuntime ? ` (${this.modelRuntime.slots} local slots)` : ""} + Whisper ${this.settings.asrModel} + ${this.settings.ttsWorkers} Piper workers.`);
+  }
+  private async startLlama(executable: string) {
+    let modelPath = join(voiceDir, qwenAsset.path);
+    const cached = Bun.file(join(voiceDir, qwenOllamaBlob));
+    if (await cached.exists() && cached.size === qwenAsset.size && await cached.slice(0, 4).text() === "GGUF") {
+      modelPath = cached.name!;
+      this.update("Reusing Qwen GGUF from the private Ollama cache.");
+    } else await this.download(qwenAsset);
+    const port = await freePort();
+    this.origin = `http://127.0.0.1:${port}`;
+    this.update("Starting private llama-server with continuous batching…");
+    const llm = this.launch([executable, ...llamaArguments(modelPath, port, this.settings)]);
+    this.llm = llm;
+    llm.stdin.end();
+    let tail = "";
+    const retain = (line: string) => { tail = (tail + "\n" + line).slice(-3000); };
+    void streamLines(llm.stderr, retain).catch(() => {}); void streamLines(llm.stdout, retain).catch(() => {});
+    void llm.exited.then(() => {
+      if (this.llm === llm && this.state === "ready") {
+        this.state = "error"; this.error = "Local language model exited; retry setup."; this.update(this.error);
+      }
+    });
+    let available = false;
+    for (let attempt = 0; attempt < 480; attempt++) {
+      this.stopSignal.signal.throwIfAborted();
+      if (llm.exitCode !== null) throw new Error(`llama-server exited. Try brew upgrade llama.cpp. ${tail}`);
+      try { available = (await fetch(`${this.origin}/health`, { signal: AbortSignal.any([this.stopSignal.signal, AbortSignal.timeout(500)]) })).ok; } catch { /* loading */ }
+      if (available) break;
+      await Bun.sleep(250);
+    }
+    if (!available) throw new Error(`llama-server startup timed out. ${tail}`);
+    const props = await fetch(`${this.origin}/props`, { signal: AbortSignal.any([this.stopSignal.signal, AbortSignal.timeout(5000)]) });
+    if (!props.ok) throw new Error(`Cannot verify llama-server capacity: HTTP ${props.status}`);
+    this.modelRuntime = llamaCapacity(await props.json(), this.settings);
+    this.local = new LlamaChat(this.origin, this.settings);
+    this.update(`llama-server reports ${this.modelRuntime.slots} slots, ${this.modelRuntime.context_per_slot} context tokens per slot.`);
   }
   private startWorker(python: string, role: Worker["role"]) {
     const child = this.launch([python, join(root, "local-voice/worker.py"), voiceDir, role], {
@@ -193,10 +233,11 @@ export class LocalRuntime implements Inference {
   private async startOllama(ollama: string) {
     const port = await freePort();
     this.origin = `http://127.0.0.1:${port}`;
-    this.update("Starting private Ollama process…");
-    const llm = this.launch([ollama, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: String(this.settings.parallel), OLLAMA_CONTEXT_LENGTH: String(this.settings.context), OLLAMA_MAX_LOADED_MODELS: "1", OLLAMA_MAX_QUEUE: "64", OLLAMA_NO_CLOUD: "1" });
+    this.update("Starting private Ollama baseline (one slot: Qwen3.5 parallelism is disabled by Ollama 0.34.1)…");
+    const llm = this.launch([ollama, "serve"], { OLLAMA_HOST: `127.0.0.1:${port}`, OLLAMA_MODELS: join(voiceDir, "ollama"), OLLAMA_NUM_PARALLEL: "1", OLLAMA_CONTEXT_LENGTH: String(this.settings.context), OLLAMA_MAX_LOADED_MODELS: "1", OLLAMA_MAX_QUEUE: "64", OLLAMA_NO_CLOUD: "1" });
     this.llm = llm;
-    this.local = new OllamaChat(this.origin, this.settings);
+    this.local = new OllamaChat(this.origin, { ...this.settings, parallel: 1 });
+    this.modelRuntime = { backend: "ollama", slots: 1, context_per_slot: this.settings.context };
     void llm.exited.then(() => {
       if (this.llm === llm && this.state === "ready") {
         this.state = "error"; this.error = "Local language model exited; retry setup."; this.update(this.error);
@@ -288,7 +329,7 @@ export class LocalRuntime implements Inference {
       const timer = setTimeout(() => { if (child.exitCode === null) { try { process.kill(-child.pid, "SIGKILL"); } catch {} } }, 1500);
       timer.unref();
     }
-    this.children.clear(); this.workers = []; this.local = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
+    this.children.clear(); this.workers = []; this.modelRuntime = undefined; this.local = undefined; this.llm = undefined; this.remote = undefined; this.origin = "";
     for (const pending of [...this.pending.values()]) pending.reject(new Error("Local runtime stopped"));
     this.pending.clear();
   }

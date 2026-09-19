@@ -3,7 +3,7 @@ import { WebSocketServer } from "ws";
 import { env } from "../config.ts";
 import { callLog, callLogError, LOG_FILE } from "./call-log.ts";
 import { handleCall } from "./session.ts";
-import { handoffTwiml } from "./twilio-transfer.ts";
+import { handoffTwiml, liveStreamTwiml } from "./twilio-transfer.ts";
 
 const startedAt = Date.now();
 
@@ -22,6 +22,15 @@ const server = createServer((req, res) => {
   if (url.pathname === "/twiml/handoff") {
     res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
     res.end(handoffTwiml(url.searchParams.get("summary") ?? undefined));
+    return;
+  }
+  if (url.pathname === "/twiml/live") {
+    const join = url.searchParams.get("join") ?? "";
+    const host = String(req.headers["x-forwarded-host"] ?? req.headers.host ?? "127.0.0.1:7860").split(",")[0]!;
+    const wsUrl = `wss://${host}/ws`;
+    callLog("twiml live", join.slice(0, 8), wsUrl);
+    res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
+    res.end(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal"));
     return;
   }
   res.writeHead(404);

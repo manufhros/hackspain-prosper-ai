@@ -7,6 +7,7 @@ import { AGENT_PROMPT } from "./prompt.ts";
 import { clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { loadRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent } from "./call-event.ts";
+import { getLiveSession, registerLiveSession, unregisterLiveSession, type PhoneSink } from "./live-bridge.ts";
 
 type TwilioStart = {
   event: "start";
@@ -130,6 +131,8 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   let finalised = false;
   let simulationMode = false;
   let lastDetectedLanguage: "es" | "en" | undefined;
+  const phones: PhoneSink[] = [];
+  let joinedHost: { sendElevenAudio: (ulaw: string) => void; removePhone: (ws: WebSocket) => void } | undefined;
 
   const finalise = async (callCtx: CallContext) => {
     if (finalised) return;
@@ -168,6 +171,21 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     }
   };
 
+  const sendAgentAudio = (payload: string) => {
+    if (streamSid && twilio.readyState === WebSocket.OPEN) {
+      sendTwilio({ event: "media", streamSid, media: { payload } });
+    }
+    for (const phone of phones) {
+      if (phone.ws.readyState === WebSocket.OPEN) {
+        phone.ws.send(JSON.stringify({
+          event: "media",
+          streamSid: phone.streamSid,
+          media: { payload },
+        }));
+      }
+    }
+  };
+
   const sendMonitor = (monitor: Record<string, unknown>) => {
     if (simulationMode) sendTwilio({ event: "monitor", monitor });
   };
@@ -199,7 +217,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         stopHold();
         return;
       }
-      sendTwilio({ event: "media", streamSid, media: { payload: holdFrame(holdTick) } });
+      sendAgentAudio(holdFrame(holdTick));
       holdTick += 1;
     }, 20);
   };
@@ -271,7 +289,7 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
         const event = typed.audio_event as { audio_base_64?: string; audio_base64?: string } | undefined;
         const payload = event?.audio_base_64 ?? event?.audio_base64 ?? typed.audio?.chunk;
         if (payload && streamSid) {
-          sendTwilio({ event: "media", streamSid, media: { payload } });
+          sendAgentAudio(payload);
         }
         return;
       }
@@ -408,7 +426,14 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
                   is_error: false,
                 }),
               );
-              if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
+              if (toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
+                socket.send(
+                  JSON.stringify({
+                    type: "contextual_update",
+                    text: "A colleague joined this call by phone. Keep speaking Spanish with the caller so they can hear you. Do not say out of scope, transferred, or goodbye.",
+                  }),
+                );
+              } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
                   JSON.stringify({
                     type: "contextual_update",
@@ -518,6 +543,16 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     if (message.event === "start") {
       const start = message as TwilioStart;
       streamSid = start.start.streamSid;
+      const joinId = start.start.customParameters?.join;
+      if (joinId) {
+        const host = getLiveSession(joinId);
+        if (host) {
+          host.addPhone(twilio, streamSid);
+          joinedHost = host;
+          callLog("phone joined live agent", joinId);
+          return;
+        }
+      }
       const callId = start.start.customParameters?.call_id || start.start.callSid;
       const fromNumber = start.start.customParameters?.from_number;
       const orgSlug = start.start.customParameters?.org_slug || "arenal";
@@ -525,11 +560,32 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
       simulationMode = start.start.customParameters?.simulation != null;
       const platform = new PlatformClient();
       const callCtx: CallContext = fromNumber
-        ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid }
-        : { callId, platform, simulationMode, twilioCallSid: start.start.callSid };
+        ? { callId, fromNumber, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug }
+        : { callId, platform, simulationMode, twilioCallSid: start.start.callSid, orgSlug };
       ctx = callCtx;
       startedAt = Date.now();
       callLog("call start", callId, fromNumber ?? "withheld");
+      registerLiveSession({
+        callId,
+        sendElevenAudio: (ulaw) => {
+          if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
+            sendEleven({ user_audio_chunk: ulaw });
+          } else {
+            queueAudio(ulaw);
+          }
+        },
+        addPhone: (ws, sid) => {
+          phones.push({ ws, streamSid: sid });
+          sendEleven({
+            type: "contextual_update",
+            text: "A human receptionist just joined this live call on the phone. Greet them in Spanish in one short sentence and keep talking so they can hear you. Do not say out of scope or one moment.",
+          });
+        },
+        removePhone: (ws) => {
+          const index = phones.findIndex((phone) => phone.ws === ws);
+          if (index >= 0) phones.splice(index, 1);
+        },
+      });
 
       const wallClock = setTimeout(() => {
         void (async () => {
@@ -667,6 +723,10 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     if (message.event === "media") {
       const media = message as TwilioMedia;
       const payload = media.media.payload;
+      if (joinedHost) {
+        joinedHost.sendElevenAudio(payload);
+        return;
+      }
       if (elevenReady && eleven?.readyState === WebSocket.OPEN) {
         sendEleven({ user_audio_chunk: payload });
       } else {
@@ -696,9 +756,15 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
     }
 
     if (message.event === "stop") {
+      if (joinedHost) {
+        joinedHost.removePhone(twilio);
+        joinedHost = undefined;
+        return;
+      }
       stopHold();
       if (ctx) {
         const callCtx = ctx;
+        unregisterLiveSession(callCtx.callId);
         void flushPendingSubmit(callCtx).catch((error: unknown) => {
           callLogError(callCtx.callId.slice(0, 8), "flush on stop failed", error);
         });
@@ -709,9 +775,15 @@ export async function handleCall(twilio: WebSocket): Promise<void> {
   });
 
   twilio.on("close", () => {
+    if (joinedHost) {
+      joinedHost.removePhone(twilio);
+      joinedHost = undefined;
+      return;
+    }
     stopHold();
     if (ctx) {
       const callCtx = ctx;
+      unregisterLiveSession(callCtx.callId);
       void flushPendingSubmit(callCtx).catch((error: unknown) => {
         callLogError(callCtx.callId.slice(0, 8), "flush on close failed", error);
       });

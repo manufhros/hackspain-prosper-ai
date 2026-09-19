@@ -1,19 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dialHumanUrl, handoffVoiceUrl } from "./twilio-transfer.ts";
+import { dialHumanUrl, handoffVoiceUrl, liveStreamTwiml } from "./twilio-transfer.ts";
 
-test("trial originate uses a short HTTPS message Url", () => {
+test("trial fallback message does not say out of scope", () => {
   const previous = process.env.TWILIO_HANDOFF_URL;
   delete process.env.TWILIO_HANDOFF_URL;
   try {
-    const url = handoffVoiceUrl("Paciente Marta. Motivo out of scope.");
+    const url = handoffVoiceUrl("Motivo out of scope.");
+    const spoken = decodeURIComponent(url);
     assert.equal(url.startsWith("https://twimlets.com/message?Message="), true);
-    assert.equal(url.includes("Twiml="), false);
-    assert.equal(decodeURIComponent(url).includes("Paciente Marta"), true);
+    assert.equal(spoken.includes("out of scope"), false);
+    assert.equal(spoken.includes("compañero"), true);
   } finally {
     if (previous === undefined) delete process.env.TWILIO_HANDOFF_URL;
     else process.env.TWILIO_HANDOFF_URL = previous;
   }
+});
+
+test("live handoff TwiML streams into the existing call", () => {
+  const twiml = liveStreamTwiml("wss://example.ngrok-free.app/ws", "call-123", "quironsalud");
+  assert.equal(twiml.includes("<Say language=\"es-ES\">Le pongo con recepción.</Say>"), true);
+  assert.equal(twiml.includes("<Stream url=\"wss://example.ngrok-free.app/ws\">"), true);
+  assert.equal(twiml.includes('name="join" value="call-123"'), true);
+  assert.equal(twiml.includes("out of scope"), false);
 });
 
 test("real-call redirect dials the human number via Url", () => {

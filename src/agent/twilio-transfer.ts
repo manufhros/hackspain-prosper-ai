@@ -34,28 +34,53 @@ function credentials() {
   return { accountSid, auth, humanNumber, callerId };
 }
 
-function spokenHandoff(summary?: string) {
-  const extra = summary?.trim().replace(/\s+/g, " ").slice(0, 160);
-  return extra
-    ? `Le transfiere recepción. ${extra}`
-    : "Le transfiere recepción. El paciente ha pedido hablar con una persona.";
+function spokenHandoff() {
+  return "Le transfiere recepción. Un compañero se pone al teléfono.";
 }
 
-export function handoffTwiml(summary?: string) {
-  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff(summary))}</Say><Pause length="3"/></Response>`;
+export function handoffTwiml(_summary?: string) {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">${xml(spokenHandoff())}</Say><Pause length="3"/></Response>`;
+}
+
+export function liveStreamTwiml(wsUrl: string, joinCallId: string, orgSlug = "arenal") {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response><Say language="es-ES">Le pongo con recepción.</Say><Connect><Stream url="${xml(wsUrl)}"><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
 }
 
 /** Trial accounts reject inline `Twiml`. Use a short HTTPS message URL Twilio can fetch. */
-export function handoffVoiceUrl(summary?: string) {
+export function handoffVoiceUrl(_summary?: string) {
   const configured = process.env.TWILIO_HANDOFF_URL?.trim();
   if (configured) return configured;
-  return `https://twimlets.com/message?Message=${encodeURIComponent(spokenHandoff(summary))}`;
+  return `https://twimlets.com/message?Message=${encodeURIComponent(spokenHandoff())}`;
 }
 
 export function dialHumanUrl(humanNumber: string) {
   const configured = process.env.TWILIO_DIAL_URL?.trim();
   if (configured) return configured;
   return `https://twimlets.com/forward?PhoneNumber=${encodeURIComponent(humanNumber)}`;
+}
+
+export async function publicHttpOrigin(): Promise<string | null> {
+  const configured = process.env.VOICE_AGENT_PUBLIC_URL?.trim() || process.env.TWILIO_HANDOFF_URL?.trim();
+  if (configured) {
+    return configured
+      .replace(/^wss:/, "https:")
+      .replace(/^ws:/, "http:")
+      .replace(/\/ws\/?$/, "")
+      .replace(/\/twiml\/.*$/, "");
+  }
+  try {
+    const response = await fetch("http://127.0.0.1:4040/api/tunnels", {
+      signal: AbortSignal.timeout(1500),
+    });
+    const data = (await response.json()) as { tunnels?: Array<{ public_url?: string }> };
+    return data.tunnels?.find((tunnel) => tunnel.public_url?.startsWith("https://"))?.public_url ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function wsUrlFromOrigin(origin: string) {
+  return `${origin.replace(/^https:/, "wss:").replace(/^http:/, "ws:")}/ws`;
 }
 
 async function twilioPost(path: string, body: URLSearchParams) {
@@ -91,17 +116,33 @@ async function twilioPost(path: string, body: URLSearchParams) {
   };
 }
 
-export async function originateHandoffCall(summary?: string): Promise<TransferResult> {
+export async function originateHandoffCall(join?: {
+  callId: string;
+  orgSlug?: string;
+}): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
+  }
+  let url = handoffVoiceUrl();
+  if (join) {
+    const origin = await publicHttpOrigin();
+    if (!origin) {
+      return {
+        configured: true,
+        transferred: false,
+        originated: false,
+        error: "No hay URL pública (ngrok) para unir el móvil a la llamada.",
+      };
+    }
+    url = `${origin}/twiml/live?join=${encodeURIComponent(join.callId)}&org=${encodeURIComponent(join.orgSlug ?? "arenal")}`;
   }
   const posted = await twilioPost(
     "/Calls.json",
     new URLSearchParams({
       To: creds.humanNumber,
       From: creds.callerId,
-      Url: handoffVoiceUrl(summary),
+      Url: url,
     }),
   );
   if (!posted) return { configured: false, error: "No se pudo contactar con Twilio." };
@@ -117,12 +158,13 @@ export async function originateHandoffCall(summary?: string): Promise<TransferRe
 
 export async function transferTwilioCall(
   callSid?: string,
-  summary?: string,
+  join?: { callId: string; orgSlug?: string },
 ): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
+  if (join) return originateHandoffCall(join);
   if (callSid && !callSid.includes("-")) {
     const updated = await twilioPost(
       `/Calls/${encodeURIComponent(callSid)}.json`,
@@ -132,5 +174,7 @@ export async function transferTwilioCall(
       return { configured: true, transferred: true, status: updated.status, callSid };
     }
   }
-  return originateHandoffCall(summary);
+  return originateHandoffCall();
 }
+
+export { wsUrlFromOrigin };

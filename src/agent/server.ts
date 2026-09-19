@@ -4,6 +4,7 @@ import { env } from "../config.ts";
 import { callLog, callLogError, LOG_FILE } from "./call-log.ts";
 import { handleCall } from "./session.ts";
 import { handoffTwiml } from "./twilio-transfer.ts";
+import { connectNodeSocket } from "./node-socket.ts";
 
 const startedAt = Date.now();
 
@@ -35,7 +36,7 @@ wss.on("connection", (socket) => {
   socket.on("error", (error) => {
     callLogError("twilio socket", error);
   });
-  void handleCall(socket);
+  void handleCall(socket, { connect: connectNodeSocket });
 });
 
 wss.on("error", (error) => {

@@ -1,3 +1,5 @@
+import type { AuditAction } from "./audit.ts";
+
 function xml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
@@ -58,9 +60,11 @@ export function dialHumanUrl(humanNumber: string) {
   return `https://twimlets.com/forward?PhoneNumber=${encodeURIComponent(humanNumber)}`;
 }
 
-async function twilioPost(path: string, body: URLSearchParams) {
+async function twilioPost(path: string, body: URLSearchParams, audit?: AuditAction) {
   const creds = credentials();
   if (!creds) return null;
+  const requestId = crypto.randomUUID();
+  await audit?.("handoff.requested", { requestId, provider: "twilio", path, body: Object.fromEntries(body) });
   const response = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(creds.accountSid)}${path}`,
     {
@@ -72,7 +76,10 @@ async function twilioPost(path: string, body: URLSearchParams) {
       body,
       signal: AbortSignal.timeout(8_000),
     },
-  );
+  ).catch(async (error: unknown) => {
+    await audit?.("handoff.failed", { requestId, provider: "twilio", errorType: error instanceof Error ? error.name : "UnknownError" });
+    throw error;
+  });
   const raw = await response.text();
   let payload: { sid?: string; message?: string } = {};
   try {
@@ -83,6 +90,7 @@ async function twilioPost(path: string, body: URLSearchParams) {
   if (!response.ok) {
     console.error("twilio transfer failed", response.status, payload.message ?? raw.slice(0, 240));
   }
+  await audit?.("handoff.completed", { requestId, provider: "twilio", status: response.status, callSid: payload.sid ?? null });
   return {
     ok: response.ok,
     status: response.status,
@@ -91,9 +99,10 @@ async function twilioPost(path: string, body: URLSearchParams) {
   };
 }
 
-export async function originateHandoffCall(summary?: string): Promise<TransferResult> {
+export async function originateHandoffCall(summary?: string, audit?: AuditAction): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
+    await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
   const posted = await twilioPost(
@@ -103,6 +112,7 @@ export async function originateHandoffCall(summary?: string): Promise<TransferRe
       From: creds.callerId,
       Url: handoffVoiceUrl(summary),
     }),
+    audit,
   );
   if (!posted) return { configured: false, error: "No se pudo contactar con Twilio." };
   return {
@@ -118,19 +128,22 @@ export async function originateHandoffCall(summary?: string): Promise<TransferRe
 export async function transferTwilioCall(
   callSid?: string,
   summary?: string,
+  audit?: AuditAction,
 ): Promise<TransferResult> {
   const creds = credentials();
   if (!creds) {
+    await audit?.("handoff.skipped", { reason: "missing_credentials" });
     return { configured: false, error: "Faltan TWILIO_ACCOUNT_SID, números o token." };
   }
   if (callSid && !callSid.includes("-")) {
     const updated = await twilioPost(
       `/Calls/${encodeURIComponent(callSid)}.json`,
       new URLSearchParams({ Url: dialHumanUrl(creds.humanNumber) }),
+      audit,
     );
     if (updated?.ok) {
       return { configured: true, transferred: true, status: updated.status, callSid };
     }
   }
-  return originateHandoffCall(summary);
+  return originateHandoffCall(summary, audit);
 }

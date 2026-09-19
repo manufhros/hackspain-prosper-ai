@@ -53,6 +53,7 @@ function line(parts: unknown[]): string {
 /** Writes every call event to stdout and to a new logs/calls-<start>.log per process. */
 export function callLog(...parts: unknown[]): void {
   console.log(...parts);
+  if (process.env.VOICE_STORAGE === "d1") return;
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(parts)))
     .catch((error: unknown) => {
@@ -62,6 +63,7 @@ export function callLog(...parts: unknown[]): void {
 
 export function callLogError(...parts: unknown[]): void {
   console.error(...parts);
+  if (process.env.VOICE_STORAGE === "d1") return;
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(["ERROR", ...parts])))
     .catch((error: unknown) => {
@@ -71,6 +73,7 @@ export function callLogError(...parts: unknown[]): void {
 
 export function callLogWarn(...parts: unknown[]): void {
   console.warn(...parts);
+  if (process.env.VOICE_STORAGE === "d1") return;
   void mkdir(LOG_DIR, { recursive: true })
     .then(() => appendFile(LOG_FILE, line(["WARN", ...parts])))
     .catch((error: unknown) => {

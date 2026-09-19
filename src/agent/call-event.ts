@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import type { AuditAction } from "./audit.ts";
 
 const EVENT_DIR = join(process.cwd(), "logs");
 const EVENT_FILE = join(EVENT_DIR, "call-events.jsonl");
@@ -54,6 +55,7 @@ export type PostCallSummary = {
 export async function deliverPostCall(
   summary: PostCallSummary,
   configuredEndpoint?: string,
+  audit?: AuditAction,
 ): Promise<void> {
   const endpoint = configuredEndpoint?.trim() || process.env.POST_CALL_WEBHOOK_URL?.trim();
   if (!endpoint) return;
@@ -69,8 +71,11 @@ export async function deliverPostCall(
   let lastError = "post-call failed";
   for (let attempt = 0; attempt < 4; attempt++) {
     if (attempt) await new Promise((resolve) => setTimeout(resolve, 300 * 2 ** attempt));
+    const requestId = randomUUID();
+    await audit?.("webhook.requested", { requestId, attempt: attempt + 1, endpoint, body: summary });
+    let response: Response;
     try {
-      const response = await fetch(endpoint, {
+      response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -80,11 +85,14 @@ export async function deliverPostCall(
         body,
         signal: AbortSignal.timeout(8_000),
       });
-      if (response.ok) return;
-      lastError = `post-call ${response.status}`;
     } catch (error) {
+      await audit?.("webhook.failed", { requestId, errorType: error instanceof Error ? error.name : "UnknownError" });
       lastError = error instanceof Error ? error.message : lastError;
+      continue;
     }
+    await audit?.("webhook.completed", { requestId, status: response.status });
+    if (response.ok) return;
+    lastError = `post-call ${response.status}`;
   }
   throw new Error(lastError);
 }

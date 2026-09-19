@@ -1,3 +1,4 @@
+import type { AuditAction } from "./audit.ts";
 import { PlatformClient } from "../platform/client.ts";
 import type {
   AvailabilityQuery,
@@ -502,6 +503,7 @@ export type CallContext = {
   callId: string;
   fromNumber?: string;
   platform: PlatformClient;
+  audit?: AuditAction;
   configVersion?: string;
   routingMode?: "shadow" | "enforce";
   actionTools?: boolean;
@@ -541,6 +543,7 @@ export async function flushPendingSubmit(ctx: CallContext): Promise<void> {
   if (ctx.submitted || !ctx.draftBook) return;
   const draft = ctx.draftBook;
   ctx.draftBook = undefined;
+  await ctx.audit?.("action.flush_pending_booking", { parameters: draft });
   await ctx.platform.submitBook({ call_id: ctx.callId, ...draft });
   ctx.submitted = true;
   ctx.outcome = "cita";
@@ -806,7 +809,7 @@ export async function runClinicTool(
       ]
         .filter(Boolean)
         .join(" ");
-      const transfer = await transferTwilioCall(ctx.simulationMode ? undefined : ctx.twilioCallSid, summary);
+      const transfer = await transferTwilioCall(ctx.simulationMode ? undefined : ctx.twilioCallSid, summary, ctx.audit);
       ctx.draftBook = undefined;
       ctx.submitted = true;
       ctx.outcome = "escalado";

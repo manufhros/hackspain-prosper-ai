@@ -1,5 +1,6 @@
 import { env } from "../config.ts";
 import { PlatformApiError } from "./errors.ts";
+import type { AuditAction } from "../agent/audit.ts";
 import type {
   Appointment,
   AppointmentWindow,
@@ -32,9 +33,13 @@ function queryString(params: object): string {
 
 export class PlatformClient {
   constructor(
-    private readonly baseUrl = env.platformApiBaseUrl,
-    private readonly apiKey = env.platformApiKey,
+    private readonly configuredBaseUrl?: string,
+    private readonly configuredApiKey?: string,
+    private readonly audit?: AuditAction,
   ) {}
+
+  private get baseUrl() { return this.configuredBaseUrl ?? env.platformApiBaseUrl; }
+  private get apiKey() { return this.configuredApiKey ?? env.platformApiKey; }
 
   async health(): Promise<{ status: string }> {
     const response = await fetch(`${this.baseUrl}/api/v1/health`);
@@ -109,26 +114,42 @@ export class PlatformClient {
       if (attempt > 0) {
         await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
       }
+      const requestId = crypto.randomUUID();
+      const started = Date.now();
+      const url = new URL(`${this.baseUrl}${path}`);
+      // Store structured query/body data; authorization headers are never recorded.
+      const request = {
+        requestId, attempt: attempt + 1, provider: "prosper", method: init.method ?? "GET",
+        path: url.pathname.replace(/\/patients\/[^/]+/, "/patients/[patient_id]"),
+        query: Object.fromEntries(url.searchParams),
+        body: typeof init.body === "string" ? JSON.parse(init.body) : null,
+      };
+      await this.audit?.("api.requested", request);
+      let response: Response;
+      let payload: unknown;
       try {
-        const response = await fetch(`${this.baseUrl}${path}`, {
+        response = await fetch(`${this.baseUrl}${path}`, {
           ...init,
-          headers: {
-            "X-Api-Key": this.apiKey,
-            ...init.headers,
-          },
+          headers: { "X-Api-Key": this.apiKey, ...init.headers },
+          signal: init.signal ?? AbortSignal.timeout(8_000),
         });
-        const payload: unknown = await response.json().catch(() => null);
-        if (response.ok) return payload as T;
-        lastError = new PlatformApiError(response.status, path, payload);
-        if (response.status !== 429 && response.status !== 502 && response.status !== 503) {
-          throw lastError;
-        }
+        payload = await response.json().catch(() => null);
       } catch (error) {
+        await this.audit?.("api.failed", {
+          requestId, provider: "prosper", latencyMs: Date.now() - started,
+          errorType: error instanceof Error ? error.name : "UnknownError",
+        });
         lastError = error;
-        if (error instanceof PlatformApiError && error.status !== 429 && error.status !== 502 && error.status !== 503) {
-          throw error;
-        }
+        continue;
       }
+      // Audit failures must not retry a successfully executed provider action.
+      await this.audit?.("api.completed", {
+        requestId, provider: "prosper", status: response.status,
+        latencyMs: Date.now() - started, result: payload,
+      });
+      if (response.ok) return payload as T;
+      lastError = new PlatformApiError(response.status, path, payload);
+      if (response.status !== 429 && response.status !== 502 && response.status !== 503) throw lastError;
     }
     throw lastError;
   }

@@ -59,6 +59,18 @@ export async function loadRuntimeConfig(orgSlug = "arenal"): Promise<RuntimeConf
   } catch {
     orgConfig = {};
   }
+  return mergeRuntimeConfig(parsed, orgConfig);
+}
+
+export function mergeRuntimeConfig(
+  parsed: { active?: { id?: string; config?: Partial<Omit<RuntimeConfig, "version">> } },
+  orgConfig: {
+    preCallEndpoint?: string;
+    postCallEndpoint?: string;
+    frustrationThreshold?: number;
+    faq?: Array<{ question: string; answer: string }>;
+  },
+): RuntimeConfig {
   const config = parsed.active?.config ?? {};
   const externalPreCall =
     orgConfig.preCallEndpoint?.includes("hackspain.getprosperapp.com")

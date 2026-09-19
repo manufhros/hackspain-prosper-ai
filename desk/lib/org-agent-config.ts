@@ -3,6 +3,8 @@ import "server-only";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { readSetting, usesCloudflareStorage, writeSetting } from "./cloudflare-storage";
+import { PROSPER_API_BASE } from "./endpoint-health";
+export { PROSPER_API_BASE } from "./endpoint-health";
 
 export type EndpointHealth = {
   status: "unknown" | "healthy" | "degraded" | "down";
@@ -25,7 +27,6 @@ export type OrgAgentConfig = {
 };
 
 const FILE = path.resolve(process.cwd(), "..", "data", "org-agent-config.json");
-export const PROSPER_API_BASE = "https://hackspain.getprosperapp.com/api/v1";
 const EMPTY_HEALTH: EndpointHealth = {
   status: "unknown",
   checkedAt: null,

@@ -16,9 +16,9 @@ bun src/cli.ts case <id>           Inspect one complete public fixture
 bun src/cli.ts template            Empty results for every public case (JSON)
 bun run evaluate <results.json>    Compare a result batch; emits JSON
 bun src/cli.ts trace <trace.json>  Validate inbound Twilio messages
-bun run benchmark                 Local synthetic inference capacity test (starts models)
+bun run benchmark                 Synthetic capacity test (starts models; ASR_PROVIDER selects recognition)
 bun run benchmark --help          Benchmark details; no startup
-bun run benchmark:asr             Human-recorded ASR comparison (starts recognition only)
+bun run benchmark:asr             Human-recorded ASR comparison (ASR_PROVIDER selects local/hosted)
 bun run doctor                    Offline archive + contract self-check
 bun run check                     Typecheck and unit tests; no servers
 
@@ -32,7 +32,7 @@ Evaluation input: [{ case_id, record: { actions: [...] },
   transcript?: [{ role: "agent" | "caller", text }], reference_time?: ISO }]
 Trace input: [{ connection: "socket-1", message: { event: ... } }]
 
-Voice starts with bun start: local Qwen by default, plus local Whisper/Piper.
+Voice starts with bun start: local Qwen/Piper by default; ASR_PROVIDER=local or openrouter selects recognition.
 LLM_PROVIDER=openrouter + OPENROUTER_MODEL selects OpenRouter; set OPENROUTER_API_KEY in .env or save its key in Setup.
 No provider subscription or tunnel is required. --offline skips local setup.
 Local results are not official scores; saved answers use Friday's anchor.

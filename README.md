@@ -138,7 +138,7 @@ Stop other voice stacks, then run the recognition check yourself:
 bun run benchmark:asr
 ```
 
-This command starts only recognition workers, one profile at a time, and stops them afterwards. It skips Qwen, Piper, VAD and external inference providers, regardless of `LLM_PROVIDER`. First use may install dependencies/download the selected Whisper assets. `bun run benchmark:asr --help` starts nothing. Production settings and `.env` are unchanged.
+This command starts only recognition workers, one profile at a time, and stops them afterwards. With the default `ASR_PROVIDER=local`, it skips Qwen, Piper, VAD and external inference providers, regardless of `LLM_PROVIDER`. Hosted recognition mode is documented below. First use may install dependencies/download the selected Whisper assets. `bun run benchmark:asr --help` starts nothing. Production settings and `.env` are unchanged.
 
 The report at `.workbench/recognition-*.json` includes references, recognized text, detected language, decoder used, per-sample errors, input hashes and isolated worker timing. Corpus word error rate sums edit errors across reference words; failed operations count as empty transcripts. This small read-speech sample helps separate recognition from synthesis and codec effects. It does not validate clinic vocabulary, conversational speech, Spanish regional coverage, noisy calls or 10–20-call capacity.
 
@@ -189,6 +189,41 @@ At twenty turns, turbo ASR took 490 ms median per input, versus 196 ms for small
 
 Turbo/segment remains the stronger multilingual recognition candidate, but the current stack has not met the low-latency 10–20-call objective. Further throughput work should address recognition serialization and shared model contention; these measurements do not justify increasing Piper workers. Twenty ongoing conversations may have staggered utterances, so this synchronized burst test neither certifies nor rules out that workload. Actual endpointing, paced calls and receptionist tool flows still need validation. No production defaults were promoted and no extra model processes were started during report analysis.
 
+## Hosted transcription with local Qwen and Piper
+
+Set these in your private `.env` and uncomment your existing `OPENROUTER_API_KEY`:
+
+```dotenv
+LLM_PROVIDER=local
+ASR_PROVIDER=openrouter
+LOCAL_LLM_BACKEND=llama
+LOCAL_LLM_PARALLEL=2
+OPENROUTER_ASR_CONCURRENCY=20
+OPENROUTER_ASR_TIMEOUT_MS=12000
+```
+
+`ASR_PROVIDER` defaults to `local`; merely configuring an API key does not transmit audio. `openrouter` selects `openai/whisper-large-v3-turbo` through [OpenRouter's transcription endpoint](https://openrouter.ai/docs/guides/overview/multimodal/stt). It uses the same `.env`/Keychain credential as OpenRouter chat, independently of `LLM_PROVIDER`. **OpenRouter manages the upstream provider:** its transcription endpoint does not apply provider-pinning controls, so Groq is not guaranteed and requests may use another provider such as DeepInfra. No Groq-specific routing claim is made in reports.
+
+In hosted mode, microphone captures and completed telephone utterances are sent as WAV to OpenRouter and its selected provider. Qwen chat/action processing and Piper synthesis stay local when `LLM_PROVIDER=local`. Startup skips downloading, importing and warming local Whisper. A model-free capture worker retains microphone controls; Piper and Silero remain local. Native child processes never receive the OpenRouter key. The selected ASR provider/model/routing and available request IDs, usage and provider metadata are recorded in benchmark reports without credentials or raw response bodies.
+
+Up to 20 recognition requests can overlap (configurable from 1–20), with bounded admission and independent caller cancellation. HTTP failure, rate limiting, malformed responses and timeout surface as errors; there is no automatic retry or local/provider fallback in the app. The 12-second default ASR timeout includes adapter admission, upload and response reading; the existing platform operation timeout also covers shared queueing. The provider may still bill a request cancelled after submission. `verbose_json` requests language metadata, normalizing English/Spanish/Catalan names to `en`/`es`/`ca`; absent metadata remains `unknown`, never inferred from a scoring reference. Normal conversation language handling retains its existing text fallback.
+
+Stop other voice stacks and run the human-recorded quality check yourself:
+
+```sh
+ASR_PROVIDER=openrouter bun run benchmark:asr
+```
+
+This runs **60 billable transcription requests** (30 fixed human clips × two audio formats), using the same references and input hash as the local comparison. It starts no local models and makes no warmup transcription request. The remote `elapsed_ms`/legacy `worker_ms` fields include network and provider time; they are not native compute measurements. The report preserves hosted ASR identity/usage for each sample. Local mode still runs the four local profiles.
+
+To measure the combined stack, run:
+
+```sh
+ASR_PROVIDER=openrouter LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=2 LOCAL_TTS_WORKERS=2 LOCAL_TTS_THREADS=2 bun run benchmark
+```
+
+That benchmark makes **114 billable transcription requests** (six diagnostics plus 108 measured jobs), starts local Qwen/Piper, and reuses the synthetic audio cache. It tests 1/5/10/20 synchronized turns, with no clinic API calls. These commands are user-run; implementation validation uses mocked HTTP and finite offline tests, not live provider accuracy or latency proof. Restart `bun start` or `bun run serve` after changing `.env` to use the same hosted recognition path during real conversations.
+
 ## Use an OpenRouter model
 
 Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these settings in your git-ignored `.env`:
@@ -204,7 +239,7 @@ Replace `provider/model-id` with the exact ID of your chosen [OpenRouter model](
 
 Set `OPENROUTER_API_KEY` to your key; never commit your real `.env`. A nonblank environment key takes precedence over Keychain. Alternatively, store the key using `bun start --offline` → **Setup → OpenRouter API key · .env or Keychain**. Input is masked and stored in macOS Keychain under service `el-turno-openrouter`, account `https://openrouter.ai`. Restart after changing the model or key. Set `LLM_PROVIDER=local` to return to Qwen.
 
-In OpenRouter mode, setup **does not install, download or start llama.cpp/Ollama/Qwen**. Whisper recognition and Piper synthesis still run locally and still require Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are not. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
+In OpenRouter mode, setup **does not install, download or start llama.cpp/Ollama/Qwen**. Piper synthesis remains local. Recognition follows the independent `ASR_PROVIDER` setting (local Whisper by default); the local voice stack still requires Apple Silicon and the audio dependencies. Conversation text and retrieved clinic context are sent to OpenRouter and its selected model provider; audio recordings are sent separately only when `ASR_PROVIDER=openrouter`. Setup makes one model warm-up request, and rehearsals use your OpenRouter credits for both agent and simulated caller. Provider failures are reported without silently retrying billable requests.
 
 The adapter implements OpenRouter's [tool-calling protocol](https://openrouter.ai/docs/guides/features/tool-calling) and [structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs), including tool-call IDs and preserved reasoning metadata. `OPENROUTER_MAX_TOKENS` accepts 256–32768; increase it if the provider reports truncated output. Requests prefer providers by latency (`OPENROUTER_PROVIDER_SORT=latency`, also accepts `price` or `throughput`), which can select a more expensive provider. `OPENROUTER_TIMEOUT_MS` defaults to 20000. `OPENROUTER_REASONING_EFFORT=auto` requests low effort for Gemini 3 and leaves other models unchanged; use `default` to omit reasoning configuration, or a supported `none`, `minimal`, `low`, `medium`, or `high` value. These follow OpenRouter's [reasoning controls](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens) and [provider routing](https://openrouter.ai/docs/guides/routing/provider-selection). Reports include available provider/model IDs and token counts, never reasoning text. No live OpenRouter or speech benchmark is implied by the offline tests.
 

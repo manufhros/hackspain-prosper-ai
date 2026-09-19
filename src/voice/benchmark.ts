@@ -7,14 +7,16 @@ import { LocalRuntime, type Inference } from "./runtime";
 import { benchmarkInputEvidence, benchmarkInputs, benchmarkPhrases } from "./benchmark-inputs";
 export { benchmarkPhrases } from "./benchmark-inputs";
 
-export const benchmarkHelp = `Local inference capacity benchmark (synthetic speech; no clinic API or submissions)
+export const benchmarkHelp = `Inference capacity benchmark (synthetic speech; no clinic API or submissions)
 
 bun run benchmark                         Start local models; test 1,5,10,20 concurrent turns, 3 rounds
 bun run benchmark --concurrency 1,5 --rounds 2
 bun run benchmark --help                   No startup
 
 Quit the TUI/server first: this command owns its own local inference processes.
-Requires LLM_PROVIDER=local. LOCAL_* settings select capacity and ASR model.
+Requires LLM_PROVIDER=local. ASR_PROVIDER=local (default) or openrouter selects recognition.
+OpenRouter ASR sends audio externally and incurs usage charges; routing is provider-managed.
+LOCAL_* settings select local capacity and Whisper model when ASR_PROVIDER=local.
 Setup may download dependencies/models. Ctrl-C stops owned processes.
 Reports .workbench/benchmark-*.json with worker/queue timings, WER and intent accuracy.
 Reuses fixed audio from .workbench/benchmark-inputs-v1.json; reports include input hashes.
@@ -61,6 +63,7 @@ export interface BenchmarkSample {
   concurrency: number; round: number; language: string; okay: boolean; error?: string;
   expected_text: string; recognized_text?: string; detected_language?: string; language_correct?: boolean;
   model_metrics?: Record<string, number | string>;
+  asr_metrics?: Record<string, number | string>;
   wer?: number; intent_correct?: boolean; first_chunk_ready_ms?: number; total_ms?: number;
   asr_ms?: number; asr_queue_ms?: number; asr_decoder?: string; model_ms?: number; model_queue_ms?: number;
   prefill_ms?: number; decode_ms?: number; tts_ms?: number; tts_queue_ms?: number;
@@ -80,7 +83,7 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
     const automatic = await audio.run("transcribe_mulaw", { payload }, signal);
     const hinted = await audio.run("transcribe_mulaw", { payload, language: phrase.language }, signal);
     const score = (heard: typeof automatic) => ({ recognized_text: heard.text ?? "", detected_language: heard.language ?? null,
-      wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms, decoder: heard.decoder });
+      wer: wordErrorRate(phrase.text, heard.text ?? ""), elapsed_ms: heard.elapsed_ms, decoder: heard.decoder, metrics: heard.metrics });
     transcriptionDiagnostics.push({ language: phrase.language, expected_text: phrase.text, automatic: score(automatic), explicit_language: score(hinted) });
   }
   for (const concurrency of options.concurrency) {
@@ -95,7 +98,7 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
         try {
           const heard = await audio.run("transcribe_mulaw", { payload: recordings[phraseIndex]! }, turnSignal);
           sample.asr_ms = heard.elapsed_ms; sample.asr_queue_ms = heard.queue_ms ?? 0;
-          sample.asr_decoder = heard.decoder;
+          sample.asr_decoder = heard.decoder; sample.asr_metrics = heard.metrics;
           sample.recognized_text = heard.text ?? ""; sample.detected_language = heard.language;
           sample.language_correct = heard.language === phrase.language;
           sample.wer = wordErrorRate(phrase.text, heard.text ?? "");
@@ -149,19 +152,19 @@ export async function measureInference(inference: Inference, audio: SharedAudio,
 export async function runBenchmark(args: string[]) {
   if (args.length === 1 && ["--help", "-h"].includes(args[0]!)) { console.log(benchmarkHelp); return; }
   const options = benchmarkOptions(args);
-  if (modelConfig().provider !== "local") throw new Error("Benchmark requires LLM_PROVIDER=local; no external model requests are allowed");
+  if (modelConfig().provider !== "local") throw new Error("Benchmark requires LLM_PROVIDER=local; ASR_PROVIDER independently selects local or hosted transcription");
   const lifetime = new AbortController(), runtime = new LocalRuntime(message => console.log(message));
   const stop = () => { lifetime.abort(new Error("Benchmark cancelled")); runtime.stop(); };
   process.once("SIGINT", stop); process.once("SIGTERM", stop); process.once("SIGHUP", stop);
   try {
-    console.log("Starting an owned local stack for the benchmark. Keep other voice servers/TUIs stopped.");
+    console.log("Starting the benchmark stack. Keep other voice servers/TUIs stopped.");
     await runtime.start();
     const audio = new SharedAudio(runtime, lifetime.signal, runtime.settings.ttsWorkers);
     const inputs = await benchmarkInputs(audio, lifetime.signal);
     const evidence = benchmarkInputEvidence(inputs);
     console.log(`Fixed input audio SHA-256: ${evidence.sha256}`);
     const report = await measureInference(runtime, audio, options, lifetime.signal, console.log, inputs.recordings.map(row => row.payload));
-    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, input_audio: evidence, settings: runtime.settings, model: runtime.modelLabel, model_runtime: runtime.modelRuntime });
+    const file = await saveLocal(`benchmark-${Date.now()}.json`, { ...report, input_audio: evidence, settings: runtime.settings, transcription: runtime.transcription, model: runtime.modelLabel, model_runtime: runtime.modelRuntime });
     console.log(JSON.stringify(report.summaries, null, 2)); console.log(`Saved: ${file}`);
     if (report.samples.some(sample => sample.wer !== undefined && sample.wer > 0))
       console.log("Transcription errors detected; inspect recognized_text and transcription_diagnostics even when intent is correct.");

@@ -15,7 +15,8 @@ interface Clip {
 }
 interface Sample {
   id: string; language: string; channel: string; reference: string; recognized: string;
-  detected_language?: string; decoder?: string; elapsed_ms?: number; error?: string; errors: number; words: number; wer: number;
+  detected_language?: string; decoder?: string; skip_reason?: string; input_rms?: number;
+  elapsed_ms?: number; error?: string; errors: number; words: number; wer: number;
 }
 export function recognitionOptions(args: string[]) {
   if (!args.length) return { manifest: join(stateDir, "human-speech/manifest.json") };
@@ -62,6 +63,7 @@ export async function measureRecognition(inference: Pick<Inference, "audio">, cl
         AbortSignal.any([signal, AbortSignal.timeout(60000)]));
       sample.recognized = reply.text ?? ""; sample.detected_language = reply.language;
       sample.decoder = reply.decoder; sample.elapsed_ms = reply.elapsed_ms;
+      sample.skip_reason = reply.skip_reason; sample.input_rms = reply.input_rms;
     } catch (error) {
       signal.throwIfAborted();
       sample.error = error instanceof Error ? error.message : String(error);
@@ -73,10 +75,13 @@ export async function measureRecognition(inference: Pick<Inference, "audio">, cl
     const rows = samples.filter(row => row.language === language && row.channel === channel);
     const errors = rows.reduce((sum, row) => sum + row.errors, 0), words = rows.reduce((sum, row) => sum + row.words, 0);
     return { language, channel, attempted: rows.length, failures: rows.filter(row => row.error).length,
+      skipped: rows.filter(row => row.decoder === "skipped").length,
+      empty_transcripts: rows.filter(row => !row.recognized.trim()).length,
       language_correct: rows.filter(row => row.detected_language === language).length,
       exact_transcriptions: rows.filter(row => !row.error && row.errors === 0).length,
       word_errors: errors, reference_words: words, corpus_wer: words ? errors / words : null,
-      worker_ms: percentiles(rows.flatMap(row => row.elapsed_ms === undefined ? [] : [row.elapsed_ms])) };
+      worker_ms: percentiles(rows.flatMap(row => row.elapsed_ms === undefined ? [] : [row.elapsed_ms])),
+      decoded_worker_ms: percentiles(rows.flatMap(row => !row.decoder || row.decoder === "skipped" || row.elapsed_ms === undefined ? [] : [row.elapsed_ms])) };
   }));
   return { summaries, samples };
 }
@@ -129,7 +134,7 @@ Reports corpus WER, language accuracy and isolated worker timing; references nev
     const file = await saveLocal(`recognition-${Date.now()}.json`, { ...attribution,
       input_sha256: hash(JSON.stringify(inputs)), inputs: inputs.map(({ wire_payload, ...clip }) => clip), profiles,
       live_call_capacity_verified: false, clinical_accuracy_verified: false,
-      measurement: "Serial, warmed ASR only; original mono 16 kHz PCM16 vs resampled 8 kHz mu-law; no language hint or transcript prompt. WER normalizes case/punctuation with NFKC. Failures count as empty transcripts in corpus WER." });
+      measurement: "Serial, warmed ASR only; original mono 16 kHz PCM16 vs resampled 8 kHz mu-law; no language hint or transcript prompt. WER normalizes case/punctuation with NFKC. Failures and skips count as empty transcripts in corpus WER. worker_ms includes skips; decoded_worker_ms excludes requests that bypassed decoding. Only short input or exact digital silence bypass decoding; no RMS cutoff." });
     console.log(`Saved: ${file}`);
     if (profiles.some(profile => profile.samples.some(sample => sample.error))) process.exitCode = 1;
   } finally {

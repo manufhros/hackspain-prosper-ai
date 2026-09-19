@@ -53,3 +53,19 @@ test("ASR command help and invalid options never start recognition workers", asy
     else { expect(code).toBe(2); expect(stderr).toContain("Use bun run benchmark:asr"); }
   }
 });
+
+test("recognition reports expose skipped audio without calling its fast return decode latency", async () => {
+  let calls = 0;
+  const report = await measureRecognition({ async audio() {
+    return ++calls <= 2
+      ? { text: "", language: "unknown", decoder: "skipped", skip_reason: "digital_silence", input_rms: 0, elapsed_ms: 1 }
+      : { text: "hello", language: "en", decoder: "segment", input_rms: 0.0008, elapsed_ms: 150 };
+  } }, [clip("en-1", "quiet speech"), clip("en-2", "hello")], signal());
+  expect(report.samples[0]).toMatchObject({ skip_reason: "digital_silence", input_rms: 0, wer: 1 });
+  for (const channel of ["clean", "telephone"]) {
+    expect(report.summaries.find(row => row.language === "en" && row.channel === channel)).toMatchObject({
+      attempted: 2, failures: 0, skipped: 1, empty_transcripts: 1, corpus_wer: 2 / 3,
+      worker_ms: { n: 2 }, decoded_worker_ms: { n: 1, p50: 150 },
+    });
+  }
+});

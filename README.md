@@ -142,6 +142,21 @@ This command starts only recognition workers, one profile at a time, and stops t
 
 The report at `.workbench/recognition-*.json` includes references, recognized text, detected language, decoder used, per-sample errors, input hashes and isolated worker timing. Corpus word error rate sums edit errors across reference words; failed operations count as empty transcripts. This small read-speech sample helps separate recognition from synthesis and codec effects. It does not validate clinic vocabulary, conversational speech, Spanish regional coverage, noisy calls or 10–20-call capacity.
 
+The first human-speech run (`recognition-1789820989969.json`, input hash `929bdf5511b439a51a00a4663ec4be72eb616cfdfb46b5e5d747195bd7925638`) exposed a preprocessing bug: six English recordings had RMS 0.00048–0.00119, below the worker's fixed 0.002 cutoff. All four profiles returned empty text and `unknown` in 1–2 ms for those recordings in both channels, without invoking Whisper (48 requests). The reported English WER of about 63–65% includes these dropped inputs, and its median timing is not representative of decoding. Do not use it to rank the English models.
+
+Spanish and Catalan telephone results from that run were:
+
+| Profile | Spanish WER | Catalan WER | Spanish median worker time | Catalan median worker time |
+| --- | ---: | ---: | ---: | ---: |
+| small / transcribe | 6.7% | 46.0% | 252 ms | 260 ms |
+| small / segment | 6.3% | 45.2% | 169 ms | 185 ms |
+| turbo / transcribe | 2.4% | 6.6% | 821 ms | 846 ms |
+| turbo / segment | 2.4% | 7.0% | 449 ms | 459 ms |
+
+Small detected Catalan correctly on only 5/10 telephone recordings; turbo detected 10/10. Transcript inspection shows small frequently rendering Catalan as Spanish. Some turbo word errors reflect spelling and number formatting (`trenta per cent` versus `30%`), so literal WER is not a semantic error rate. Turbo/segment is the next quality/latency candidate, pending the corrected English evaluation and a separate concurrent full-stack benchmark. Its isolated serial timing does not establish 10–20-call capacity.
+
+The worker now retains quiet audio for either decoder and skips only input shorter than 100 ms or exact digital silence; Whisper's no-speech handling remains active. Reports expose input RMS, skip reasons, empty-transcript counts and `decoded_worker_ms` excluding bypassed requests, while `worker_ms` continues to include all completed requests. Rerun `bun run benchmark:asr` with the same cached recordings to measure the correction. Offline regression tests cover quiet clean/telephone input reaching both decoder paths, silence handling and skip-aware reporting; they do not prove live recognition accuracy. Production model defaults and private `.env` remain unchanged.
+
 ## Use an OpenRouter model
 
 Local Qwen remains the default. To replace it for both the receptionist and automated rehearsal caller, put these settings in your git-ignored `.env`:

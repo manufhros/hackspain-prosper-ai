@@ -21,7 +21,7 @@ By default the language model is local Qwen. Requires Bun 1.4.2+, Apple Silicon 
 - Starts its own loopback-only llama-server process and separate persistent recognition and speech workers, warms the models, then shows **Voice ready**. Cached models/dependencies are reused on later starts.
 - Quitting stops only processes owned by this session. An existing Ollama daemon is left alone. A failed setup can be retried from **Voice → Voice stack**.
 
-The stack is sized for your M4 Pro / 48 GB Mac. The first Ollama benchmark exposed serialization and Catalan recognition errors; the replacement llama.cpp profile still needs native benchmarking and live-call validation. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
+The stack is sized for your M4 Pro / 48 GB Mac. The first Ollama benchmark exposed serialization and Catalan recognition errors; the replacement llama.cpp profile now completes the synthetic benchmark, but burst latency and Catalan recognition remain unresolved. Live-call capacity is not validated. No paid voice provider, local clinic database, or tunnel is required. Speech smoke tests work without an API token; case rehearsals use the [original Prosper API](https://hackspain.getprosperapp.com/api/redoc). Bun loads `.env` on startup; restart after changing it.
 
 For browsing, manual results, or API exploration without model downloads/startup, use `bun start --offline`. Finite commands such as `bun run doctor` and `bun run check` never start services.
 
@@ -39,7 +39,7 @@ Comment out `LLM_PROVIDER=openrouter` in your private `.env`, or set `LLM_PROVID
 | `LOCAL_TTS_THREADS` | `2` | CPU threads per Piper ONNX session, 1–4; inter-op threads are fixed at one. |
 | `LOCAL_ASR_MODEL` | `small` | MLX multilingual Whisper; `large-v3-turbo` downloads separate pinned ~1.6 GB weights for comparison. |
 
-The default llama-server uses Metal, continuous batching and the GGUF's embedded Jinja tool template, with thinking disabled. Startup verifies the server's reported slot count and per-slot context; the total context allocation is `LOCAL_LLM_CONTEXT × LOCAL_LLM_PARALLEL`. The llama backend downloads a separate [pinned Unsloth Qwen3.5 4B Q4_K_M conversion](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf) (~2.74 GB), verifies its SHA-256 and caches it under its source revision. It never reuses the Ollama blob: that file has three RoPE sections and a different tensor layout, while [the installed llama.cpp loader requires four](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/src/models/qwen35.cpp). The replacement header was checked without loading the model. Native loading/inference must still be validated by running the benchmark. The old Ollama cache stays available for its baseline backend. Whisper remains on MLX and Piper on CPU. Increasing slots is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
+The default llama-server uses Metal, continuous batching and the GGUF's embedded Jinja tool template, with thinking disabled. Startup verifies the server's reported slot count and per-slot context; the total context allocation is `LOCAL_LLM_CONTEXT × LOCAL_LLM_PARALLEL`. The llama backend downloads a separate [pinned Unsloth Qwen3.5 4B Q4_K_M conversion](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/blob/e87f176479d0855a907a41277aca2f8ee7a09523/Qwen3.5-4B-Q4_K_M.gguf) (~2.74 GB), verifies its SHA-256 and caches it under its source revision. It never reuses the Ollama blob: that file has three RoPE sections and a different tensor layout, while [the installed llama.cpp loader requires four](https://github.com/ggml-org/llama.cpp/blob/b29c606e2/src/models/qwen35.cpp). Native loading and synthetic inference succeeded with build `b10964-b29c606e2` in `benchmark-1789818581312.json`; startup reported four slots with 16384 context tokens each. The old Ollama cache stays available for its baseline backend. Whisper remains on MLX and Piper on CPU. Increasing slots is a benchmark variable, not a guarantee of lower latency. Twenty admitted calls share these resources; they do not load twenty model copies.
 
 [Ollama 0.34.1 forces Qwen3.5 to one slot](https://github.com/ollama/ollama/blob/v0.34.1/server/sched.go), ignoring a larger `OLLAMA_NUM_PARALLEL`. The previous four-client configuration therefore did not provide four active model slots. The optional Ollama baseline now uses one explicit client/server slot so the wait is visible in the application queue. [llama-server documents parallel decoding, continuous batching and tool calls](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md).
 
@@ -68,11 +68,23 @@ The first run (`benchmark-1789817239476.json`, Ollama 0.34.1, Whisper small) mea
 
 All 108 intents were correct, but the single Catalan source phrase repeatedly had 50% word error rate (English/Spanish: 0%). This is not a general language accuracy estimate. At 20 turns, ASR queue p95 was 5.09 s and model total p95 was 7.60 s; TTS had no measured queue. These are baseline measurements, not results for the new backend.
 
-Run the new default profile first with the same Whisper model. Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the Ollama baseline; the result cannot isolate a server-only speedup. Compare one variable at a time, retaining each report:
+The next run (`benchmark-1789818581312.json`, llama.cpp b10964, four slots, Whisper small) completed all 108 jobs with correct intents and language detection:
+
+| Simultaneous synthetic turns | First chunk p50 | First chunk p95 |
+| --- | --- | --- |
+| 1 | 0.98 s | 0.99 s |
+| 5 | 2.82 s | 3.43 s |
+| 10 | 4.62 s | 5.95 s |
+| 20 | 7.96 s | 11.25 s |
+
+At 20 turns, p95 improved about 15%, but median latency improved only about 4%; the 5/10-turn medians worsened. ASR queue p95 reached 6.14 s, model total p95 was 4.99 s, and TTS again had no measured queue. This is still a slow synchronized burst. The Catalan source phrase retained 50% WER: both automatic detection and an explicit `ca` hint produced `Volia saber a quina hora obra l'Atlíntica als dilluns.` for `Voldria saber a quina hora obre la clínica els dilluns.` The language was correctly identified as Catalan; the synthetic TTS/telephone/ASR chain remains the quality issue. No human recordings were evaluated.
+
+Next compare Whisper large-v3-turbo with the same LLM settings to measure recognition quality and latency together; do not assume a larger model fixes the phrase or reduces queues. Qwen remains 4B Q4_K_M, but its GGUF conversion and server both differ from the Ollama baseline, so that comparison cannot isolate a server-only speedup. Compare one variable at a time, retaining each report:
 
 ```sh
-LLM_PROVIDER=local LOCAL_LLM_PARALLEL=8 bun run benchmark
-LLM_PROVIDER=local LOCAL_ASR_MODEL=large-v3-turbo bun run benchmark
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=4 LOCAL_ASR_MODEL=large-v3-turbo bun run benchmark
+# A separate slot-count experiment, with the original ASR model:
+LLM_PROVIDER=local LOCAL_LLM_BACKEND=llama LOCAL_LLM_PARALLEL=8 LOCAL_ASR_MODEL=small bun run benchmark
 ```
 
 `bun run benchmark --help` is finite and starts nothing. Offline verification uses `bun run check`; native codec tests use the already-installed `.workbench/voice/venv/bin/python -m unittest discover -s tests -p '*_test.py'` with synthetic model stubs, not real models/devices.

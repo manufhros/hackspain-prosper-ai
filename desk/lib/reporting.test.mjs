@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { readFileSync } from "node:fs";
-import { todayRange, recentRange, callCounts, originFilter, lineFilter, filterLine } from "./reporting.ts";
+import { todayRange, recentRange, callCounts, originFilter, lineFilter, filterLine, lineCalls } from "./reporting.ts";
 import { readStoredCalls } from "./call-query.ts";
 import { callFromRow } from "./call-records.ts";
 import { periodEconomics } from "./metrics.ts";
@@ -30,7 +30,7 @@ test("overview window covers the last seven Madrid days including Saturday activ
 test("overview includes more than 500 calls but never another date or clinic, and recovers simulator provenance", async t => {
   const sqlite = new DatabaseSync(":memory:");
   t.after(() => sqlite.close());
-  for (const name of ["0002_voice_calls.sql", "0003_agent_audit.sql"]) sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  for (const name of ["0002_voice_calls.sql", "0003_agent_audit.sql", "0004_call_transcripts.sql"]) sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
   const insert = sqlite.prepare("INSERT INTO voice_calls (call_id, org_slug, started_at, summary) VALUES (?, ?, ?, ?)");
   for (let i = 0; i < 501; i++) insert.run(`call-${i}`, "arenal", "2026-09-19T10:00:00.000Z", JSON.stringify({ outcome: "cita" }));
   insert.run("yesterday", "arenal", "2026-09-18T10:00:00.000Z", "{}");
@@ -48,6 +48,22 @@ test("overview includes more than 500 calls but never another date or clinic, an
   assert.equal(callCounts(calls).citas, 501);
   assert.equal(callCounts(calls).measured, 0);
   assert.equal((await readStoredCalls(db, "arenal")).length, 500);
+});
+
+test("stored calls recover the spoken name and the caller's reason", async t => {
+  const sqlite = new DatabaseSync(":memory:");
+  t.after(() => sqlite.close());
+  for (const name of ["0002_voice_calls.sql", "0003_agent_audit.sql", "0004_call_transcripts.sql"]) {
+    sqlite.exec(readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"));
+  }
+  sqlite.prepare("INSERT INTO voice_calls (call_id, org_slug, started_at, summary) VALUES (?, ?, ?, ?)")
+    .run("named", "arenal", "2026-09-19T10:00:00.000Z", JSON.stringify({ outcome: "sin_cierre" }));
+  sqlite.prepare("INSERT INTO voice_transcript_entries VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run("t1", "named", "arenal", "2026-09-19T10:00:01Z", 1, "caller", "me llamo facundo tannhausen, necesito una cita de trauma");
+  const db = { prepare(sql) { return { bind: (...args) => ({ all: async () => ({ results: sqlite.prepare(sql).all(...args) }) }) }; } };
+  const [call] = await readStoredCalls(db, "arenal");
+  assert.equal(call.patient, "Facundo Tannhausen");
+  assert.match(call.motive, /cita de trauma/i);
 });
 
 test("missing, invalid and incomplete durations stay unknown; measured zero stays zero", () => {
@@ -73,6 +89,11 @@ test("missing, invalid and incomplete durations stay unknown; measured zero stay
   assert.equal(filterLine(live, "all").length, 2);
   assert.equal(filterLine(live, "desk").length, 1);
   assert.equal(filterLine(live, "agent").every((call) => call.outcome !== "escalado"), true);
+  assert.equal(lineCalls([
+    { origin: "phone", outcome: "sin_cierre", motive: "", patient: null },
+    { origin: "phone", outcome: "sin_cierre", motive: "Necesito una cita de trauma", patient: null },
+    { origin: "phone", outcome: "escalado", motive: "", patient: null },
+  ]).map((call) => call.motive || call.outcome).join(","), "Necesito una cita de trauma,escalado");
   const value = periodEconomics(filterLine(live, "all"));
   assert.equal(value.citas, 1);
   assert.equal(value.agenda, 90);
@@ -95,6 +116,9 @@ test("consultations use recorded intent and UTC call times display in Madrid", a
   assert.deepEqual(byConsultation([{ motive: "Me duele la rodilla" }, { intent: "appointment_action" }]), [
     { name: "Sin clasificar", count: 1 }, { name: "Gestión de citas", count: 1 },
   ]);
+  const { callReason } = await import("./labels.ts");
+  assert.equal(callReason({ motive: "Necesito traumatología por la tarde", intent: "appointment_action" }), "Necesito traumatología por la tarde");
+  assert.equal(callReason({ motive: "appointment_action", intent: "appointment_action" }), "Gestión de citas");
   assert.equal(timeOf("2026-09-19T12:30:00Z"), "14:30");
   assert.equal(timeOf("2026-01-19T12:30:00Z"), "13:30");
   assert.equal(timeOf("2026-09-19T14:30:00,000 CEST"), "14:30");

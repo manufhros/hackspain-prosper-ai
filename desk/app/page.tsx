@@ -1,20 +1,13 @@
 import Link from "next/link";
-import { LeadForm } from "@/components/LeadForm";
 import styles from "./landing.module.css";
 
-export default async function Home({
-  searchParams,
-}: {
-  searchParams: Promise<{ ok?: string; lead?: string }>;
-}) {
-  const query = await searchParams;
+export default function Home() {
   return (
     <main className={styles.page}>
       <header className={styles.nav}>
         <Link className={styles.logo} href="/" aria-label="turno, inicio"><span>t</span> turno</Link>
         <nav>
-          <a href="/entrar">Entrar</a>
-          <a className={styles.navCta} href="#demo">Ver una demo</a>
+          <a className={styles.navCta} href="/entrar">Entrar</a>
         </nav>
       </header>
 
@@ -27,7 +20,7 @@ export default async function Home({
             quien ya está en la clínica.
           </p>
           <div className={styles.actions}>
-            <a className={styles.primary} href="#demo">Pedir una demo</a>
+            <a className={styles.primary} href="/entrar">Entrar</a>
             <a className={styles.secondary} href="#producto">Ver una llamada</a>
           </div>
         </div>
@@ -93,18 +86,6 @@ export default async function Home({
         </div>
       </section>
 
-      <section className={styles.finalCta} id="demo">
-        <div>
-          <p>Empezad por una línea. Medidlo todo.</p>
-          <h2>Escuchad a turno reservar una cita con vuestra agenda.</h2>
-          <p>Os preparamos una demo con un centro, sus horarios y sus reglas. Sin cambiar vuestro teléfono ni vuestro sistema.</p>
-        </div>
-        <div className={styles.contact}>
-          <h3>Pedid una demo</h3>
-          <LeadForm state={query.ok === "1" ? "ok" : query.lead === "0" ? "bad" : undefined} />
-        </div>
-      </section>
-
       <footer className={styles.footer}>
         <div className={styles.footerMain}>
           <div className={styles.footerBrand}>
@@ -115,7 +96,6 @@ export default async function Home({
             <div>
               <strong>Producto</strong>
               <a href="#producto">Cómo funciona</a>
-              <a href="#demo">Pedir una demo</a>
             </div>
             <div>
               <strong>Clientes</strong>

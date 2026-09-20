@@ -67,6 +67,19 @@ test("stored caller and agent text is read in order, paginated, and scoped to th
   assert.equal(await readCallRecord(db, "arenal", "' OR 1=1 --"), null);
 });
 
+test("list and detail recover the caller name and motive from the transcript", async (t) => {
+  const db = database(t);
+  await storeCallEvent(db, event("start", "call.started"));
+  await storeCallEvent(db, event("ask", "conversation.agent", { text: "¿Su nombre completo?", sequence: 1, zeroRetention: true }));
+  await storeCallEvent(db, event("name", "conversation.user", {
+    text: "me llamo facundo tannhausen, necesito una cita de trauma", sequence: 2, zeroRetention: true,
+  }));
+  await storeCallEvent(db, event("end", "call.ended", { durationMs: 90_000, outcome: "sin_cierre" }));
+  const detail = await readCallRecord(db, "arenal", "call");
+  assert.equal(detail.call.patient, "Facundo Tannhausen");
+  assert.match(detail.call.motive, /cita de trauma/i);
+});
+
 test("historical and in-progress calls expose an honest empty transcript", async (t) => {
   const db = database(t);
   await storeCallEvent(db, event("start", "call.started"));

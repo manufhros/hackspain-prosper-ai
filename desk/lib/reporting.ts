@@ -1,3 +1,4 @@
+import { isRecordedCall } from "./call-enrichment";
 import { parseCallStarted } from "./format";
 import type { LoggedCall } from "./types";
 
@@ -23,7 +24,7 @@ export function isDeskCall(call: LoggedCall) {
 }
 
 export function lineCalls(calls: LoggedCall[]) {
-  return calls.filter((call) => call.origin !== "simulator");
+  return calls.filter((call) => call.origin !== "simulator" && isRecordedCall(call));
 }
 
 export function filterLine(calls: LoggedCall[], line: LineFilter) {

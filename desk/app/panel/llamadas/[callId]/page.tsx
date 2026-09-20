@@ -8,7 +8,7 @@ import { canOpen, homeFor } from "@/lib/auth";
 import { adminCall, clinicCall } from "@/lib/call-data";
 import { CLINIC, siteOf } from "@/lib/clinic";
 import { num, slotLabel } from "@/lib/format";
-import { reasonLabel, TOOL_LABEL } from "@/lib/labels";
+import { callReason, reasonLabel, TOOL_LABEL } from "@/lib/labels";
 import { outcomeWhy } from "@/lib/metrics";
 import { getSession } from "@/lib/session";
 import styles from "./page.module.css";
@@ -55,7 +55,7 @@ export default async function CallPage({ params, searchParams }: {
         <dl className={styles.facts}>
           <div><dt>Duración</dt><dd>{call.minutes != null ? `${num(call.minutes * 60)} s` : "No disponible"}</dd></div>
           <div><dt>Origen</dt><dd>{ORIGIN_LABEL[call.origin ?? "unknown"]}</dd></div>
-          <div><dt>Lo que dijo</dt><dd>{call.motive || "No registrado"}</dd></div>
+          <div><dt>Motivo</dt><dd>{callReason(call) || call.motive || "No registrado"}</dd></div>
           <div><dt>Por qué</dt><dd>{why || reason || "No registrado"}</dd></div>
           <div><dt>Acciones del agente</dt><dd>{num(Math.max(call.actions?.length ?? 0, call.toolCalls ?? 0))}</dd></div>
           <div><dt>Identificador</dt><dd className={styles.identifier}>{call.id}</dd></div>

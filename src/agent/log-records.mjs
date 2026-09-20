@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { directoryIdentity, eventIdentity, spokenIdentity } from "./caller-identity.ts";
+import { substantive } from "./call-text.ts";
+export { substantive };
 
 const IMPORT_SOURCE = "local-logs-v1";
 const OUTCOMES = { submit_book: "cita", submit_register: "alta", submit_cancel: "cancelacion",
@@ -16,14 +18,6 @@ export function timestamp(value) {
   const time = Date.parse(normalized);
   if (!Number.isFinite(time)) throw new Error(`Invalid timestamp: ${value}`);
   return new Date(time).toISOString();
-}
-
-export function substantive(text) {
-  const normalized = text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
-    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-  const rest = normalized.replace(/\b(hello|hi|hey|hola|buenos dias|buenas tardes|buenas noches|good morning|good afternoon|yes|yeah|si|okay|ok|gracias|thanks|thank you|um|uh|hmm|mhm|vale|por favor|please)\b/g, "").trim();
-  if (/^(?:can you hear me|are you still there|is anyone there|me oyes|me escuchas|em sentiu|probando|testing|test|one two three|uno dos tres)[ ?]*$/.test(rest)) return false;
-  return rest.split(/\s+/).filter(Boolean).length >= 3 || /\b(cita|appointment|cancelar|cancel|doctor|recepcion|emergencia|register|registrar|horario)\b/.test(rest);
 }
 
 function json(value) {

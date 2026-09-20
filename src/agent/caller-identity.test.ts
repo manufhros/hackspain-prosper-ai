@@ -15,6 +15,7 @@ test("spoken display names accept explicit introductions and direct name answers
   assert.deepEqual(spokenIdentity("My full name is Michael Evans Parker. My date of birth is tomorrow."), { patientName: "Michael Evans Parker" });
   assert.deepEqual(spokenIdentity("Yo me llamo Lucía."), { patientName: "Lucía" });
   assert.deepEqual(spokenIdentity("María de la Cruz", "¿Cuál es su nombre completo?"), { patientName: "María de la Cruz" });
+  assert.deepEqual(spokenIdentity("me llamo facundo tannhausen"), { patientName: "Facundo Tannhausen" });
   for (const phrase of ["Sí, soy yo.", "Yo vengo privado, es que soy rico.", "This is an emergency", "Me llamo porque necesito una cita", "Quiero hablar con María", "My name is [redacted]"]) {
     assert.equal(spokenIdentity(phrase), undefined, phrase);
   }

@@ -1,4 +1,5 @@
 import { spokenIdentity, summaryIdentity } from "./caller-identity.ts";
+import { motiveFrom, substantive } from "./call-text.ts";
 import { currentAuditContext, withAuditContext } from "./audit.ts";
 import { SOCKET_OPEN, type CallSocket } from "./socket.ts";
 import { PlatformClient } from "../platform/client.ts";
@@ -214,6 +215,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       ...(callCtx.outcomeReason ? { reason: callCtx.outcomeReason } : {}),
       ...(callCtx.route ? { route: callCtx.route } : {}),
       ...(callCtx.intent ? { intent: callCtx.intent } : {}),
+      ...(callCtx.motive ? { motive: callCtx.motive } : {}),
       durationMs: Math.max(0, Date.now() - startedAt),
       userTurns: callCtx.userTurns ?? 0,
       toolCalls,
@@ -466,6 +468,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               background(callCtx.audit?.("patient.identified", identity) ?? Promise.resolve());
             }
           }
+          if (!callCtx.motive && substantive(t)) callCtx.motive = motiveFrom(t);
           background(callCtx.audit?.("conversation.user", { text: t }) ?? Promise.resolve());
           callCtx.transcript = [
             ...(callCtx.transcript ?? []),

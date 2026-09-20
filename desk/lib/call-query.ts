@@ -1,4 +1,5 @@
 import { callFromRow } from "./call-records";
+import { enrichCalls } from "./call-enrichment";
 
 type CallDatabase = { prepare(sql: string): { bind(...values: unknown[]): {
   all<T>(): Promise<{ results: T[] }>;
@@ -18,7 +19,18 @@ export async function readStoredCalls(db: CallDatabase, org: string, range?: { f
     ORDER BY c.started_at DESC, c.call_id DESC ${range ? "" : "LIMIT 500"}`)
     .bind(org, ...(range ? [range.from, range.to] : []))
     .all<{ call_id: string; started_at: string; summary: string | null; simulator: number }>();
-  return result.results.map(callFromRow);
+  const calls = result.results.map(callFromRow);
+  if (!calls.length) return calls;
+  const turns = await db.prepare(`SELECT t.call_id, t.speaker, t.text
+    FROM voice_transcript_entries t
+    WHERE t.org_slug = ? AND t.call_id IN (
+      SELECT c.call_id FROM voice_calls c WHERE c.org_slug = ?
+      ${range ? "AND c.started_at >= ? AND c.started_at < ?" : ""}
+      ORDER BY c.started_at DESC, c.call_id DESC ${range ? "" : "LIMIT 500"})
+    ORDER BY t.sequence, t.occurred_at, t.event_id`)
+    .bind(org, org, ...(range ? [range.from, range.to] : []))
+    .all<{ call_id: string; speaker: string; text: string }>();
+  return enrichCalls(calls, turns.results);
 }
 
 export async function listStoredOrgSlugs(db: CallDatabase): Promise<string[]> {

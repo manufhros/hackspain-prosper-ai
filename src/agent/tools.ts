@@ -530,6 +530,7 @@ export type CallContext = {
   frustrationScore?: number;
   route?: "general" | "actions" | "human";
   intent?: string;
+  motive?: string;
   outcome?: string;
   outcomeReason?: string;
   submitted?: boolean;

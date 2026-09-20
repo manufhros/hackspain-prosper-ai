@@ -47,3 +47,21 @@ export const INSURER_LABEL: Record<string, string> = {
   cigna: "Cigna",
   axa: "AXA",
 };
+
+export const INTENT_LABEL: Record<string, string> = {
+  appointment_action: "Gestión de citas",
+  general_faq: "Información general",
+  medical_emergency: "Urgencia médica",
+};
+
+export function intentLabel(intent: string | null | undefined): string | null {
+  if (!intent) return null;
+  return INTENT_LABEL[intent] ?? intent.replaceAll("_", " ");
+}
+
+/** What the caller came for — their words, else the recorded intent. Not the closing outcome. */
+export function callReason(call: { motive?: string | null; intent?: string | null }): string | null {
+  const motive = call.motive?.trim() ?? "";
+  if (motive && motive !== call.intent && !INTENT_LABEL[motive]) return motive;
+  return intentLabel(call.intent ?? (INTENT_LABEL[motive] ? motive : null));
+}

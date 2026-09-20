@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, Clock, Download, Radio, Search, X } from "lu
 import { ORIGIN_LABEL } from "@/lib/reporting";
 import { siteOf, type Site } from "@/lib/clinic";
 import { num, pct, timeOf } from "@/lib/format";
-import { reasonLabel } from "@/lib/labels";
+import { callReason, reasonLabel } from "@/lib/labels";
 import { outcomeWhy } from "@/lib/metrics";
 import type { LoggedCall } from "@/lib/types";
 import { Badge, Button, ButtonLink, Card, type Crumb, Note, OutcomeBadge, PageHeader, StatCard, StatGrid, outcomeMeta } from "./ui/primitives";
@@ -85,7 +85,7 @@ export function CallMonitor({
       (call) =>
         (tab === "__all" || call.outcome === tab) &&
         (!q ||
-          `${call.patient ?? ""} ${siteOf(call.site, sites).name} ${call.motive} ${outcomeWhy(call) ?? ""} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
+          `${call.patient ?? ""} ${siteOf(call.site, sites).name} ${call.motive} ${callReason(call) ?? ""} ${outcomeWhy(call) ?? ""} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
             .toLowerCase()
             .includes(q)),
     );
@@ -255,6 +255,7 @@ export function CallMonitor({
           <div className={styles.list}>
             {visible.map((call) => {
               const meta = outcomeMeta(call.outcome);
+              const reason = callReason(call);
               const why = outcomeWhy(call) ?? reasonLabel(call.reason);
               const site = siteOf(call.site, sites);
               return (
@@ -270,12 +271,12 @@ export function CallMonitor({
                         {` · ${ORIGIN_LABEL[call.origin ?? "unknown"]}`}
                       </small>
                     </span>
-                    <span className={styles.what} title={why || call.motive}>
-                      {why || call.motive || <span className="muted">Motivo no registrado</span>}
+                    <span className={styles.what} title={reason || why || undefined}>
+                      {reason || why || <span className="muted">Motivo no registrado</span>}
                     </span>
                     <span className={styles.state}>
                       <OutcomeBadge outcome={call.outcome} />
-                      {why ? <small>{why}</small> : null}
+                      {why && why !== reason ? <small>{why}</small> : null}
                     </span>
                     <span className={styles.quality}>
                       <Clock size={13} aria-hidden="true" />

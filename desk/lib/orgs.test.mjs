@@ -20,6 +20,7 @@ test("admin aggregation lists slugs without leaking another clinic's calls", asy
   t.after(() => sqlite.close());
   sqlite.exec(readFileSync(new URL("../migrations/0002_voice_calls.sql", import.meta.url), "utf8"));
   sqlite.exec(readFileSync(new URL("../migrations/0003_agent_audit.sql", import.meta.url), "utf8"));
+  sqlite.exec(readFileSync(new URL("../migrations/0004_call_transcripts.sql", import.meta.url), "utf8"));
   const insert = sqlite.prepare("INSERT INTO voice_calls (call_id, org_slug, started_at, summary) VALUES (?, ?, ?, ?)");
   insert.run("a1", "arenal", "2026-09-19T10:00:00.000Z", JSON.stringify({ outcome: "cita", site: "centro" }));
   insert.run("q1", "quironsalud", "2026-09-19T11:00:00.000Z", JSON.stringify({ outcome: "escalado" }));

@@ -1,5 +1,6 @@
 import type { CallDetail, LoggedCall, TranscriptEntry } from "./types";
 import { actionsFromEvents } from "./call-tools";
+import { enrichCall } from "./call-enrichment";
 import { dedupeTurns } from "./transcript";
 
 type CallRow = { call_id: string; started_at: string; summary: string | null; simulator?: number };
@@ -60,7 +61,10 @@ export async function readCallRecord(
       AND type IN ('tool.received', 'tool.called', 'tool.completed', 'tool.failed', 'tool.blocked')
     ORDER BY occurred_at, rowid`).bind(callId, orgSlug)
     .all<{ event_id: string; type: string; occurred_at: string; payload: string }>();
-  const call = { ...callFromRow(row), actions: actionsFromEvents(tools.results) };
+  const call = enrichCall(
+    { ...callFromRow(row), actions: actionsFromEvents(tools.results) },
+    transcript,
+  );
   return {
     call,
     transcript: transcript.slice((page - 1) * TRANSCRIPT_PAGE_SIZE, page * TRANSCRIPT_PAGE_SIZE),

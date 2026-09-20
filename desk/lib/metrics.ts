@@ -1,4 +1,4 @@
-import { reasonLabel, TOOL_LABEL } from "./labels";
+import { INTENT_LABEL, reasonLabel, TOOL_LABEL } from "./labels";
 import type { LoggedCall } from "./types";
 
 export function filterSite(calls: LoggedCall[], site?: string | null): LoggedCall[] {
@@ -16,12 +16,6 @@ export function byOutcome(calls: LoggedCall[]): Array<[string, number]> {
   for (const call of calls) map.set(call.outcome, (map.get(call.outcome) ?? 0) + 1);
   return [...map.entries()].sort((a, b) => b[1] - a[1]);
 }
-
-const INTENT_LABEL: Record<string, string> = {
-  appointment_action: "Gestión de citas",
-  general_faq: "Información general",
-  medical_emergency: "Urgencia médica",
-};
 
 /** Display the agent's recorded classification, without guessing a specialty from text. */
 export function byConsultation(calls: LoggedCall[]) {

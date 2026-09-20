@@ -83,7 +83,7 @@ function normalizeSpeech(value: string) {
 
 function looksLikeCannedPatient(norm: string): boolean {
   const speech = normalizeSpeech(PATIENT_SPEECH);
-  return Boolean(speech) && (norm === speech || (speech.length > 18 && norm.includes(speech.slice(0, 40))));
+  return Boolean(speech) && norm === speech;
 }
 
 /** Inbound phone speech after handoff: drop canned patient TTS that leaked into the mic. */
@@ -109,7 +109,8 @@ export function splitHandoffTranscript(text: string): { patient?: string; helper
     const helper = raw.slice(cut.index + cut[0].length).replace(/^[\s.,;:¿¡-]+/, "").trim();
     return { patient: PATIENT_SPEECH, ...(helper ? { helper } : {}) };
   }
-  return { patient: PATIENT_SPEECH };
+  if (normalizeSpeech(raw) === normalizeSpeech(PATIENT_SPEECH)) return { patient: PATIENT_SPEECH };
+  return { helper: raw };
 }
 
 export function patientReplyTwiml(text = PATIENT_REPLY) {

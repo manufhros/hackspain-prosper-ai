@@ -93,6 +93,21 @@ test("search_directory does not invent a phone from caller id", async () => {
   assert.equal(JSON.parse(result).matches.length, 0);
 });
 
+test("search_directory ignores the simulator placeholder number", async () => {
+  let query: unknown;
+  await runClinicTool(
+    ctx({
+      directory: async (q) => {
+        query = q;
+        return { matches: [] };
+      },
+    }),
+    "search_directory",
+    { phone: "+34600000000", name: "Lucía" },
+  );
+  assert.deepEqual(query, { name: "Lucía" });
+});
+
 test("search_availability without specialty or provider does not hit the API", async () => {
   const result = JSON.parse(
     await runClinicTool(

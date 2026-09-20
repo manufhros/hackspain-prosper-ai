@@ -30,6 +30,11 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+export function isPlaceholderCaller(phone?: string) {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  return !digits || digits.length < 9 || /^0+$/.test(digits) || digits.endsWith("600000000");
+}
+
 function foldKey(value: string): string {
   return value
     .toLowerCase()
@@ -583,7 +588,7 @@ export async function runClinicTool(
         compact({
           name: asString(params.name),
           national_id: asString(params.national_id),
-          phone: asString(params.phone),
+          phone: isPlaceholderCaller(asString(params.phone)) ? undefined : asString(params.phone),
           date_of_birth: asString(params.date_of_birth),
         }) as DirectoryQuery,
       );
@@ -599,7 +604,7 @@ export async function runClinicTool(
         ...found,
         next_step: one
           ? phoneHit
-            ? `This is ${one.given_name} ${one.first_surname} ${one.second_surname}. Confirm the name once. If they say yes, search_availability immediately. Do NOT ask date of birth or DNI. Patient note: ${one.note}. If hard of hearing, say weekday+date twice and the site (Norte/Centro/Sur) twice in the SAME offer. On yes, submit_book at once.`
+            ? `This is ${one.given_name} ${one.first_surname} ${one.second_surname}. Confirm the name once. Do not offer a date yet. If they asked for a cita, then search_availability. If they have not asked to book, wait and ask how you can help. Do NOT ask date of birth or DNI. Patient note: ${one.note}. If hard of hearing, say weekday+date twice and the site (Norte/Centro/Sur) twice in the SAME offer.`
             : `Ask DNI or date of birth only if several matches remain. Note: ${one.note}`
           : found.matches.length > 1
             ? "Several matches. Ask DNI or date of birth, then search_directory again."

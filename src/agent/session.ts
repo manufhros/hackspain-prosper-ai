@@ -10,7 +10,7 @@ import {
   PATIENT_SPEECH,
   splitHandoffTranscript,
 } from "./twilio-transfer.ts";
-import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
+import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, isPlaceholderCaller, runClinicTool, type CallContext } from "./tools.ts";
 import { applyAgentPrompt, conversationConfigOverride, loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
 import { deliverPostCall, emitCallEvent as emitLocalCallEvent } from "./call-event.ts";
 import {
@@ -897,7 +897,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         };
         const preCallStarted = Date.now();
         const preCall =
-          runtime.patientLookup && fromNumber
+          runtime.patientLookup && fromNumber && !isPlaceholderCaller(fromNumber)
             ? await Promise.race([
                 lookupByPhone(platform, fromNumber),
                 new Promise<PreCallContext>((resolve) =>

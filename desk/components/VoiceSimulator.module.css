@@ -439,8 +439,7 @@
   gap: 9px;
 }
 
-.transcript article[data-speaker="caller"],
-.transcript article[data-speaker="helper"] {
+.transcript article[data-speaker="caller"] {
   align-self: flex-end;
   flex-direction: row-reverse;
 }
@@ -468,8 +467,7 @@
   min-width: 0;
 }
 
-.transcript article[data-speaker="caller"] .messageContent,
-.transcript article[data-speaker="helper"] .messageContent {
+.transcript article[data-speaker="caller"] .messageContent {
   text-align: right;
 }
 
@@ -502,8 +500,7 @@
   text-align: left;
 }
 
-.transcript article[data-speaker="caller"] .messageContent > p,
-.transcript article[data-speaker="helper"] .messageContent > p {
+.transcript article[data-speaker="caller"] .messageContent > p {
   background: var(--brand-2);
   color: #fff;
 }

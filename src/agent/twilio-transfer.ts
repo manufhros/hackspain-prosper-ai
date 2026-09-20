@@ -83,7 +83,7 @@ function normalizeSpeech(value: string) {
 
 function looksLikeCannedPatient(norm: string): boolean {
   const speech = normalizeSpeech(PATIENT_SPEECH);
-  return Boolean(speech) && norm === speech;
+  return Boolean(speech) && (norm === speech || (speech.length > 18 && norm.includes(speech.slice(0, 40))));
 }
 
 /** Inbound phone speech after handoff: drop canned patient TTS that leaked into the mic. */
@@ -109,8 +109,7 @@ export function splitHandoffTranscript(text: string): { patient?: string; helper
     const helper = raw.slice(cut.index + cut[0].length).replace(/^[\s.,;:¿¡-]+/, "").trim();
     return { patient: PATIENT_SPEECH, ...(helper ? { helper } : {}) };
   }
-  if (normalizeSpeech(raw) === normalizeSpeech(PATIENT_SPEECH)) return { patient: PATIENT_SPEECH };
-  return { helper: raw };
+  return { patient: PATIENT_SPEECH };
 }
 
 export function patientReplyTwiml(text = PATIENT_REPLY) {
@@ -140,8 +139,8 @@ export function liveStreamTwiml(
     ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
     : "";
   if (streamPhoneAudio) {
-    // A short greeting plays while Connect attaches, so the phone is not silent on pickup.
-    return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs("Clínica Arenal, buenos días. ¿En qué puedo ayudarle?")}<Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+    // Connect is bidirectional: the person on the phone must hear the agent reply.
+    return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
   }
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="600"/></Response>`;
 }

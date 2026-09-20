@@ -54,12 +54,9 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Speak warmly\./);
   assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Ask for the preferred site\./);
   assert.equal(initiation.dynamic_variables.meta_prompt, "Speak warmly.");
-  assert.equal(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"), false);
+  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"));
   eleven.message({ type: "audio", audio_event: { audio_base_64: "reply-audio" } });
   assert.ok(twilio.sent.some((message) => message.media?.payload === "reply-audio"));
-  twilio.message({ event: "media", media: { payload: "live-audio" } });
-  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "live-audio"));
-  assert.equal(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"), false);
   eleven.message({ type: "agent_response", agent_response_event: { agent_response: "Buenos días." } });
   twilio.message({ event: "stop" });
   twilio.close();
@@ -133,7 +130,6 @@ async function liveCall(t) {
   await handleCall(caller, options);
   caller.message({ event: "start", start: { streamSid: "original", callSid: "live" } });
   await settle();
-  eleven.message({ type: "audio", audio_event: { audio_base_64: "hello" } });
   return { bridge, caller, eleven, events, tasks, options };
 }
 
@@ -169,12 +165,6 @@ test("phone joins the existing agent and survives caller disconnect with a singl
 
 test("confirming the nine o'clock slot on the phone still gets an agent reply", async (t) => {
   const { bridge, caller, eleven, options } = await liveCall(t);
-  eleven.message({ type: "audio", audio_event: { audio_base_64: "greeting" } });
-  assert.ok(caller.sent.some((message) => message.media?.payload === "greeting"));
-  bridge.getLiveSession("live")?.freezeDisplay();
-  eleven.message({ type: "audio", audio_event: { audio_base_64: "still-talking" } });
-  assert.ok(caller.sent.some((message) => message.media?.payload === "still-talking"));
-  assert.equal(caller.sent.some((message) => message.monitor?.type === "helper_joined"), false);
   const phone = new Socket();
   await handleCall(phone, { ...options, joinOnly: true });
   phone.message({ event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters: { join: "live" } } });

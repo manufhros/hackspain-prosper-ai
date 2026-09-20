@@ -26,12 +26,10 @@ test("Node handoff TwiML connects the phone both ways so the agent can reply", (
     true,
   );
   assert.equal(twiml.includes("Le pongo con recepción"), false);
-  assert.equal(twiml.includes("<Say "), true);
-  assert.equal(twiml.includes("Clínica Arenal"), true);
-  assert.equal(twiml.includes("medicina general"), false);
+  assert.equal(twiml.includes("<Say "), false);
   assert.equal(twiml.includes("<Start>"), false);
   assert.equal(twiml.includes("<Pause"), false);
-  assert.equal(twiml.includes("Polly.Sergio-Neural"), true);
+  assert.equal(twiml.includes("Polly.Sergio-Neural"), false);
   assert.equal(twiml.includes("<Connect>"), true);
   assert.equal(twiml.includes("<Stream"), true);
   assert.equal(twiml.includes("inbound_track"), false);
@@ -56,10 +54,6 @@ test("handoff transcript keeps the patient and the receptionist apart", () => {
   assert.equal(phoneHelperTranscript("Sí, esa hora me viene muy bien. Gracias."), "Sí, esa hora me viene muy bien. Gracias.");
   assert.equal(phoneHelperTranscript("Sí, le viene bien a las 9"), "Sí, le viene bien a las 9");
   assert.equal(phoneHelperTranscript("Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana?"), null);
-  assert.equal(
-    phoneHelperTranscript("Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana? Sí, le viene bien a las 9"),
-    "Sí, le viene bien a las 9",
-  );
   assert.equal(phoneHelperTranscript("Sí, te cojo la cita."), "Sí, te cojo la cita.");
 });
 

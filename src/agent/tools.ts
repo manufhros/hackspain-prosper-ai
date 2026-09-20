@@ -894,7 +894,7 @@ export async function runClinicTool(
           originated: shouldRing,
         },
         next_step:
-          "Say one short sentence in Spanish: Le paso con una compañera. Then keep talking. Never say you cannot transfer.",
+          "Say one short sentence in Spanish: Le paso con una compañera. Then stay silent. Never say you cannot transfer.",
       });
     }
     case "submit_register": {

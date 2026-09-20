@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { agentAvatarUrl, patientAvatarUrl } from "@/lib/avatars";
 import type { CallAction, DeskLine, LoggedCall, TranscriptEntry } from "@/lib/types";
 import styles from "./VoiceSimulator.module.css";
@@ -356,6 +356,7 @@ export function VoiceSimulator({
   const lastVoiceAt = useRef(0);
   const micLiveRef = useRef(false);
   const helperRef = useRef(false);
+  const transcriptRef = useRef<HTMLDivElement>(null);
   const [micLive, setMicLive] = useState(false);
   const [helperOnPhone, setHelperOnPhone] = useState(false);
 
@@ -374,6 +375,12 @@ export function VoiceSimulator({
   const deskCall = onDesk ? picked?.call ?? null : null;
   const patientName = deskCall?.patient ?? scenario?.patient ?? "Paciente";
   const patientPhone = deskCall?.phone ?? scenario?.phone ?? "Número oculto";
+
+  useEffect(() => {
+    const node = transcriptRef.current;
+    if (!node) return;
+    node.scrollTop = node.scrollHeight;
+  }, [timeline.length, turns.at(-1)?.id, turns.at(-1)?.text]);
 
   function selectTalk(id: LineId) {
     talkIdRef.current = id;
@@ -588,6 +595,7 @@ export function VoiceSimulator({
         if (monitor.type === "helper_joined") {
           helperRef.current = true;
           setHelperOnPhone(true);
+          selectTalk(item.id);
         }
         if ((monitor.type === "user" || monitor.type === "agent" || monitor.type === "helper") && monitor.text) {
           const turn = {
@@ -811,7 +819,7 @@ export function VoiceSimulator({
 
         <section className={styles.conversation}>
           <header><h2>Conversación</h2><p>{onDesk ? "Así va esta llamada." : status === "live" ? (helperOnPhone ? "Lo que dices por el móvil sale aquí." : (!talkLine?.scenario.script?.length ? "Esta la hablas tú. Las otras dos siguen el guion solas." : "Esta sigue el guion. El micro está en la línea donde hablas tú.")) : turns.length ? "Transcripción conservada tras la llamada." : "Elige una llamada de arriba."}</p></header>
-          <div className={styles.transcript} aria-live="polite">
+          <div className={styles.transcript} ref={transcriptRef} aria-live="polite">
             {timeline.length ? timeline.map((item) => item.kind === "tool" ? (
               <div className={styles.toolLine} key={item.id}>
                 <i />

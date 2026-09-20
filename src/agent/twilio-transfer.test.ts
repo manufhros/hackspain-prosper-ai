@@ -54,6 +54,10 @@ test("handoff transcript keeps the patient and the receptionist apart", () => {
   assert.equal(phoneHelperTranscript("Sí, esa hora me viene muy bien. Gracias."), "Sí, esa hora me viene muy bien. Gracias.");
   assert.equal(phoneHelperTranscript("Sí, le viene bien a las 9"), "Sí, le viene bien a las 9");
   assert.equal(phoneHelperTranscript("Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana?"), null);
+  assert.equal(
+    phoneHelperTranscript("Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana? Sí, le viene bien a las 9"),
+    "Sí, le viene bien a las 9",
+  );
   assert.equal(phoneHelperTranscript("Sí, te cojo la cita."), "Sí, te cojo la cita.");
 });
 

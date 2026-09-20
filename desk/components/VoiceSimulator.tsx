@@ -357,6 +357,7 @@ export function VoiceSimulator({
   const micLiveRef = useRef(false);
   const helperRef = useRef(false);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const heardAgentRef = useRef(false);
   const [micLive, setMicLive] = useState(false);
   const [helperOnPhone, setHelperOnPhone] = useState(false);
 
@@ -475,6 +476,7 @@ export function VoiceSimulator({
     lastVoiceAt.current = 0;
     micLiveRef.current = false;
     helperRef.current = false;
+    heardAgentRef.current = false;
     setMicLive(false);
     setHelperOnPhone(false);
     setTalkId("");
@@ -506,6 +508,7 @@ export function VoiceSimulator({
     processor.onaudioprocess = (event) => {
       const active = socketsRef.current[talkIdRef.current];
       if (!active || active.ws.readyState !== WebSocket.OPEN) return;
+      if (!heardAgentRef.current) return;
       if (context.state === "suspended") void context.resume();
       const input = event.inputBuffer.getChannelData(0);
       const now = performance.now();
@@ -605,7 +608,10 @@ export function VoiceSimulator({
             language: monitor.language,
             partial: Boolean(monitor.partial),
           };
-          if (turn.speaker === "agent") patchLine(item.id, { lastAgent: turn.text });
+          if (turn.speaker === "agent") {
+            patchLine(item.id, { lastAgent: turn.text });
+            if (item.id === talkIdRef.current) heardAgentRef.current = true;
+          }
           patchLog(item.id, (current) => {
             const last = current.turns[current.turns.length - 1];
             if (turn.speaker === "helper" && last?.speaker === "helper" && (last.partial || turn.partial)) {
@@ -722,6 +728,7 @@ export function VoiceSimulator({
       }
       setPickedId(null);
       setStatus("connecting");
+      heardAgentRef.current = false;
       cases.forEach((item, index) => connectLine(item, index, context));
     } catch {
       setStatus("error");

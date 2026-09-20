@@ -178,6 +178,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   let muteAgent = false;
   let handedOff = false;
   let patientAnnounced = false;
+  let agentStarted = false;
 
   const background = (promise: Promise<unknown>) => {
     const handled = promise.catch((error: unknown) => callLogError("call task failed", error));
@@ -289,6 +290,12 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
     for (const chunk of pendingAudio) {
       sendEleven({ user_audio_chunk: chunk });
     }
+    pendingAudio.length = 0;
+  };
+
+  const releaseUserAudio = () => {
+    if (agentStarted) return;
+    agentStarted = true;
     pendingAudio.length = 0;
   };
 
@@ -415,7 +422,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         sendMonitor({ type: "ready" });
         if (options.demo) sendEleven({ type: "contextual_update", text: "This is a rehearsal. All appointment actions are simulated; never describe them as real confirmed appointments. Start in Spanish and switch only after hearing the caller." });
         elevenReady = true;
-        flushAudio();
+        setTimeout(() => { if (!stopped) releaseUserAudio(); }, 3_500);
         if (pendingHint) {
           sendEleven({ type: "contextual_update", text: pendingHint });
           pendingHint = undefined;
@@ -434,9 +441,10 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
       }
 
       if (typed.type === "audio") {
-        if (muteAgent) return;
         const event = typed.audio_event as { audio_base_64?: string; audio_base64?: string } | undefined;
         const payload = event?.audio_base_64 ?? event?.audio_base64 ?? typed.audio?.chunk;
+        releaseUserAudio();
+        if (muteAgent) return;
         if (payload && (streamSid || phones.length > 0)) {
           sendAgentAudio(payload);
         }
@@ -525,6 +533,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         const t = (message as { agent_response_event?: { agent_response?: string } })
           .agent_response_event?.agent_response;
         if (t) {
+          releaseUserAudio();
           callLog(tag, "agent", t);
           background(callCtx.audit?.("conversation.agent", { text: t }) ?? Promise.resolve());
           if (!handedOff && /un momento, por favor|i will transfer|please hold/i.test(t)) {
@@ -797,7 +806,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         callId,
         audit: async (type, payload) => { await callCtx.audit?.(type, payload); },
         sendElevenAudio: (ulaw) => {
-          if (elevenReady && eleven?.readyState === SOCKET_OPEN) {
+          if (agentStarted && elevenReady && eleven?.readyState === SOCKET_OPEN) {
             sendEleven({ user_audio_chunk: ulaw });
           } else {
             queueAudio(ulaw);
@@ -960,7 +969,6 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
                 }),
               );
               elevenReady = true;
-              flushAudio();
               return;
             } catch (error: unknown) {
               await callCtx.audit?.("voice.connection.failed", { provider: "elevenlabs", errorType: error instanceof Error ? error.name : "UnknownError" });
@@ -985,7 +993,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         joinedHost.sendElevenAudio(payload);
         return;
       }
-      if (elevenReady && eleven?.readyState === SOCKET_OPEN) {
+      if (elevenReady && agentStarted && eleven?.readyState === SOCKET_OPEN) {
         sendEleven({ user_audio_chunk: payload });
       } else {
         queueAudio(payload);

@@ -54,9 +54,12 @@ test("shared call engine bridges audio and finalizes once across stop and close"
   assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Speak warmly\./);
   assert.match(initiation.conversation_config_override.agent.prompt.prompt, /Ask for the preferred site\./);
   assert.equal(initiation.dynamic_variables.meta_prompt, "Speak warmly.");
-  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"));
+  assert.equal(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"), false);
   eleven.message({ type: "audio", audio_event: { audio_base_64: "reply-audio" } });
   assert.ok(twilio.sent.some((message) => message.media?.payload === "reply-audio"));
+  twilio.message({ event: "media", media: { payload: "live-audio" } });
+  assert.ok(eleven.sent.some((message) => message.user_audio_chunk === "live-audio"));
+  assert.equal(eleven.sent.some((message) => message.user_audio_chunk === "queued-audio"), false);
   eleven.message({ type: "agent_response", agent_response_event: { agent_response: "Buenos días." } });
   twilio.message({ event: "stop" });
   twilio.close();
@@ -130,6 +133,7 @@ async function liveCall(t) {
   await handleCall(caller, options);
   caller.message({ event: "start", start: { streamSid: "original", callSid: "live" } });
   await settle();
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "hello" } });
   return { bridge, caller, eleven, events, tasks, options };
 }
 

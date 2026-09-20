@@ -2,7 +2,7 @@ import "server-only";
 
 import { CLINIC } from "./clinic";
 import { readLiveCalls } from "./live-calls";
-import type { CallDetail, LoggedCall } from "./types";
+import type { CallDetail, DeskLine, LoggedCall } from "./types";
 import { database, usesCloudflareStorage } from "./cloudflare-storage";
 import { localCalls } from "./local-calls";
 import { readCallRecord } from "./call-records";
@@ -58,6 +58,26 @@ async function callForOrg(orgSlug: string, callId: string, page = 1): Promise<Ca
 
 export async function clinicCall(callId: string, page = 1): Promise<CallDetail | null> {
   return callForOrg(CLINIC.slug, callId, page);
+}
+
+const DESK_LIMIT = 3;
+const DESK_TURNS = 40;
+
+/** Newest calls with transcript, for the central desk on Tiempo real. */
+export async function deskLines(orgSlug: string): Promise<DeskLine[]> {
+  if (!isKnownOrganisation(orgSlug)) return [];
+  if (usesCloudflareStorage()) {
+    const calls = (await readLiveCalls(orgSlug)).slice(0, DESK_LIMIT);
+    const details = await Promise.all(calls.map((call) => readCallRecord(database(), orgSlug, call.id, 1)));
+    return details.flatMap((detail) => detail ? [{
+      call: detail.call,
+      transcript: detail.transcript.slice(-DESK_TURNS),
+    }] : []);
+  }
+  return (await localCalls(orgSlug)).slice(0, DESK_LIMIT).map(({ call, transcript }) => ({
+    call,
+    transcript: transcript.slice(-DESK_TURNS),
+  }));
 }
 
 export async function adminCall(callId: string, page = 1): Promise<CallDetail | null> {

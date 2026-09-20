@@ -69,7 +69,7 @@ export function AppShell({ brandHref, workspace, groups, user, children }: AppSh
       : health.ok
         ? health.activeCalls
           ? `Agente activo · ${health.activeCalls} en curso`
-          : "Agente activo · sin llamadas"
+          : "Agente activo"
         : "Agente sin respuesta";
 
   return (

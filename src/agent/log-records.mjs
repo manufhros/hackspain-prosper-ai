@@ -44,7 +44,7 @@ export function buildImport(files, { org, includeAll = false } = {}) {
   const ensure = (id) => {
     if (!calls.has(id)) calls.set(id, { id, org: null, start: null, last: null, close: null,
       turns: new Map(), events: new Map(), logTools: new Map(), sources: new Set(), toolCalls: 0, toolErrors: 0,
-      origin: "unknown", startKnown: false, outcome: "sin_cierre", reason: null, site: null, identities: [] });
+      origin: "phone", startKnown: false, outcome: "sin_cierre", reason: null, site: null, identities: [] });
     return calls.get(id);
   };
   const touch = (call, at, source) => {
@@ -105,12 +105,7 @@ export function buildImport(files, { org, includeAll = false } = {}) {
       touch(call, at, source);
       const turn = message.match(/^(user|agent|helper) (.+)$/);
       if (turn) {
-        // The current dashboard has two roles. Label human reception explicitly.
-        addTurn(call, at, turn[1] === "user" ? "caller" : "agent",
-          turn[1] === "helper" ? `[Recepción humana] ${turn[2]}` : turn[2]);
-      }
-      if (message.startsWith("patient reply ") && message !== "patient reply on phone after pause") {
-        addTurn(call, at, "caller", message.slice("patient reply ".length));
+        addTurn(call, at, turn[1] === "agent" ? "agent" : "caller", turn[2]);
       }
       const tool = message.match(/^tool (\w+) (\{.*)$/);
       if (tool) {

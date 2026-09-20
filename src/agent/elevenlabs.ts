@@ -36,6 +36,7 @@ export const CLIENT_EVENTS = [
   "interruption",
   "agent_response",
   "user_transcript",
+  "tentative_user_transcript",
   "agent_response_correction",
   "client_tool_call",
   "agent_tool_request",

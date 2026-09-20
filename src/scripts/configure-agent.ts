@@ -313,6 +313,7 @@ const patch = await fetch(`https://api.elevenlabs.io/v1/convai/agents/${env.elev
           "interruption",
           "agent_response",
           "user_transcript",
+          "tentative_user_transcript",
           "agent_response_correction",
           "client_tool_call",
           "agent_tool_response",

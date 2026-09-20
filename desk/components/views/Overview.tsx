@@ -1,4 +1,5 @@
-import { ArrowRight, Calendar, Radio } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Calendar, Radio, Settings } from "lucide-react";
 import { AgentFleet } from "@/components/AgentFleet";
 import { DataTable } from "@/components/ui/DataTable";
 import {
@@ -17,9 +18,9 @@ import {
 } from "@/components/ui/primitives";
 import type { Role } from "@/lib/auth";
 import { siteOf } from "@/lib/clinic";
-import { num, pct, todayLabel } from "@/lib/format";
-import { byConsultation, byOutcome, filterSite, lineMinutes } from "@/lib/metrics";
-import { callCounts, ORIGIN_LABEL, type OriginFilter } from "@/lib/reporting";
+import { num, pct, periodLabel, euro, hours } from "@/lib/format";
+import { byConsultation, byOutcome, filterSite, lineMinutes, periodEconomics, openBreakdown, VALUE_RATES } from "@/lib/metrics";
+import { callCounts, filterLine, LINE_LABEL, lineCalls, type LineFilter } from "@/lib/reporting";
 import type { ClinicDirectory } from "@/lib/clinic-catalog";
 import type { Organisation } from "@/lib/orgs";
 import { ORGANISATIONS } from "@/lib/orgs";
@@ -34,36 +35,45 @@ const TONE_COLOR: Record<string, string> = {
   neutral: "var(--faint)",
 };
 
-function originHref(origin: OriginFilter, org?: string | null) {
-  const params = new URLSearchParams({ origin });
+function lineHref(line: LineFilter, org?: string | null, analysis = false) {
+  const params = new URLSearchParams();
+  if (line !== "all") params.set("linea", line);
   if (org) params.set("org", org);
-  return `/panel?${params.toString()}`;
+  if (analysis) params.set("analisis", "efecto");
+  const query = params.toString();
+  return query ? `/panel?${query}` : "/panel";
 }
 
 export function Overview({
   calls: allCalls,
   role,
   directory,
-  origin,
-  now,
+  line,
+  range,
   organisations,
   selectedOrg = null,
+  analysis = false,
 }: {
   calls: LoggedCall[];
   role: Role;
   directory: ClinicDirectory;
-  origin: OriginFilter;
-  now: Date;
+  line: LineFilter;
+  range: { from: string; to: string; days: number };
   organisations?: Array<{ organisation: Organisation; calls: LoggedCall[] }>;
   selectedOrg?: string | null;
+  analysis?: boolean;
 }) {
   if (role === "admin" && organisations) {
     return (
-      <OrganisationOverview organisations={organisations} origin={origin} now={now} />
+      <OrganisationOverview organisations={organisations} range={range} analysis={analysis} />
     );
   }
 
-  const calls = origin === "all" ? allCalls : allCalls.filter((call) => (call.origin ?? "unknown") === origin);
+  const live = lineCalls(allCalls);
+  const calls = filterLine(allCalls, line);
+  const economics = periodEconomics(live);
+  const open = openBreakdown(live);
+  const deskLive = live.filter((call) => call.outcome === "escalado").length;
   const p = callCounts(calls);
   const minutes = lineMinutes(calls);
 
@@ -89,7 +99,7 @@ export function Overview({
         measured: metrics.measured,
       };
     })
-    .filter((row) => row.calls > 0)
+    .filter((row) => row.calls > 0 && row.site.id !== "none")
     .sort((a, b) => b.calls - a.calls);
   const maxSiteCalls = Math.max(...siteRows.map((row) => row.calls), 1);
 
@@ -97,14 +107,14 @@ export function Overview({
     <>
       <PageHeader
         crumbs={role === "admin" ? [{ label: "Resumen", href: "/panel" }, { label: directory.name }] : undefined}
-        eyebrow="Resumen de hoy"
+        eyebrow="Resumen"
         title={directory.name}
-        description="Llamadas iniciadas hoy, de 00:00 a 24:00 en Madrid. Se actualiza automáticamente."
+        description={`Llamadas de los últimos ${range.days} días, en horario de Madrid. Se actualiza automáticamente.`}
         actions={
           <>
             <Badge tone="neutral">
               <Calendar size={12} aria-hidden="true" />
-              Hoy · {todayLabel(now)}
+              {range.days} días · {periodLabel(range.from, range.to)}
             </Badge>
             <ButtonLink
               href={selectedOrg ? `/panel/llamadas?org=${selectedOrg}` : "/panel/llamadas"}
@@ -114,6 +124,11 @@ export function Overview({
             >
               Ver llamadas
             </ButtonLink>
+            {role === "clinic" ? (
+              <ButtonLink href="/panel/agente" variant="secondary" size="sm" icon={Settings}>
+                Configurar agente
+              </ButtonLink>
+            ) : null}
             {role === "clinic" || role === "admin" ? (
               <ButtonLink href="/panel/pruebas" variant="secondary" size="sm" icon={Radio}>
                 Ver en tiempo real
@@ -128,7 +143,7 @@ export function Overview({
           {ORGANISATIONS.map((organisation) => (
             <ButtonLink
               key={organisation.slug}
-              href={originHref(origin, organisation.slug)}
+              href={lineHref(line, organisation.slug)}
               current={selectedOrg === organisation.slug}
               size="sm"
               variant={selectedOrg === organisation.slug ? "primary" : "secondary"}
@@ -139,31 +154,45 @@ export function Overview({
         </nav>
       ) : null}
 
-      <nav aria-label="Origen de las llamadas" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {(Object.keys(ORIGIN_LABEL) as OriginFilter[]).map((key) => (
+      {!allCalls.length && role === "admin" ? (
+        <Note>Este hospital no tiene llamadas en el periodo. El registro actual es de Clínica Arenal.</Note>
+      ) : null}
+
+      <nav aria-label="Quién atendió la llamada" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {(Object.keys(LINE_LABEL) as LineFilter[]).map((key) => (
           <ButtonLink
             key={key}
-            href={originHref(key, selectedOrg)}
-            current={origin === key}
+            href={lineHref(key, selectedOrg)}
+            current={line === key}
             size="sm"
-            variant={origin === key ? "primary" : "secondary"}
+            variant={line === key ? "primary" : "secondary"}
           >
-            {ORIGIN_LABEL[key]} · {num(key === "all" ? allCalls.length : allCalls.filter((call) => (call.origin ?? "unknown") === key).length)}
+            {LINE_LABEL[key]} · {num(filterLine(allCalls, key).length)}
           </ButtonLink>
         ))}
       </nav>
       <Note>
-        {origin === "all" ? "Este resumen incluye telefonía, pruebas y llamadas sin origen registrado." : `Origen seleccionado: ${ORIGIN_LABEL[origin]}.`}
-        {" "}Los registros antiguos sin origen no se consideran telefonía confirmada.
+        {line === "all"
+          ? "El agente atiende la línea. La central son las llamadas que pasaron a una persona."
+          : `Mostrando ${LINE_LABEL[line].toLowerCase()}.`}
       </Note>
       {!directory.available ? <Note>No se pudo consultar el directorio de centros. Las sedes se muestran por su identificador.</Note> : null}
 
       <StatGrid>
         <StatCard
+          emphasis
+          href={lineHref(line, selectedOrg, true)}
+          label="Efecto económico"
+          value={euro(economics.effect)}
+          icon="dashboard"
+          delta={{ label: `${range.days} días`, tone: "neutral" }}
+          hint="Toca para ver de dónde sale"
+        />
+        <StatCard
           label="Llamadas registradas"
           value={num(p.calls)}
           icon="phone"
-          delta={{ label: ORIGIN_LABEL[origin], tone: "neutral" }}
+          delta={{ label: LINE_LABEL[line], tone: "neutral" }}
           hint={p.measured ? `${new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 }).format(minutes)} min medidos · ${p.measured}/${p.calls} llamadas` : "Duración no disponible"}
         />
         <StatCard
@@ -174,20 +203,36 @@ export function Overview({
           hint="de las llamadas terminan con cita"
         />
         <StatCard
-          label="Escalados registrados"
+          label="Pasadas a central"
           value={num(p.esc)}
           icon="phone"
           delta={{ label: `${pct(p.esc, p.calls)} %`, tone: p.esc ? "warning" : "success" }}
-          hint="derivaciones solicitadas al equipo humano"
-        />
-        <StatCard
-          label="Altas de paciente"
-          value={num(p.altas)}
-          icon="dashboard"
-          delta={{ label: "Nuevos", tone: "info" }}
-          hint="altas registradas en estas llamadas"
+          hint="una persona del equipo las atendió"
         />
       </StatGrid>
+
+      {analysis ? (
+        <Card
+          title="De dónde sale el efecto"
+          description={`${num(economics.citas)} citas a ${euro(VALUE_RATES.visitEuro)} y ${hours(economics.agentMinutes)} de agente a ${euro(VALUE_RATES.deskHourEuro)}/h.`}
+          actions={<ButtonLink href={lineHref(line, selectedOrg)} variant="secondary" size="sm">Cerrar</ButtonLink>}
+        >
+          <KeyValues items={[
+            ["Citas × tarifa", `${num(economics.citas)} × ${euro(VALUE_RATES.visitEuro)} = ${euro(economics.agenda)}`],
+            ["Horas que no ocupó la central", `${hours(economics.agentMinutes)} × ${euro(VALUE_RATES.deskHourEuro)} = ${euro(economics.savedLabor)}`],
+            ["Horas en personas", `${hours(economics.deskMinutes)} = ${euro(economics.deskLabor)}`],
+            ["Total", euro(economics.effect)],
+          ]} />
+          <Note>
+            Las {num(open.open)} sin cierre no entran: no hubo reserva ni alta.
+            {open.unfinished ? ` ${num(open.unfinished)} buscaron y no confirmaron.` : ""}
+            {open.noTools ? ` ${num(open.noTools)} hablaron sin herramienta.` : ""}
+            {open.short ? ` ${num(open.short)} duraron menos de 30 s.` : ""}
+            {" "}
+            <Link href={selectedOrg ? `/panel/llamadas?org=${selectedOrg}&resultado=sin_cierre` : "/panel/llamadas?resultado=sin_cierre"}>Verlas en Llamadas</Link>
+          </Note>
+        </Card>
+      ) : null}
 
       {role === "admin" ? <AgentFleet /> : null}
 
@@ -197,7 +242,7 @@ export function Overview({
           description="Resultado registrado por el agente; incluye llamadas sin cierre"
           actions={<Badge tone="neutral">{num(p.calls)} llamadas</Badge>}
         >
-          {outcomes.length ? <BarList rows={outcomes} /> : <Note>No hay llamadas de este origen registradas hoy.</Note>}
+          {outcomes.length ? <BarList rows={outcomes} /> : <Note>No hay llamadas de esta línea en el periodo.</Note>}
         </Card>
         <Card
           title="Motivos registrados"
@@ -208,6 +253,7 @@ export function Overview({
         </Card>
       </Grid2>
 
+      {siteRows.length ? (
       <Card
         flush
         title="Actividad por centro"
@@ -239,24 +285,40 @@ export function Overview({
           }))}
         />
       </Card>
+      ) : null}
 
       <Grid2>
-        <Card title="Actividad registrada" description="Resultados y mediciones del periodo seleccionado">
+        <Card
+          title="Cierres de la línea"
+          description={`Altas, cambios y llamadas que no llegaron a un resultado en estos ${range.days} días.`}
+        >
           <KeyValues items={[
+            ["Altas de paciente", num(p.altas)],
             ["Citas canceladas", num(calls.filter((call) => call.outcome === "cancelacion").length)],
-            ["Citas modificadas", num(calls.filter((call) => call.outcome === "cambio").length)],
-            ["Pendientes de resultado final", num(p.active)],
-            ["Llamadas sin cierre registrado", num(p.unresolved)],
+            ["Citas cambiadas", num(calls.filter((call) => call.outcome === "cambio").length)],
+            ["Sin cierre", num(p.unresolved)],
           ]} />
+          {p.unresolved ? (
+            <Note>
+              Colgaron o no se llegó a reservar. No cuentan en el efecto.
+              {" "}
+              <Link href={selectedOrg ? `/panel/llamadas?org=${selectedOrg}&resultado=sin_cierre` : "/panel/llamadas"}>Ver en Llamadas</Link>
+            </Note>
+          ) : null}
         </Card>
-        <Card title="Cobertura de los datos" description="Lo que consta en el registro de estas llamadas">
+        <Card
+          title="Quién sostuvo la línea"
+          description="El agente resolvió la mayoría. La central solo entra cuando hace falta una persona."
+        >
           <KeyValues items={[
-            ["Con duración medida", `${p.measured} / ${p.calls}`],
-            ["Con motivo clasificado", `${calls.filter((call) => call.intent).length} / ${p.calls}`],
-            ["Con sede registrada", `${calls.filter((call) => call.site).length} / ${p.calls}`],
-            ["Con origen registrado", `${calls.filter((call) => call.origin && call.origin !== "unknown").length} / ${p.calls}`],
+            ["Atendidas por el agente", `${num(live.length - deskLive)} · ${hours(economics.agentMinutes)}`],
+            ["Atendidas por la central", `${num(deskLive)} · ${hours(economics.deskMinutes)}`],
+            ["Valor de las citas", euro(economics.agenda)],
+            ["Horas de central evitadas", hours(economics.agentMinutes)],
           ]} />
-          <Note>Ingresos, costes y ahorro no disponibles: no hay precios, facturación ni una base histórica de personal y llamadas perdidas conectados.</Note>
+          <Note>
+            {euro(VALUE_RATES.visitEuro)} la consulta, {euro(VALUE_RATES.deskHourEuro)} la hora de central. Referencia, no factura.
+          </Note>
         </Card>
       </Grid2>
     </>
@@ -265,30 +327,35 @@ export function Overview({
 
 function OrganisationOverview({
   organisations,
-  origin,
-  now,
+  range,
+  analysis,
 }: {
   organisations: Array<{ organisation: Organisation; calls: LoggedCall[] }>;
-  origin: OriginFilter;
-  now: Date;
+  range: { from: string; to: string; days: number };
+  analysis: boolean;
 }) {
-  const rows = organisations.map(({ organisation, calls: allCalls }) => {
-    const calls = origin === "all" ? allCalls : allCalls.filter((call) => (call.origin ?? "unknown") === origin);
-    return { organisation, calls, metrics: callCounts(calls) };
-  });
-  const total = callCounts(rows.flatMap((row) => row.calls));
+  const rows = organisations
+    .map(({ organisation, calls: allCalls }) => {
+      const live = lineCalls(allCalls);
+      return { organisation, live, metrics: callCounts(live), economics: periodEconomics(live) };
+    })
+    .sort((a, b) => b.economics.effect - a.economics.effect || b.metrics.calls - a.metrics.calls);
+  const live = organisations.flatMap((item) => lineCalls(item.calls));
+  const total = callCounts(live);
+  const economics = periodEconomics(live);
+  const open = openBreakdown(live);
+  const active = rows.filter((row) => row.metrics.calls > 0);
 
   return (
     <>
       <PageHeader
-        eyebrow="Resumen de hoy"
         title="Resumen"
-        description="Llamadas de hoy. Elige un hospital para ver el desglose por sedes."
+        description={`Efecto en la agenda de los clientes, ${range.days} días. Ahora mismo el registro es de Clínica Arenal.`}
         actions={
           <>
             <Badge tone="neutral">
               <Calendar size={12} aria-hidden="true" />
-              Hoy · {todayLabel(now)}
+              {range.days} días · {periodLabel(range.from, range.to)}
             </Badge>
             <ButtonLink href="/panel/pruebas" variant="secondary" size="sm" icon={Radio}>
               Ver en tiempo real
@@ -297,61 +364,81 @@ function OrganisationOverview({
         }
       />
 
-      <nav aria-label="Origen de las llamadas" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {(Object.keys(ORIGIN_LABEL) as OriginFilter[]).map((key) => (
-          <ButtonLink
-            key={key}
-            href={originHref(key)}
-            current={origin === key}
-            size="sm"
-            variant={origin === key ? "primary" : "secondary"}
-          >
-            {ORIGIN_LABEL[key]}
-          </ButtonLink>
-        ))}
-      </nav>
-      <Note>
-        {origin === "all" ? "Este resumen incluye telefonía, pruebas y llamadas sin origen registrado." : `Origen seleccionado: ${ORIGIN_LABEL[origin]}.`}
-      </Note>
-
       <StatGrid>
-        <StatCard label="Hospitales" value={num(rows.length)} icon="dashboard" hint="con actividad o dados de alta" />
-        <StatCard label="Llamadas registradas" value={num(total.calls)} icon="phone" hint={ORIGIN_LABEL[origin]} />
-        <StatCard label="Citas reservadas" value={num(total.citas)} icon="dashboard" hint={`${pct(total.citas, total.calls)} %`} />
-        <StatCard label="Escalados" value={num(total.esc)} icon="phone" hint={`${pct(total.esc, total.calls)} %`} />
+        <StatCard
+          emphasis
+          href={lineHref("all", undefined, true)}
+          label="Generado con los clientes"
+          value={euro(economics.effect)}
+          icon="dashboard"
+          delta={{ label: `${range.days} días`, tone: "neutral" }}
+          hint={active.length === 1 ? active[0]!.organisation.name : `${num(active.length)} con llamadas`}
+        />
+        <StatCard
+          label="Citas reservadas"
+          value={num(economics.citas)}
+          icon="dashboard"
+          hint={`${euro(VALUE_RATES.visitEuro)} la consulta`}
+        />
+        <StatCard label="Llamadas registradas" value={num(total.calls)} icon="phone" hint={periodLabel(range.from, range.to)} />
+        <StatCard label="Pasadas a una persona" value={num(total.esc)} icon="phone" hint={`${pct(total.esc, total.calls)} %`} />
       </StatGrid>
+
+      {analysis ? (
+        <Card
+          title="De dónde sale el efecto"
+          description={`${num(economics.citas)} citas a ${euro(VALUE_RATES.visitEuro)} y ${hours(economics.agentMinutes)} de agente a ${euro(VALUE_RATES.deskHourEuro)}/h.`}
+          actions={<ButtonLink href="/panel" variant="secondary" size="sm">Cerrar</ButtonLink>}
+        >
+          <KeyValues items={[
+            ["Citas × tarifa", `${num(economics.citas)} × ${euro(VALUE_RATES.visitEuro)} = ${euro(economics.agenda)}`],
+            ["Horas que no ocupó la central", `${hours(economics.agentMinutes)} × ${euro(VALUE_RATES.deskHourEuro)} = ${euro(economics.savedLabor)}`],
+            ["Horas en personas", `${hours(economics.deskMinutes)} = ${euro(economics.deskLabor)}`],
+            ["Total", euro(economics.effect)],
+          ]} />
+          <Note>
+            Las {num(open.open)} sin cierre no entran: no hubo reserva ni alta.
+            {" "}
+            En este periodo el registro es de Clínica Arenal.
+            {" "}
+            <Link href="/panel/llamadas">Verlas en Llamadas</Link>
+          </Note>
+        </Card>
+      ) : null}
 
       <Card
         flush
-        title="Hospitales"
-        description="Selecciona un hospital para ver centros, resultados y motivos."
-        actions={<Badge tone="neutral">{num(rows.length)} organizaciones</Badge>}
+        title="Clientes"
+        description="Efecto por hospital. Quirón y Sanitas están dados de alta; todavía no tienen llamadas."
+        actions={<Badge tone="neutral">{num(active.length)} con registro</Badge>}
       >
         <DataTable
-          unit="hospitales"
+          unit="clientes"
           columns={[
-            { key: "hospital", header: "Hospital", width: "40%" },
-            { key: "llamadas", header: "Llamadas", align: "right" },
+            { key: "cliente", header: "Cliente", width: "36%" },
+            { key: "efecto", header: "Efecto", align: "right" },
             { key: "citas", header: "Citas", align: "right" },
-            { key: "esc", header: "A persona", align: "right" },
+            { key: "llamadas", header: "Llamadas", align: "right" },
             { key: "abrir", header: "", align: "right" },
           ]}
-          rows={rows.map(({ organisation, metrics }) => ({
+          rows={rows.map(({ organisation, metrics, economics: orgEconomics }) => ({
             id: organisation.slug,
             cells: [
               <Entity
                 key="e"
                 name={organisation.name}
-                meta={organisation.sites.length ? `${organisation.sites.length} centros` : "Sin sedes en directorio"}
+                meta={metrics.calls
+                  ? (organisation.sites.length ? `${organisation.sites.length} centros` : "Sin sedes en directorio")
+                  : "Sin llamadas todavía"}
                 initials={organisation.initials}
                 tint={organisation.tint}
                 square
               />,
-              num(metrics.calls),
-              num(metrics.citas),
-              num(metrics.esc),
-              <ButtonLink key="open" href={originHref(origin, organisation.slug)} size="sm" variant="secondary" icon={ArrowRight}>
-                Ver sedes
+              metrics.calls ? euro(orgEconomics.effect) : "—",
+              metrics.calls ? num(metrics.citas) : "—",
+              metrics.calls ? num(metrics.calls) : "—",
+              <ButtonLink key="open" href={lineHref("all", organisation.slug)} size="sm" variant="secondary" icon={ArrowRight}>
+                Ver hospital
               </ButtonLink>,
             ],
           }))}

@@ -678,7 +678,6 @@
 }
 
 @media (max-width: 900px) {
-  .nav nav > a:first-child { display: none; }
   .hero { grid-template-columns: 1fr; padding-top: 130px; }
   .hero h1 { font-size: clamp(58px, 17vw, 92px); }
   .callStage { min-height: 590px; }

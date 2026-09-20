@@ -84,7 +84,7 @@
 
 .simulator input[readonly] {
   color: var(--ink-2);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, monospace;
   font-size: 12.5px;
 }
 
@@ -342,6 +342,16 @@
   font-weight: 700;
 }
 
+.lineCard[data-status="live"] em::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .lineCard[data-active="false"] em {
   color: var(--muted);
   font-weight: 600;
@@ -363,7 +373,7 @@
   display: block;
   margin-top: 4px;
   color: var(--faint);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, monospace;
   font-size: 11px;
 }
 

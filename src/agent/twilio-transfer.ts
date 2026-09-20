@@ -81,6 +81,35 @@ function normalizeSpeech(value: string) {
     .trim();
 }
 
+function looksLikeCannedPatient(norm: string): boolean {
+  const canned = [PATIENT_SPEECH, PATIENT_REPLY, PATIENT_WAIT_REPLY].map(normalizeSpeech);
+  if (canned.some((line) => line && (norm === line || (line.length > 18 && (norm.includes(line.slice(0, 22)) || line.includes(norm)))))) {
+    return true;
+  }
+  // STT of "Sí, esa hora me viene muy bien" often lands as "vendedor" / "del 9".
+  if (/\bvendedor\b/.test(norm)) return true;
+  if (/\b(me viene|esa hora|muy bien)\b/.test(norm) && !/\b(cita|cojo|apunt|confirmo)\b/.test(norm)) return true;
+  const words = norm.split(" ").filter(Boolean);
+  if (
+    words.length <= 10 &&
+    /^(si|vale)\b/.test(norm) &&
+    /\b(9|nueve)\b/.test(norm) &&
+    !/\b(cita|cojo|apunt)\b/.test(norm)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/** Inbound phone speech after handoff: drop canned patient TTS that leaked into the mic. */
+export function phoneHelperTranscript(text: string): string | null {
+  const parts = splitHandoffTranscript(text);
+  const helper = parts.helper?.replace(/\s+/g, " ").trim();
+  if (!helper) return null;
+  if (looksLikeCannedPatient(normalizeSpeech(helper))) return null;
+  return helper;
+}
+
 /** The phone plays the patient; the helper only confirms the booking. Never keep both in one turn. */
 export function splitHandoffTranscript(text: string): { patient?: string; helper?: string } {
   const raw = text.replace(/\s+/g, " ").trim();
@@ -129,7 +158,8 @@ export function liveStreamTwiml(
   const stream = streamPhoneAudio
     ? `<Start><Stream url="${xml(wsUrl)}" track="inbound_track"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Start>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${stream}${sayEs(PATIENT_SPEECH)}<Pause length="6"/>${sayEs(PATIENT_REPLY)}<Pause length="600"/></Response>`;
+  // Say first so the phone mic is not open while Polly plays the patient.
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}${stream}<Pause length="600"/></Response>`;
 }
 
 export function joinStreamUrl(origin: string, joinCallId: string, orgSlug = "arenal") {

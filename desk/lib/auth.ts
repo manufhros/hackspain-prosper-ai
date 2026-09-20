@@ -9,8 +9,8 @@ export type Session = { email: string; role: Role };
 export type Account = { email: string; role: Role; label: string; note: string };
 
 export const ACCOUNTS: Account[] = [
-  { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen y llamadas del centro" },
-  { email: "admin@turno.app", role: "admin", label: "Admin", note: "Hospitales, llamadas y agente" },
+  { email: "admision@clinicaarenal.es", role: "clinic", label: "Clínica Arenal", note: "Resumen, llamadas y agente del centro" },
+  { email: "admin@turno.app", role: "admin", label: "turno", note: "Clientes, llamadas y agente" },
   { email: "voz@turno.app", role: "tester", label: "Tiempo real", note: "Monitor de llamadas en curso" },
 ];
 
@@ -27,7 +27,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 /** Sections under /panel each role may open ("" is the overview). */
 const SECTIONS: Record<Role, string[]> = {
   admin: ["", "/llamadas", "/agente", "/pruebas", "/operaciones"],
-  clinic: ["", "/llamadas", "/pruebas"],
+  clinic: ["", "/llamadas", "/agente", "/pruebas"],
   tester: ["/pruebas", "/llamadas", "/operaciones"],
 };
 

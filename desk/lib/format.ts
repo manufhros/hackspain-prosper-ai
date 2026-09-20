@@ -18,11 +18,17 @@ export function hours(minutes: number): string {
 
 const MADRID = "Europe/Madrid";
 
+/** Log timestamps may be ISO or `...,376 CEST`. */
+export function parseCallStarted(started: string | null | undefined): Date | null {
+  if (!started) return null;
+  const date = new Date(started.replace(",", ".").replace(/ CEST$/, "+02:00").replace(/ CET$/, "+01:00"));
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
 /** "2026-09-19T09:32:56,376 CEST" → "09:32". Falls back to "—". */
 export function timeOf(started: string | null | undefined): string {
-  if (!started) return "—";
-  const date = new Date(started.replace(",", ".").replace(/ CEST$/, "+02:00").replace(/ CET$/, "+01:00"));
-  return Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat("es-ES", {
+  const date = parseCallStarted(started);
+  return date ? new Intl.DateTimeFormat("es-ES", {
     timeZone: MADRID, hour: "2-digit", minute: "2-digit",
   }).format(date) : "—";
 }
@@ -44,6 +50,14 @@ export function todayLabel(date = new Date()): string {
   return new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short", timeZone: MADRID })
     .format(date)
     .replace(/\.$/, "");
+}
+
+/** Half-open ISO range as "sáb 19 sept – dom 20 sept" in Madrid. */
+export function periodLabel(from: string, to: string): string {
+  const start = new Date(from);
+  const end = new Date(Date.parse(to) - 1);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) return "—";
+  return `${todayLabel(start)} – ${todayLabel(end)}`;
 }
 
 /** Percentage of `part` over `total`, rounded; 0 when total is 0. */

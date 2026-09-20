@@ -51,16 +51,16 @@ el panel no depende de `from-logs.json`.
 
 ## Datos del resumen
 
-- Hoy significa el día natural de Madrid (incluidos cambios de hora), sin límite de 500 filas.
+- El resumen cubre los últimos 7 días naturales de Madrid, sin límite de 500 filas.
 - El historial mantiene una ventana explícita de las últimas 500 llamadas.
-- Los filtros distinguen telefonía, pruebas y origen desconocido. Las llamadas antiguas
-  sin evidencia de origen no se reclasifican como telefonía.
+- Los filtros distinguen agente, central (persona) y ensayos del simulador.
+- Las llamadas antiguas sin marca de simulador cuentan como línea del agente.
+- El efecto económico usa tarifas de referencia (consulta y hora de central), no facturación real.
 - Las duraciones requieren una medición o ambos extremos registrados; no hay valores
   de relleno ni límites artificiales de duración.
 - Los logs antiguos necesitan un resultado de envío confirmado para contar una acción;
   un intento, una reserva retenida o un resultado truncado no bastan.
 - Los motivos son la clasificación guardada por el agente; no se deducen especialidades.
-- El directorio procede de `/api/v1/clinic`; si falla, se muestran identificadores.
-- No se muestran ingresos, costes ni ahorro sin precios, facturación y una base histórica.
+- El directorio de sedes sale de la config del hospital si Prosper no está disponible.
 - La salud muestra mediciones disponibles; una caída no se convierte en cero llamadas.
   Cloudflare no proporciona uptime de proceso y se muestra como no disponible.

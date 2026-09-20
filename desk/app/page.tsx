@@ -13,7 +13,6 @@ export default async function Home({
       <header className={styles.nav}>
         <Link className={styles.logo} href="/" aria-label="turno, inicio"><span>t</span> turno</Link>
         <nav>
-          <a href="#producto">El producto</a>
           <a href="/entrar">Entrar</a>
           <a className={styles.navCta} href="#demo">Ver una demo</a>
         </nav>
@@ -28,7 +27,7 @@ export default async function Home({
             quien ya está en la clínica.
           </p>
           <div className={styles.actions}>
-            <a className={styles.primary} href="#demo">Verlo con mi agenda</a>
+            <a className={styles.primary} href="#demo">Pedir una demo</a>
             <a className={styles.secondary} href="#producto">Ver una llamada</a>
           </div>
         </div>

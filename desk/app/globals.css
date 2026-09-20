@@ -235,47 +235,86 @@ textarea {
 .login-accounts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 0;
+  margin-top: 6px;
   padding-top: 18px;
   border-top: 1px solid var(--border);
 }
 
 .login-accounts > span {
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .login .login-account {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 12px;
   height: auto;
+  min-height: 56px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
+  border-bottom-width: 0;
+  border-radius: 0;
+  background: var(--surface);
   color: var(--ink);
   text-align: left;
-  transition: border-color 140ms ease, background 140ms ease;
+  box-shadow: none;
+  transition: background 140ms ease;
 }
 
-.login .login-account:hover {
-  border-color: var(--brand-2);
-  background: var(--surface);
+.login .login-account:first-of-type {
+  border-radius: 12px 12px 0 0;
+}
+
+.login .login-account:last-of-type {
+  border-bottom-width: 1px;
+  border-radius: 0 0 12px 12px;
+}
+
+.login .login-account:hover,
+.login .login-account:focus-visible {
+  background: var(--surface-2);
+}
+
+.login .login-account:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+.login .login-account .mark {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.login .login-account[data-role="clinic"] .mark {
+  background: var(--mint);
+}
+
+.login .login-account[data-role="admin"] .mark {
+  background: var(--brand);
+}
+
+.login .login-account span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }
 
 .login .login-account strong {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .login .login-account small {
-  color: var(--muted);
-  font-size: 11.5px;
+  color: var(--ink-2);
+  font-size: 12.5px;
   font-weight: 500;
+  line-height: 1.35;
 }

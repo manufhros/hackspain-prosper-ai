@@ -27,6 +27,12 @@ export type CallDetail = {
   pages: number;
 };
 
+/** Recent line a receptionist can pick up on Tiempo real. */
+export type DeskLine = {
+  call: LoggedCall;
+  transcript: TranscriptEntry[];
+};
+
 export type LoggedCall = {
   id: string;
   phone: string | null;

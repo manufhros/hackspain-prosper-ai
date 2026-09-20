@@ -5,6 +5,13 @@ import styles from "./AgentFleet.module.css";
 
 import { agentHealth, type AgentHealth } from "@/lib/agent-health";
 
+function uptimeLabel(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours) return `${hours} h ${minutes} min`;
+  return `${minutes} min`;
+}
+
 export function AgentFleet() {
   const [health, setHealth] = useState<AgentHealth | null>(null);
 
@@ -28,29 +35,26 @@ export function AgentFleet() {
     return () => { active = false; controller.abort(); clearTimeout(timer); };
   }, []);
 
+  const online = health?.ok === true;
+  const live = health?.activeCalls ?? 0;
+  const uptime = health?.uptimeSeconds != null ? uptimeLabel(health.uptimeSeconds) : null;
+
   return (
     <section className={styles.fleet} id="agentes">
       <header>
-        <div><h2>Estado del servicio de voz</h2><p>Disponibilidad y mediciones del servicio, comprobadas cada cinco segundos.</p></div>
-        <span data-online={health?.ok ?? false}><i />{!health ? "Comprobando…" : health.ok ? "Servicio disponible" : "Sin respuesta"}</span>
+        <h2>Servicio de voz</h2>
+        <span data-online={online}>
+          <i />
+          {!health ? "Comprobando…" : online ? "Disponible" : "Sin respuesta"}
+        </span>
       </header>
-      <div className={styles.runtime}>
-        <article>
-          <span>Servicio de voz</span>
-          <strong>{health?.ok ? "Servicio accesible" : "No disponible"}</strong>
-          <small>Comprobación del endpoint de salud</small>
-        </article>
-        <article>
-          <span>Llamadas activas</span>
-          <strong>{health?.activeCalls ?? "—"}</strong>
-          <small>Sesiones activas registradas</small>
-        </article>
-        <article>
-          <span>Tiempo activo</span>
-          <strong>{health?.uptimeSeconds != null ? `${Math.floor(health.uptimeSeconds / 60)} min` : "No disponible"}</strong>
-          <small>{health?.checkedAt ? `Comprobado ${new Date(health.checkedAt).toLocaleTimeString("es-ES")}` : "Comprobando…"}</small>
-        </article>
-      </div>
+      <p className={styles.pulse}>
+        {!health
+          ? "Comprobando el servicio."
+          : online
+            ? `${live ? `${live} en curso` : "Ninguna en curso"}${uptime ? ` · ${uptime} en marcha` : ""}`
+            : "No responde el servicio de voz."}
+      </p>
     </section>
   );
 }

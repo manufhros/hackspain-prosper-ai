@@ -1,22 +1,57 @@
 "use client";
 
-import { checkOrgEndpoints, saveOrgIntegrationConfig } from "@/app/panel/agente/actions";
+import { saveOrgIntegrationConfig } from "@/app/panel/agente/actions";
+import { Button, ButtonLink } from "@/components/ui/primitives";
 import type { FaqSuggestion } from "@/lib/faq-suggestion";
 import type { OrgAgentConfig } from "@/lib/org-agent-config";
-import { Button } from "@/components/ui/primitives";
+import { PROSPER_ENDPOINTS } from "@/lib/prosper-endpoints";
+import { ArrowRight, Pencil } from "lucide-react";
 import { useState, useTransition } from "react";
 import styles from "./DeveloperPortal.module.css";
+
+function EditButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? styles.editing : styles.edit}
+      aria-label={active ? `Terminar edición de ${label}` : `Editar ${label}`}
+      title={active ? "Terminar edición" : "Editar"}
+      onClick={onClick}
+    >
+      <Pencil size={15} strokeWidth={1.9} aria-hidden="true" />
+    </button>
+  );
+}
+
+const HEALTH_LABEL = {
+  healthy: "Healthy",
+  unknown: "Sin comprobar",
+  degraded: "Degraded",
+  down: "Down",
+} as const;
 
 export function DeveloperPortal({
   initialConfig,
   suggestion = null,
+  variant = "admin",
+  moreHref = "/panel/agente/monitor",
 }: {
   initialConfig: OrgAgentConfig;
   suggestion?: FaqSuggestion | null;
+  variant?: "admin" | "clinic";
+  moreHref?: string;
 }) {
   const [config, setConfig] = useState(initialConfig);
   const [notice, setNotice] = useState<string | null>(null);
-  const [editingEndpoint, setEditingEndpoint] = useState<string | null>(null);
+  const [editingFaq, setEditingFaq] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [dismissedSuggestion, setDismissedSuggestion] = useState(false);
 
@@ -33,22 +68,14 @@ export function DeveloperPortal({
     });
   }
 
-  function addSuggestion() {
-    if (!suggestion) return;
-    patch({
-      faq: [
-        ...config.faq,
-        { id: crypto.randomUUID(), question: suggestion.question, answer: "" },
-      ],
-    });
+  function addFaq(question = "", answer = "") {
+    const id = crypto.randomUUID();
+    patch({ faq: [...config.faq, { id, question, answer }] });
+    setEditingFaq(id);
     setDismissedSuggestion(true);
   }
 
-  const endpoints = [
-    ["preCallEndpoint", "Contexto previo", "Paciente, póliza y contexto antes de contestar", "preCall"],
-    ["actionEndpoint", "Acciones clínicas", "Agenda, CRM o middleware propio", "actions"],
-    ["postCallEndpoint", "Postllamada", "Resultado, resumen y trazabilidad", "postCall"],
-  ] as const;
+  const health = config.health.preCall;
   const visibleSuggestion = suggestion && !dismissedSuggestion
     && !config.faq.some((item) => item.question === suggestion.question)
     ? suggestion
@@ -59,65 +86,29 @@ export function DeveloperPortal({
       <section className={styles.endpoints}>
         <header>
           <div>
-            <p>Conectividad</p>
-            <h2>Endpoints del hospital</h2>
+            <h2>Endpoints</h2>
+            <p className={styles.toolLead}>API de la clínica · {PROSPER_ENDPOINTS.length} rutas</p>
           </div>
-          <button disabled={pending} onClick={() => run(() => checkOrgEndpoints(config.orgSlug))}>
-            Comprobar salud
-          </button>
+          <div className={styles.endpointHeadActions}>
+            <em data-status={health.status}>
+              {HEALTH_LABEL[health.status]}
+              {health.latencyMs ? ` · ${health.latencyMs} ms` : ""}
+            </em>
+            <ButtonLink href={moreHref} variant="secondary" size="sm" icon={ArrowRight}>
+              Ver más
+            </ButtonLink>
+          </div>
         </header>
-        {endpoints.map(([field, label, copy, healthKey]) => {
-          const health = config.health[healthKey];
-          return (
-            <label key={field}>
-              <span>
-                <strong>{label}</strong>
-                <small>{copy}</small>
-              </span>
-              <input
-                type="url"
-                placeholder="https://api.hospital.es/..."
-                value={config[field]}
-                readOnly={editingEndpoint !== field}
-                autoFocus={editingEndpoint === field}
-                onChange={(event) => setConfig({ ...config, [field]: event.target.value })}
-              />
-              <div className={styles.endpointState}>
-                <em data-status={health.status}>
-                  {health.status === "healthy"
-                    ? "Healthy"
-                    : health.status === "unknown"
-                      ? "Not checked"
-                      : health.status === "degraded"
-                        ? "Degraded"
-                        : "Down"}
-                  {health.latencyMs ? ` · ${health.latencyMs} ms` : ""}
-                </em>
-                <button
-                  type="button"
-                  className={editingEndpoint === field ? styles.editing : styles.edit}
-                  aria-label={editingEndpoint === field ? `Terminar edición de ${label}` : `Editar ${label}`}
-                  title={editingEndpoint === field ? "Terminar edición" : "Editar endpoint"}
-                  onClick={() => setEditingEndpoint((current) => (current === field ? null : field))}
-                >
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 20h4l11-11-4-4L4 16v4Zm9.5-13.5 4 4" />
-                  </svg>
-                </button>
-              </div>
-            </label>
-          );
-        })}
       </section>
 
       <section className={styles.character}>
         <header>
           <div>
-            <p>Hospital</p>
-            <h2>Prompt y reglas</h2>
+            <h2>{variant === "clinic" ? "Saludo y reglas" : "Prompt y reglas"}</h2>
           </div>
         </header>
         <div className={styles.characterBody}>
+          {variant === "admin" ? (
           <label>
             <span>
               <strong>Meta prompt</strong>
@@ -129,6 +120,7 @@ export function DeveloperPortal({
               onChange={(event) => patch({ metaPrompt: event.target.value })}
             />
           </label>
+          ) : null}
           <label>
             <span>
               <strong>Saludo</strong>
@@ -141,8 +133,8 @@ export function DeveloperPortal({
           </label>
           <label>
             <span>
-              <strong>Reglas de este hospital</strong>
-              <small>Política local. No sustituye las reglas clínicas de seguridad.</small>
+              <strong>{variant === "clinic" ? "Reglas de este centro" : "Reglas de este hospital"}</strong>
+              <small>Horario, sedes y lo que no debe hacer. Si hay urgencia, pasa a una persona.</small>
             </span>
             <textarea
               rows={4}
@@ -150,39 +142,48 @@ export function DeveloperPortal({
               onChange={(event) => patch({ extraInstructions: event.target.value })}
             />
           </label>
+          <label>
+            <span>
+              <strong>Escalar si no avanza</strong>
+              <small>Fallos seguidos antes de pasar a una persona. 3 es el valor habitual.</small>
+            </span>
+            <select
+              value={config.escalationFails}
+              onChange={(event) => patch({ escalationFails: Number(event.target.value) })}
+            >
+              <option value={1}>1 intento</option>
+              <option value={2}>2 intentos</option>
+              <option value={3}>3 intentos</option>
+              <option value={4}>4 intentos</option>
+            </select>
+          </label>
         </div>
       </section>
 
       <section>
         <div className={styles.faqHead}>
           <div>
-            <p>Conocimiento</p>
-            <h2>FAQ del hospital</h2>
-            <p>Una sola colección para este hospital. El runtime usa estas respuestas.</p>
+            <h2>Preguntas frecuentes</h2>
+            <p>Respuestas que el agente usa en las llamadas. Se editan con el lápiz.</p>
           </div>
-          <button
-            type="button"
-            onClick={() => patch({
-              faq: [...config.faq, { id: crypto.randomUUID(), question: "", answer: "" }],
-            })}
-          >
+          <button type="button" onClick={() => addFaq()}>
             Añadir FAQ
           </button>
         </div>
         <div className={styles.suggestions}>
           <div className={styles.suggestionHead}>
             <strong>Sugerencia desde llamadas</strong>
-            <small>{visibleSuggestion ? visibleSuggestion.evidence : "Un motivo frecuente de las conversaciones, si no está ya en la FAQ."}</small>
+            <small>{visibleSuggestion ? visibleSuggestion.evidence : "Si el mismo tipo de pregunta sale al menos dos veces, aparece aquí en español."}</small>
           </div>
           {visibleSuggestion ? (
             <article>
               <div>
                 <span>{visibleSuggestion.count} veces</span>
                 <strong>{visibleSuggestion.question}</strong>
-                <small>Motivo frecuente no cubierto por las FAQ actuales.</small>
+                <small>Motivo frecuente que todavía no tiene respuesta arriba.</small>
               </div>
               <nav>
-                <button type="button" onClick={addSuggestion}>Añadir</button>
+                <button type="button" onClick={() => addFaq(visibleSuggestion.question)}>Añadir</button>
                 <button type="button" onClick={() => setDismissedSuggestion(true)}>Descartar</button>
               </nav>
             </article>
@@ -190,44 +191,75 @@ export function DeveloperPortal({
             <article>
               <div>
                 <strong>Sin sugerencia todavía</strong>
-                <small>Hace falta el mismo tipo de pregunta al menos dos veces, y que no esté ya respondida arriba.</small>
+                <small>Hace falta el mismo tipo de pregunta al menos dos veces, y que no esté ya respondida.</small>
               </div>
             </article>
           )}
         </div>
         <div className={styles.faqList}>
-          {config.faq.length ? config.faq.map((item, index) => (
-            <article key={item.id}>
-              <input
-                aria-label="Pregunta"
-                placeholder="¿Cuál es el horario?"
-                value={item.question}
-                onChange={(event) => {
-                  const faq = [...config.faq];
-                  faq[index] = { ...item, question: event.target.value };
-                  patch({ faq });
-                }}
-              />
-              <textarea
-                aria-label="Respuesta"
-                placeholder="Respuesta aprobada…"
-                value={item.answer}
-                onChange={(event) => {
-                  const faq = [...config.faq];
-                  faq[index] = { ...item, answer: event.target.value };
-                  patch({ faq });
-                }}
-              />
-              <button type="button" onClick={() => patch({ faq: config.faq.filter((entry) => entry.id !== item.id) })}>
-                Eliminar
-              </button>
-            </article>
-          )) : <p className={styles.empty}>Todavía no hay preguntas frecuentes en este hospital.</p>}
+          {config.faq.length ? config.faq.map((item, index) => {
+            const editing = editingFaq === item.id;
+            return (
+              <article key={item.id} data-editing={editing}>
+                {editing ? (
+                  <>
+                    <input
+                      aria-label="Pregunta"
+                      placeholder="¿Cuál es el horario?"
+                      value={item.question}
+                      autoFocus
+                      onChange={(event) => {
+                        const faq = [...config.faq];
+                        faq[index] = { ...item, question: event.target.value };
+                        patch({ faq });
+                      }}
+                    />
+                    <textarea
+                      aria-label="Respuesta"
+                      placeholder="Respuesta aprobada…"
+                      value={item.answer}
+                      onChange={(event) => {
+                        const faq = [...config.faq];
+                        faq[index] = { ...item, answer: event.target.value };
+                        patch({ faq });
+                      }}
+                    />
+                  </>
+                ) : (
+                  <div className={styles.faqCopy}>
+                    <strong>{item.question || "Sin pregunta"}</strong>
+                    <p>{item.answer || "Sin respuesta todavía."}</p>
+                  </div>
+                )}
+                <div className={styles.faqActions}>
+                  <EditButton
+                    active={editing}
+                    label={item.question || "esta FAQ"}
+                    onClick={() => setEditingFaq((current) => (current === item.id ? null : item.id))}
+                  />
+                  {editing ? (
+                    <button
+                      type="button"
+                      className={styles.faqRemove}
+                      onClick={() => {
+                        patch({ faq: config.faq.filter((entry) => entry.id !== item.id) });
+                        setEditingFaq(null);
+                      }}
+                    >
+                      Eliminar
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            );
+          }) : <p className={styles.empty}>{variant === "clinic" ? "Todavía no hay preguntas frecuentes en este centro." : "Todavía no hay preguntas frecuentes en este hospital."}</p>}
         </div>
       </section>
 
       <footer>
-        <span>{notice ?? "Los cambios de este hospital valen para las próximas llamadas del grupo."}</span>
+        <span>{notice ?? (variant === "clinic"
+          ? "Los cambios valen para las próximas llamadas de este centro."
+          : "Los cambios de este hospital valen para las próximas llamadas del grupo.")}</span>
         <Button disabled={pending} onClick={() => run(() => saveOrgIntegrationConfig(config))}>
           {pending ? "Guardando…" : "Guardar"}
         </Button>

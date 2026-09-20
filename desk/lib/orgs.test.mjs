@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { isKnownOrganisation, ORGANISATIONS, organisationOf } from "./orgs.ts";
 import { listStoredOrgSlugs, readStoredCalls } from "./call-query.ts";
 import { faqCovers, suggestFaqFromCalls } from "./faq-suggestion.ts";
-import { hospitalProfile } from "./hospital-profile.ts";
+import { HOSPITAL_FAQ, hospitalProfile } from "./hospital-profile.ts";
 import { todayRange } from "./reporting.ts";
 
 test("known organisations stay isolated by slug", () => {
@@ -45,7 +45,31 @@ test("hospital prompt is prefilled with the selected clinic", () => {
   assert.doesNotMatch(sanitas.extraInstructions, /Arenal Centro/);
 });
 
-test("FAQ suggestion needs a frequent uncovered motive and never invents copy", () => {
+test("hospital FAQ answers the privacy question without demo language", () => {
+  assert.ok(HOSPITAL_FAQ.some((item) => item.id === "faq-privacidad"));
+  assert.ok(HOSPITAL_FAQ.every((item) => !/demostración/i.test(item.answer)));
+});
+
+test("tool monitor maps directory calls onto the Prosper path", async () => {
+  const { pathUseFromCalls, useForPath } = await import("./tool-monitor.ts");
+  const calls = [
+    {
+      actions: [
+        { name: "search_directory", at: null, reason: null, summary: "ok", status: "completed", latencyMs: 80 },
+        { name: "search_directory", at: null, reason: null, summary: "fail", status: "failed", latencyMs: 120 },
+        { name: "submit_book", at: null, reason: null, summary: "ok", status: "completed", latencyMs: 40 },
+      ],
+    },
+  ];
+  const uses = pathUseFromCalls(calls);
+  const directory = useForPath(uses, "/api/v1/directory");
+  assert.equal(directory.count, 2);
+  assert.equal(directory.errors, 1);
+  assert.equal(directory.avgMs, 100);
+  assert.equal(useForPath(uses, "/api/v1/submit/book").count, 1);
+});
+
+test("FAQ suggestion needs a frequent uncovered motive and asks it in Spanish", () => {
   const faq = [{ question: "¿Qué centro abre los sábados?" }];
   const covered = [
     { motive: "¿Qué centro abre los sábados?", intent: "general_faq" },
@@ -71,5 +95,17 @@ test("FAQ suggestion needs a frequent uncovered motive and never invents copy", 
   ];
   const later = suggestFaqFromCalls(clustered, faq);
   assert.equal(later?.count, 2);
-  assert.match(later?.question ?? "", /change|changed/i);
+  assert.equal(later?.question, "¿Puedo cambiar la cita más adelante?");
+});
+
+test("clinic can open the agent page but not operations", async () => {
+  const { canOpen } = await import("./auth.ts");
+  const { panelNav } = await import("./nav.ts");
+  assert.equal(canOpen("clinic", "/agente"), true);
+  assert.equal(canOpen("clinic", "/operaciones"), false);
+  assert.equal(canOpen("tester", "/agente"), false);
+  assert.deepEqual(
+    panelNav("clinic").flatMap((group) => group.items.map((item) => item.href)),
+    ["/panel", "/panel/llamadas", "/panel/agente"],
+  );
 });

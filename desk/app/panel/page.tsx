@@ -1,6 +1,6 @@
 import { CallRefresh } from "@/components/CallRefresh";
 import { clinicDirectory, directoryForOrg } from "@/lib/clinic-catalog";
-import { originFilter, todayRange } from "@/lib/reporting";
+import { lineFilter, recentRange } from "@/lib/reporting";
 import { Overview } from "@/components/views/Overview";
 import { canOpen, homeFor } from "@/lib/auth";
 import { adminOrgSummaries, clinicCalls, orgCalls } from "@/lib/call-data";
@@ -13,16 +13,16 @@ export const dynamic = "force-dynamic";
 export default async function PanelHome({
   searchParams,
 }: {
-  searchParams: Promise<{ origin?: string; org?: string }>;
+  searchParams: Promise<{ origin?: string; linea?: string; org?: string; analisis?: string }>;
 }) {
   const session = await getSession();
   if (!session) redirect("/");
   if (!canOpen(session.role, "")) redirect(homeFor(session));
 
   const now = new Date();
-  const range = todayRange(now);
+  const range = recentRange(now);
   const query = await searchParams;
-  const origin = originFilter(query.origin);
+  const line = lineFilter(query.linea ?? query.origin);
   const requestedOrg = query.org?.trim() ?? "";
   const selectedOrg = session.role === "admin" && isKnownOrganisation(requestedOrg) ? requestedOrg : null;
 
@@ -35,8 +35,9 @@ export default async function PanelHome({
           calls={[]}
           role={session.role}
           directory={directory}
-          origin={origin}
-          now={now}
+          line={line}
+          range={range}
+          analysis={query.analisis === "efecto"}
           organisations={summaries}
         />
       </>
@@ -56,9 +57,10 @@ export default async function PanelHome({
         calls={calls}
         role={session.role}
         directory={directory}
-        origin={origin}
-        now={now}
+        line={line}
+        range={range}
         selectedOrg={session.role === "admin" ? orgSlug : null}
+        analysis={query.analisis === "efecto"}
       />
     </>
   );

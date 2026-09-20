@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Clock, Download, Radio, Search, X } from "lucide-react";
 import { ORIGIN_LABEL } from "@/lib/reporting";
 import { siteOf, type Site } from "@/lib/clinic";
 import { num, pct, timeOf } from "@/lib/format";
 import { reasonLabel } from "@/lib/labels";
+import { outcomeWhy } from "@/lib/metrics";
 import type { LoggedCall } from "@/lib/types";
 import { Badge, Button, ButtonLink, Card, type Crumb, Note, OutcomeBadge, PageHeader, StatCard, StatGrid, outcomeMeta } from "./ui/primitives";
 import ui from "./ui/ui.module.css";
@@ -46,6 +48,8 @@ export function CallMonitor({
   refreshMs = 8_000,
   sites = [],
   liveHref,
+  hospitals,
+  selectedHospital,
 }: {
   calls: LoggedCall[];
   sites?: Site[];
@@ -54,9 +58,20 @@ export function CallMonitor({
   crumbs?: Crumb[];
   refreshMs?: number;
   liveHref?: string;
+  hospitals?: Array<{ slug: string; name: string }>;
+  selectedHospital?: string | null;
 }) {
   const { tab, setTab, query, setQuery, page, setPage } = useCallListState();
   const searchInput = useRef<HTMLInputElement>(null);
+  const params = useSearchParams();
+
+  useEffect(() => {
+    const value = params.get("resultado");
+    if (value && TABS.some((item) => item.value === value)) {
+      setTab(value);
+      setPage(0);
+    }
+  }, [params, setTab, setPage]);
 
   const counts = useMemo(() => {
     const map = new Map<string, number>();
@@ -70,7 +85,7 @@ export function CallMonitor({
       (call) =>
         (tab === "__all" || call.outcome === tab) &&
         (!q ||
-          `${call.patient ?? ""} ${siteOf(call.site, sites).name} ${call.motive} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
+          `${call.patient ?? ""} ${siteOf(call.site, sites).name} ${call.motive} ${outcomeWhy(call) ?? ""} ${reasonLabel(call.reason) ?? ""} ${outcomeMeta(call.outcome).label}`
             .toLowerCase()
             .includes(q)),
     );
@@ -142,8 +157,24 @@ export function CallMonitor({
         }
       />
 
+      {hospitals?.length ? (
+        <nav aria-label="Hospital" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {hospitals.map((hospital) => (
+            <ButtonLink
+              key={hospital.slug}
+              href={`/panel/llamadas?org=${hospital.slug}`}
+              current={selectedHospital === hospital.slug}
+              size="sm"
+              variant={selectedHospital === hospital.slug ? "primary" : "secondary"}
+            >
+              {hospital.name}
+            </ButtonLink>
+          ))}
+        </nav>
+      ) : null}
+
       <StatGrid>
-        <StatCard label="Llamadas registradas" value={num(calls.length)} icon="phone" hint="últimas 500, todas las sedes" />
+        <StatCard label="Llamadas registradas" value={num(calls.length)} icon="phone" hint="los mismos 7 días que el Resumen" />
         <StatCard
           label="Citas reservadas"
           value={num(counts.get("cita") ?? 0)}
@@ -224,7 +255,7 @@ export function CallMonitor({
           <div className={styles.list}>
             {visible.map((call) => {
               const meta = outcomeMeta(call.outcome);
-              const reason = reasonLabel(call.reason);
+              const why = outcomeWhy(call) ?? reasonLabel(call.reason);
               const site = siteOf(call.site, sites);
               return (
                 <Link key={call.id} href={`/panel/llamadas/${encodeURIComponent(call.id)}`}
@@ -234,15 +265,17 @@ export function CallMonitor({
                     <span className={styles.who}>
                       <strong data-anon={!call.patient}>{call.patient || "Paciente sin identificar"}</strong>
                       <small>
-                        {timeOf(call.started)} · {site.name} · {ORIGIN_LABEL[call.origin ?? "unknown"]}
+                        {timeOf(call.started)}
+                        {site.id !== "none" ? ` · ${site.name}` : ""}
+                        {` · ${ORIGIN_LABEL[call.origin ?? "unknown"]}`}
                       </small>
                     </span>
-                    <span className={styles.what} title={call.motive}>
-                      {call.motive || <span className="muted">Motivo no registrado</span>}
+                    <span className={styles.what} title={why || call.motive}>
+                      {why || call.motive || <span className="muted">Motivo no registrado</span>}
                     </span>
                     <span className={styles.state}>
                       <OutcomeBadge outcome={call.outcome} />
-                      {reason ? <small>{reason}</small> : null}
+                      {why ? <small>{why}</small> : null}
                     </span>
                     <span className={styles.quality}>
                       <Clock size={13} aria-hidden="true" />

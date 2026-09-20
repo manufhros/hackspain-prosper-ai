@@ -27,3 +27,10 @@ export async function listStoredOrgSlugs(db: CallDatabase): Promise<string[]> {
     .all<{ org_slug: string }>();
   return result.results.map((row) => row.org_slug);
 }
+
+export async function countOpenCalls(db: CallDatabase): Promise<number> {
+  const result = await db.prepare(
+    `SELECT count(*) AS n FROM voice_calls WHERE json_extract(summary, '$.outcome') = 'en_curso'`,
+  ).bind().all<{ n: number }>();
+  return Number(result.results[0]?.n) || 0;
+}

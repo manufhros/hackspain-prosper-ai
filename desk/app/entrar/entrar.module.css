@@ -111,7 +111,7 @@
   background: var(--surface-2);
 }
 
-.loginCard :global(.login button) {
+.loginCard :global(.login > button) {
   height: 50px;
   border-radius: 12px;
 }

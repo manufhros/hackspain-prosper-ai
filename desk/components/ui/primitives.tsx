@@ -208,6 +208,7 @@ export function StatCard({
   delta,
   hint,
   emphasis = false,
+  href,
 }: {
   label: string;
   value: React.ReactNode;
@@ -215,11 +216,12 @@ export function StatCard({
   delta?: { label: string; tone?: Tone };
   hint?: React.ReactNode;
   emphasis?: boolean;
+  href?: string;
 }) {
   const Icon = typeof icon === "string" ? ICONS[icon] : icon;
   const long = typeof value === "string" && value.length > 8;
-  return (
-    <article className={s.stat} data-emphasis={emphasis}>
+  const body = (
+    <>
       <div className={s.statHead}>
         <p className={s.statLabel}>{label}</p>
         {Icon ? <Icon size={16} strokeWidth={1.9} aria-hidden="true" /> : null}
@@ -233,6 +235,18 @@ export function StatCard({
           {hint ? <span>{hint}</span> : null}
         </div>
       ) : null}
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className={s.stat} data-emphasis={emphasis} style={{ textDecoration: "none", color: "inherit" }}>
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <article className={s.stat} data-emphasis={emphasis}>
+      {body}
     </article>
   );
 }

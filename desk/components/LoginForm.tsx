@@ -18,11 +18,21 @@ export function LoginForm({ failed, autofocus }: { failed?: boolean; autofocus?:
       <button type="submit">Entrar</button>
 
       <div className="login-accounts" aria-label="Cuentas de la demo">
-        <span>O entra directamente como</span>
+        <span>O entra como</span>
         {LOGIN_ACCOUNTS.map((account) => (
-          <button key={account.email} type="submit" name="account" value={account.email} className="login-account">
-            <strong>{account.label}</strong>
-            <small>{account.note}</small>
+          <button
+            key={account.email}
+            type="submit"
+            name="account"
+            value={account.email}
+            className="login-account"
+            data-role={account.role}
+          >
+            <span className="mark" aria-hidden="true">{account.role === "admin" ? "t" : "A"}</span>
+            <span>
+              <strong>{account.label}</strong>
+              <small>{account.note}</small>
+            </span>
           </button>
         ))}
       </div>

@@ -6,9 +6,8 @@ import { callLog, callLogError, callLogWarn } from "./call-log.ts";
 import { extractClientToolCall, getSignedConversationUrl } from "./elevenlabs.ts";
 import { holdFrame } from "./hold-audio.ts";
 import {
-  patientReplyFor,
   PATIENT_SPEECH,
-  splitHandoffTranscript,
+  phoneHelperTranscript,
 } from "./twilio-transfer.ts";
 import { actionToolBlocked, clinicTodayYmd, flushPendingSubmit, runClinicTool, type CallContext } from "./tools.ts";
 import { applyAgentPrompt, conversationConfigOverride, loadRuntimeConfig as loadLocalRuntimeConfig } from "./runtime-config.ts";
@@ -178,7 +177,6 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   let muteAgent = false;
   let handedOff = false;
   let patientAnnounced = false;
-  let patientReplied = false;
 
   const background = (promise: Promise<unknown>) => {
     const handled = promise.catch((error: unknown) => callLogError("call task failed", error));
@@ -277,7 +275,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
 
   const sendMonitor = (monitor: Record<string, unknown>) => {
     options.onMonitor?.(monitor);
-    if (simulationMode) sendTwilio({ event: "monitor", monitor });
+    sendTwilio({ event: "monitor", monitor });
   };
 
   const queueAudio = (chunk: string) => {
@@ -359,19 +357,35 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
   const isPauseTranscript = (text: string) =>
     /^\.{2,}$/i.test(text.trim()) || /^(um+|uh+|hmm+|mhm+|mm+)\.?$/i.test(text.trim());
 
-  const speakPatientReply = (helperText: string) => {
-    const reply = patientReplyFor(helperText);
-    if (!reply || patientReplied) return;
-    patientReplied = true;
-    sendMonitor({ type: "user", text: reply, language: "es", role: "patient" });
-    callLog(ctx?.callId.slice(0, 8) ?? "session", "patient reply", reply);
-    callLog(ctx?.callId.slice(0, 8) ?? "session", "patient reply on phone after pause");
-  };
-
   const isNudgeSpeech = (text: string) =>
     /still there|anyone there|can you hear me|if you are there|whenever you are ready to speak/i.test(
       text,
     );
+
+  const emitHelperSpeech = (
+    callCtx: CallContext,
+    tag: string,
+    raw: string,
+    partial = false,
+  ) => {
+    muteAgent = true;
+    const spoken = phoneHelperTranscript(raw);
+    if (!spoken) return;
+    if (!partial) {
+      callLog(tag, "helper", spoken);
+      background(callCtx.audit?.("conversation.user", { text: spoken, source: "phone" }) ?? Promise.resolve());
+      callCtx.transcript = [
+        ...(callCtx.transcript ?? []),
+        { speaker: "caller" as const, text: spoken },
+      ].slice(-12);
+    }
+    sendMonitor({
+      type: "helper",
+      text: spoken,
+      language: transcriptLanguage(spoken),
+      partial,
+    });
+  };
 
   const attachEleven = (socket: CallSocket, callCtx: CallContext) => {
     eleven = socket;
@@ -428,24 +442,21 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         return;
       }
 
-      if (typed.type === "user_transcript") {
-        const t = (message as { user_transcription_event?: { user_transcript?: string } })
-          .user_transcription_event?.user_transcript;
+      const transcriptText =
+        (message as { user_transcription_event?: { user_transcript?: string } })
+          .user_transcription_event?.user_transcript ??
+        (message as { tentative_user_transcription_event?: { user_transcript?: string } })
+          .tentative_user_transcription_event?.user_transcript;
+      const transcriptPartial = typed.type === "tentative_user_transcript";
+
+      if (typed.type === "user_transcript" || typed.type === "tentative_user_transcript") {
+        const t = transcriptText;
         if (t) {
           if (handedOff) {
-            const parts = splitHandoffTranscript(t);
-            if (parts.patient) announceSimulatedPatient();
-            if (parts.helper) {
-              callLog(tag, "helper", parts.helper);
-              sendMonitor({
-                type: "helper",
-                text: parts.helper,
-                language: transcriptLanguage(parts.helper),
-              });
-              speakPatientReply(parts.helper);
-            }
-            muteAgent = true;
-          } else {
+            emitHelperSpeech(callCtx, tag, t, transcriptPartial);
+            return;
+          }
+          if (transcriptPartial) return;
           callLog(tag, "user", t);
           if (!callCtx.patientId) {
             const previousAgent = [...(callCtx.transcript ?? [])].reverse().find(turn => turn.speaker === "agent")?.text;
@@ -506,7 +517,6 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               });
             }
           }
-          }
         }
       }
       if (typed.type === "agent_response") {
@@ -516,17 +526,17 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           if (handedOff) {
             muteAgent = true;
           } else {
-          callLog(tag, "agent", t);
-          background(callCtx.audit?.("conversation.agent", { text: t }) ?? Promise.resolve());
-          if (/un momento, por favor|i will transfer|please hold/i.test(t)) {
-            muteAgent = true;
-          }
-          callCtx.transcript = [
-            ...(callCtx.transcript ?? []),
-            { speaker: "agent" as const, text: t },
-          ].slice(-12);
-          sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
-          if (isNudgeSpeech(t)) muteAgent = true;
+            callLog(tag, "agent", t);
+            background(callCtx.audit?.("conversation.agent", { text: t }) ?? Promise.resolve());
+            if (/un momento, por favor|i will transfer|please hold/i.test(t)) {
+              muteAgent = true;
+            }
+            callCtx.transcript = [
+              ...(callCtx.transcript ?? []),
+              { speaker: "agent" as const, text: t },
+            ].slice(-12);
+            sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
+            if (isNudgeSpeech(t)) muteAgent = true;
           }
         }
       }
@@ -666,10 +676,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               latencyMs: Date.now() - toolStarted,
               failureCount: callCtx.failureCount ?? 0,
             });
-            if (
-              callCtx.routingMode === "enforce" &&
-              (callCtx.failureCount ?? 0) >= (callCtx.escalationFails ?? 3)
-            ) {
+            if ((callCtx.failureCount ?? 0) >= (callCtx.escalationFails ?? 3)) {
               callCtx.route = "human";
               sendEleven({
                 type: "contextual_update",
@@ -843,7 +850,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           announceSimulatedPatient();
           sendEleven({
             type: "contextual_update",
-            text: "Keep transcribing the human receptionist. Do not speak and do not call tools.",
+            text: "A human receptionist is on the phone. Transcribe what they say. Do not speak and do not call tools.",
           });
         },
       });
@@ -1008,18 +1015,8 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
 
     if (message.event === "user_text") {
       const spoken = String((message as { text?: string }).text ?? "").trim();
-      if (handedOff) {
-        if (!spoken) return;
-        const parts = splitHandoffTranscript(spoken);
-        if (parts.patient) announceSimulatedPatient();
-        if (parts.helper) {
-          sendMonitor({
-            type: "helper",
-            text: parts.helper,
-            language: transcriptLanguage(parts.helper),
-          });
-          speakPatientReply(parts.helper);
-        }
+      if (handedOff && ctx) {
+        emitHelperSpeech(ctx, ctx.callId.slice(0, 8), spoken);
         return;
       }
       const callCtx = ctx;

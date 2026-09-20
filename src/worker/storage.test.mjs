@@ -30,12 +30,12 @@ test("Workers use hospital FAQ and isolate endpoints while sharing behavior", as
   try {
     const insert = sqlite.prepare("INSERT INTO desk_settings (key, value) VALUES (?, ?)");
     insert.run("agent-config", JSON.stringify({ active: { id: "v2", config: { escalationFails: 4, frustrationThreshold: 80, faq: [{ question: "Global?", answer: "Yes" }] } } }));
-    insert.run("org-agent-config:arenal", JSON.stringify({ preCallEndpoint: "https://arenal.example/context", frustrationThreshold: 62, faq: [{ question: "When?", answer: "Monday" }] }));
+    insert.run("org-agent-config:arenal", JSON.stringify({ preCallEndpoint: "https://arenal.example/context", frustrationThreshold: 62, escalationFails: 2, faq: [{ question: "When?", answer: "Monday" }] }));
     const arenal = await readRuntimeConfig(db, "arenal");
     const sanitas = await readRuntimeConfig(db, "sanitas");
     assert.equal(arenal.version, "v2");
-    assert.equal(arenal.escalationFails, 4);
-    assert.equal(arenal.frustrationThreshold, 80);
+    assert.equal(arenal.escalationFails, 2);
+    assert.equal(arenal.frustrationThreshold, 62);
     assert.equal(arenal.preCallEndpoint, "https://arenal.example/context");
     assert.equal(arenal.faq.length, 1);
     assert.equal(arenal.faq[0].question, "When?");

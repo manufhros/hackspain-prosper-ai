@@ -4,6 +4,7 @@ import path from "node:path";
 import { buildImport, readSources } from "../../src/agent/log-records.mjs";
 import { callFromRow } from "./call-records";
 import { actionsFromEvents } from "./call-tools";
+import { dedupeTurns } from "./transcript";
 import type { LoggedCall, TranscriptEntry } from "./types";
 
 /** Read the current logs. No generated snapshot and no filesystem writes. */
@@ -17,6 +18,6 @@ export async function localCalls(org: string): Promise<Array<{ call: LoggedCall;
         type: event.type, occurred_at: event.occurredAt, payload: JSON.stringify(event.payload) }))
         .filter(event => /^tool\.(called|received|completed|failed|blocked)$/.test(event.type))),
     },
-    transcript: record.turns as TranscriptEntry[],
+    transcript: dedupeTurns(record.turns as TranscriptEntry[]),
   })).sort((a, b) => String(b.call.started).localeCompare(String(a.call.started)));
 }

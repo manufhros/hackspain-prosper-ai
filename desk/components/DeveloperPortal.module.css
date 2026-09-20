@@ -119,23 +119,134 @@
   cursor: wait;
 }
 
-/* Endpoints -------------------------------------------------------------- */
-.endpoints > label {
-  display: grid;
-  grid-template-columns: minmax(170px, 0.7fr) minmax(260px, 1.3fr) 170px;
+/* Tools ------------------------------------------------------------------ */
+.endpointHeadActions {
+  display: flex;
+  flex-shrink: 0;
   align-items: center;
-  gap: 18px;
+  gap: 10px;
+}
+
+.endpointToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 22px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  list-style: none;
+}
+
+.endpointToggle::marker,
+.endpointToggle::-webkit-details-marker {
+  display: none;
+  content: "";
+}
+
+.endpointToggle:hover {
+  background: var(--surface-2);
+}
+
+.endpointToggle svg {
+  flex: none;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.endpoints details[open] .endpointToggle svg {
+  transform: rotate(180deg);
+}
+
+.whenOpen {
+  display: none;
+}
+
+.endpoints details[open] .whenClosed {
+  display: none;
+}
+
+.endpoints details[open] .whenOpen {
+  display: inline;
+}
+
+.portal header p.toolLead {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-transform: none;
+}
+
+.peaksBody {
+  padding: 8px 22px 22px;
+}
+
+.hookRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: 16px;
   padding: 16px 22px;
   border-bottom: 1px solid var(--border);
 }
 
-.endpoints > label:last-child {
+.hookRow:last-child {
   border-bottom: 0;
 }
 
-.endpoints label > span strong,
-.endpoints label > span small {
+.hookRow > span strong,
+.hookRow > span small {
   display: block;
+}
+
+.toolRow {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.55fr) minmax(0, 1.45fr);
+  align-items: center;
+  gap: 16px;
+  padding: 10px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.toolRow:last-child {
+  border-bottom: 0;
+}
+
+.toolRow > span strong,
+.toolRow > span small {
+  display: block;
+}
+
+.toolUrl {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.tableCopy {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.toolUrl b {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .endpoints strong {
@@ -177,9 +288,13 @@
   border-color: transparent;
   background: transparent;
   color: var(--ink-2);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12.5px;
+  letter-spacing: -0.01em;
   cursor: default;
+}
+
+.endpoints td input {
+  min-width: 16rem;
 }
 
 .endpoints em {
@@ -226,32 +341,30 @@
   gap: 10px;
 }
 
-.endpointState .edit,
-.endpointState .editing {
+.portal button.edit,
+.portal button.editing {
   display: grid;
+  place-items: center;
   width: 36px;
   min-width: 36px;
   height: 36px;
   min-height: 36px;
   padding: 0;
-  place-items: center;
+  line-height: 0;
   border-radius: 10px;
 }
 
-.endpointState .editing {
+.portal button.editing {
   border-color: var(--mint);
   background: var(--mint);
   color: #fff;
 }
 
-.endpointState svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+.portal button.edit svg,
+.portal button.editing svg {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 /* Behaviour -------------------------------------------------------------- */
@@ -371,10 +484,6 @@
   color: var(--muted);
 }
 
-.faqHead {
-  border-top: 1px solid var(--border);
-}
-
 .faqHead p {
   margin-top: 3px;
   color: var(--muted);
@@ -389,9 +498,46 @@
 
 .faqList article {
   display: grid;
-  grid-template-columns: 0.8fr 1.4fr auto;
+  grid-template-columns: 1fr auto;
   align-items: start;
   gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.faqList article:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.faqList article[data-editing="true"] {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.4fr) auto;
+}
+
+.faqCopy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.faqCopy strong {
+  color: var(--ink);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.faqCopy p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.faqActions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
 }
 
 .faqList textarea {
@@ -399,11 +545,11 @@
   resize: vertical;
 }
 
-.faqList article button {
+.faqRemove {
   color: var(--danger);
 }
 
-.faqList article button:hover {
+.faqRemove:hover {
   border-color: var(--danger-soft);
   background: var(--danger-soft);
 }
@@ -449,10 +595,17 @@
 }
 
 @media (max-width: 800px) {
+  .endpointHeadActions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
   .characterRow,
-  .endpoints > label,
+  .hookRow,
+  .toolRow,
   .threshold,
   .faqList article,
+  .faqList article[data-editing="true"],
   .suggestions article {
     grid-template-columns: 1fr;
   }

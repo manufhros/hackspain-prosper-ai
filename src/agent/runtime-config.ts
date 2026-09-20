@@ -85,10 +85,10 @@ export function mergeRuntimeConfig(
     ...DEFAULT_RUNTIME_CONFIG,
     ...config,
     version: parsed.active?.id ?? "defaults",
-    escalationFails: Math.min(5, Math.max(1, Number(config.escalationFails ?? 3))),
+    escalationFails: Math.min(5, Math.max(1, Number(orgConfig.escalationFails ?? config.escalationFails ?? 3))),
     frustrationThreshold: Math.min(
       100,
-      Math.max(50, Number(config.frustrationThreshold ?? 75)),
+      Math.max(50, Number(orgConfig.frustrationThreshold ?? config.frustrationThreshold ?? 75)),
     ),
     preCallEndpoint: orgConfig.preCallEndpoint ?? "",
     postCallEndpoint: orgConfig.postCallEndpoint ?? "",

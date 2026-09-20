@@ -22,12 +22,7 @@ const ALL: Array<{ label: string; items: SectionItem[] }> = [
     items: [
       { section: "", href: "/panel", label: "Resumen", icon: "dashboard", exact: true },
       { section: "/llamadas", href: "/panel/llamadas", label: "Llamadas", icon: "phone" },
-    ],
-  },
-  {
-    label: "Agente",
-    items: [
-      { section: "/agente", href: "/panel/agente", label: "Configuración", icon: "settings" },
+      { section: "/agente", href: "/panel/agente", label: "Agente", icon: "settings" },
     ],
   },
 ];

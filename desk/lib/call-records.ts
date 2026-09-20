@@ -1,5 +1,6 @@
 import type { CallDetail, LoggedCall, TranscriptEntry } from "./types";
 import { actionsFromEvents } from "./call-tools";
+import { dedupeTurns } from "./transcript";
 
 type CallRow = { call_id: string; started_at: string; summary: string | null; simulator?: number };
 type CallDatabase = {
@@ -18,7 +19,7 @@ export function callFromRow(row: CallRow): LoggedCall {
   const outcome = String(summary.outcome ?? "en_curso");
   return {
     id: row.call_id, started: row.started_at, minutes: typeof summary.durationMs === "number" && Number.isFinite(summary.durationMs) && summary.durationMs >= 0 && !summary.importIncomplete ? summary.durationMs / 60_000 : null,
-    origin: row.simulator || summary.demo || summary.simulation || summary.origin === "simulator" ? "simulator" : summary.origin === "phone" ? "phone" : "unknown",
+    origin: row.simulator || summary.demo || summary.simulation || summary.origin === "simulator" ? "simulator" : "phone",
     phone: null, patient: summary.patientName || null, patientId: summary.patientId || null, insurer: summary.insurer || null,
     site: summary.site ?? null, siteName: summary.site ?? "Sin sede",
     outcome, reason: summary.reason ?? null, motive: summary.motive ?? summary.intent ?? "",
@@ -45,21 +46,26 @@ export async function readCallRecord(
     FROM voice_calls c WHERE c.org_slug = ? AND c.call_id = ?`).bind(orgSlug, callId).first<CallRow>();
   if (!row) return null;
 
-  const count = await db.prepare(`SELECT count(*) AS total FROM voice_transcript_entries
-    WHERE org_slug = ? AND call_id = ?`).bind(orgSlug, callId).first<{ total: number }>();
-  const total = count?.total ?? 0;
-  const pages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
-  const page = Math.min(pages, Number.isSafeInteger(requestedPage) ? Math.max(1, requestedPage) : 1);
   const entries = await db.prepare(`SELECT event_id AS id, occurred_at AS at, speaker, text
     FROM voice_transcript_entries WHERE org_slug = ? AND call_id = ?
-    ORDER BY sequence, occurred_at, event_id LIMIT ? OFFSET ?`)
-    .bind(orgSlug, callId, TRANSCRIPT_PAGE_SIZE, (page - 1) * TRANSCRIPT_PAGE_SIZE)
+    ORDER BY sequence, occurred_at, event_id`)
+    .bind(orgSlug, callId)
     .all<TranscriptEntry>();
+  const transcript = dedupeTurns(entries.results);
+  const total = transcript.length;
+  const pages = Math.max(1, Math.ceil(total / TRANSCRIPT_PAGE_SIZE));
+  const page = Math.min(pages, Number.isSafeInteger(requestedPage) ? Math.max(1, requestedPage) : 1);
   const tools = await db.prepare(`SELECT event_id, type, occurred_at, payload FROM agent_events
     WHERE call_id = ? AND json_extract(payload, '$.orgSlug') = ?
       AND type IN ('tool.received', 'tool.called', 'tool.completed', 'tool.failed', 'tool.blocked')
     ORDER BY occurred_at, rowid`).bind(callId, orgSlug)
     .all<{ event_id: string; type: string; occurred_at: string; payload: string }>();
   const call = { ...callFromRow(row), actions: actionsFromEvents(tools.results) };
-  return { call, transcript: entries.results, transcriptTotal: total, page, pages };
+  return {
+    call,
+    transcript: transcript.slice((page - 1) * TRANSCRIPT_PAGE_SIZE, page * TRANSCRIPT_PAGE_SIZE),
+    transcriptTotal: total,
+    page,
+    pages,
+  };
 }

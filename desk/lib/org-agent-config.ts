@@ -5,6 +5,7 @@ import path from "node:path";
 import { readSetting, usesCloudflareStorage, writeSetting } from "./cloudflare-storage";
 import { PROSPER_API_BASE } from "./endpoint-health";
 import { HOSPITAL_FAQ, hospitalProfile } from "./hospital-profile";
+import { hooksFromRoutes, routesFromConfig } from "./prosper-endpoints";
 import { DEFAULT_VOICE_ID } from "./voices";
 export { PROSPER_API_BASE } from "./endpoint-health";
 export { HOSPITAL_FAQ } from "./hospital-profile";
@@ -22,7 +23,9 @@ export type OrgAgentConfig = {
   preCallEndpoint: string;
   actionEndpoint: string;
   postCallEndpoint: string;
+  routes: Record<string, string>;
   frustrationThreshold: number;
+  escalationFails: number;
   faq: Array<{ id: string; question: string; answer: string }>;
   metaPrompt: string;
   extraInstructions: string;
@@ -31,6 +34,7 @@ export type OrgAgentConfig = {
   language: string;
   voiceId: string;
   health: Record<"preCall" | "actions" | "postCall", EndpointHealth>;
+  routeHealth: Record<string, EndpointHealth>;
   updatedAt: string | null;
   updatedBy: string | null;
 };
@@ -51,7 +55,9 @@ export function defaultOrgAgentConfig(orgSlug: string): OrgAgentConfig {
     preCallEndpoint: `${PROSPER_API_BASE}/directory`,
     actionEndpoint: `${PROSPER_API_BASE}/availability`,
     postCallEndpoint: `${PROSPER_API_BASE}/submissions`,
+    routes: routesFromConfig({}),
     frustrationThreshold: 75,
+    escalationFails: 3,
     faq: HOSPITAL_FAQ.map((item) => ({ ...item })),
     metaPrompt: profile.metaPrompt,
     extraInstructions: profile.extraInstructions,
@@ -64,6 +70,7 @@ export function defaultOrgAgentConfig(orgSlug: string): OrgAgentConfig {
       actions: { ...EMPTY_HEALTH },
       postCall: { ...EMPTY_HEALTH },
     },
+    routeHealth: {},
     updatedAt: null,
     updatedBy: null,
   };
@@ -84,24 +91,50 @@ async function writeAll(value: Record<string, OrgAgentConfig>) {
   await rename(temp, FILE);
 }
 
+function mergeFaq(
+  saved: OrgAgentConfig["faq"],
+  defaults: OrgAgentConfig["faq"],
+): OrgAgentConfig["faq"] {
+  const savedById = new Map(saved.map((item) => [item.id, item]));
+  const defaultIds = new Set(defaults.map((item) => item.id));
+  const next = defaults.map((item) => {
+    const existing = savedById.get(item.id);
+    if (!existing) return { ...item };
+    if (/red de demostración|Nueva Mutua/i.test(existing.answer)) return { ...item };
+    return {
+      id: item.id,
+      question: existing.question.trim() || item.question,
+      answer: existing.answer.trim() || item.answer,
+    };
+  });
+  return [
+    ...next,
+    ...saved.filter((item) => !defaultIds.has(item.id) && item.question.trim() && item.answer.trim()),
+  ];
+}
+
 export async function readOrgAgentConfig(orgSlug: string): Promise<OrgAgentConfig> {
   const defaults = defaultOrgAgentConfig(orgSlug);
   const saved = usesCloudflareStorage()
     ? await readSetting<OrgAgentConfig>(`org-agent-config:${orgSlug}`)
     : (await readAll())[orgSlug];
   const merged = { ...defaults, ...saved, orgSlug };
+  const routes = routesFromConfig(merged);
+  const hooks = hooksFromRoutes(routes);
   return {
     ...merged,
-    preCallEndpoint: merged.preCallEndpoint.trim() || defaults.preCallEndpoint,
-    actionEndpoint: merged.actionEndpoint.trim() || defaults.actionEndpoint,
-    postCallEndpoint: merged.postCallEndpoint.trim() || defaults.postCallEndpoint,
-    faq: merged.faq.length ? merged.faq : defaults.faq,
+    ...hooks,
+    routes,
+    faq: mergeFaq(merged.faq, defaults.faq),
     metaPrompt: String(merged.metaPrompt ?? "").trim() || defaults.metaPrompt,
     extraInstructions: String(merged.extraInstructions ?? "").trim() || defaults.extraInstructions,
     firstMessage: String(merged.firstMessage ?? "").trim() || defaults.firstMessage,
     firstMessageEn: String(merged.firstMessageEn ?? "").trim() || defaults.firstMessageEn,
     language: String(merged.language ?? "es").trim() || "es",
     voiceId: String(merged.voiceId ?? defaults.voiceId).trim() || defaults.voiceId,
+    frustrationThreshold: Math.min(100, Math.max(50, Number(merged.frustrationThreshold) || defaults.frustrationThreshold)),
+    escalationFails: Math.min(5, Math.max(1, Math.round(Number(merged.escalationFails) || defaults.escalationFails))),
+    routeHealth: { ...defaults.routeHealth, ...merged.routeHealth },
   };
 }
 

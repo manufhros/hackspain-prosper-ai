@@ -31,7 +31,7 @@ test("phone callbacks and WebSocket joins route to the original Durable Object",
   assert.deepEqual(seen, [id, id, id]);
 });
 
-test("live TwiML plays the patient, streams reception audio into the same call, and audits callbacks", async () => {
+test("live TwiML connects the phone both ways into the same call, and audits callbacks", async () => {
   const call = new VoiceCall({ id: { toString: () => id } }, {});
   const events = [];
   const url = `https://desk.example/twiml/live/${id}?join=original&org=arenal`;
@@ -47,11 +47,10 @@ test("live TwiML plays the patient, streams reception audio into the same call, 
   assert.ok(twiml.includes('name="join" value="original"'));
   assert.ok(twiml.includes(`/twiml/stream-status/${id}?join=original`));
   assert.equal(frozen, 1);
-  assert.ok(twiml.includes('<Start><Stream'));
-  assert.ok(twiml.includes('track="inbound_track"'));
-  assert.ok(twiml.includes('¿Tienen hueco por la mañana?'));
-  assert.ok(twiml.indexOf('</Start>') < twiml.indexOf('<Say '));
-  assert.equal(twiml.includes('<Connect>'), false);
+  assert.ok(twiml.includes("<Connect>"));
+  assert.equal(twiml.includes("<Start>"), false);
+  assert.equal(twiml.includes("inbound_track"), false);
+  assert.equal(twiml.includes("<Say "), false);
   const status = await call.fetch(new Request(`https://desk.example/twiml/stream-status/${id}?join=original`, {
     method: "POST", body: new URLSearchParams({ StreamEvent: "stream-started", StreamSid: "stream" }),
   }));

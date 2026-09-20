@@ -163,6 +163,23 @@ test("phone joins the existing agent and survives caller disconnect with a singl
   assert.equal(eleven.readyState, 3);
 });
 
+test("confirming the nine o'clock slot on the phone still gets an agent reply", async (t) => {
+  const { bridge, caller, eleven, options } = await liveCall(t);
+  const phone = new Socket();
+  await handleCall(phone, { ...options, joinOnly: true });
+  phone.message({ event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters: { join: "live" } } });
+  assert.ok(eleven.sent.some((message) => message.type === "user_message" && String(message.text).includes("medicina general")));
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "slot-offer" } });
+  assert.ok(phone.sent.some((message) => message.media?.payload === "slot-offer"));
+  eleven.message({ type: "user_transcript", user_transcription_event: { user_transcript: "Sí, le viene bien a las 9" } });
+  const helper = [...caller.sent].reverse().find((message) => message.monitor?.type === "helper");
+  assert.match(String(helper?.monitor?.text ?? ""), /9/);
+  eleven.message({ type: "agent_response", agent_response_event: { agent_response: "Perfecto, le confirmo las nueve." } });
+  eleven.message({ type: "audio", audio_event: { audio_base_64: "confirmed" } });
+  assert.ok(phone.sent.some((message) => message.media?.payload === "confirmed"));
+  assert.ok(caller.sent.some((message) => message.monitor?.type === "agent" && String(message.monitor.text).includes("nueve")));
+});
+
 test("an unanswered handoff expires after the caller disconnects", async (t) => {
   const { bridge, caller, eleven, events, tasks } = await liveCall(t);
   bridge.markHumanRung("live");

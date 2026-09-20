@@ -82,23 +82,8 @@ function normalizeSpeech(value: string) {
 }
 
 function looksLikeCannedPatient(norm: string): boolean {
-  const canned = [PATIENT_SPEECH, PATIENT_REPLY, PATIENT_WAIT_REPLY].map(normalizeSpeech);
-  if (canned.some((line) => line && (norm === line || (line.length > 18 && (norm.includes(line.slice(0, 22)) || line.includes(norm)))))) {
-    return true;
-  }
-  // STT of "Sí, esa hora me viene muy bien" often lands as "vendedor" / "del 9".
-  if (/\bvendedor\b/.test(norm)) return true;
-  if (/\b(me viene|esa hora|muy bien)\b/.test(norm) && !/\b(cita|cojo|apunt|confirmo)\b/.test(norm)) return true;
-  const words = norm.split(" ").filter(Boolean);
-  if (
-    words.length <= 10 &&
-    /^(si|vale)\b/.test(norm) &&
-    /\b(9|nueve)\b/.test(norm) &&
-    !/\b(cita|cojo|apunt)\b/.test(norm)
-  ) {
-    return true;
-  }
-  return false;
+  const speech = normalizeSpeech(PATIENT_SPEECH);
+  return Boolean(speech) && (norm === speech || (speech.length > 18 && norm.includes(speech.slice(0, 40))));
 }
 
 /** Inbound phone speech after handoff: drop canned patient TTS that leaked into the mic. */
@@ -150,16 +135,14 @@ export function liveStreamTwiml(
   statusCallback?: string,
   streamPhoneAudio = false,
 ) {
-  // Workers attach the phone through TwiML; Node retains its existing playback flow.
-  // Start is unidirectional, so the patient's Say instructions can continue playing.
   const status = statusCallback
     ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
     : "";
-  const stream = streamPhoneAudio
-    ? `<Start><Stream url="${xml(wsUrl)}" track="inbound_track"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Start>`
-    : "";
-  // Say first so the phone mic is not open while Polly plays the patient.
-  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}${stream}<Pause length="600"/></Response>`;
+  if (streamPhoneAudio) {
+    // Connect is bidirectional: the person on the phone must hear the agent reply.
+    return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+  }
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="600"/></Response>`;
 }
 
 export function joinStreamUrl(origin: string, joinCallId: string, orgSlug = "arenal") {
@@ -285,7 +268,7 @@ export async function startCallMediaStream(callSid: string, wsUrl: string) {
     `/Calls/${encodeURIComponent(callSid)}/Streams.json`,
     new URLSearchParams({
       Url: wsUrl,
-      Track: "inbound_track",
+      Track: "both_tracks",
     }),
   );
 }

@@ -370,7 +370,6 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
     raw: string,
     partial = false,
   ) => {
-    muteAgent = true;
     const spoken = phoneHelperTranscript(raw);
     if (!spoken) return;
     if (!partial) {
@@ -526,38 +525,21 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         const t = (message as { agent_response_event?: { agent_response?: string } })
           .agent_response_event?.agent_response;
         if (t) {
-          if (handedOff) {
+          callLog(tag, "agent", t);
+          background(callCtx.audit?.("conversation.agent", { text: t }) ?? Promise.resolve());
+          if (!handedOff && /un momento, por favor|i will transfer|please hold/i.test(t)) {
             muteAgent = true;
-          } else {
-            callLog(tag, "agent", t);
-            background(callCtx.audit?.("conversation.agent", { text: t }) ?? Promise.resolve());
-            if (/un momento, por favor|i will transfer|please hold/i.test(t)) {
-              muteAgent = true;
-            }
-            callCtx.transcript = [
-              ...(callCtx.transcript ?? []),
-              { speaker: "agent" as const, text: t },
-            ].slice(-12);
-            sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
-            if (isNudgeSpeech(t)) muteAgent = true;
           }
+          callCtx.transcript = [
+            ...(callCtx.transcript ?? []),
+            { speaker: "agent" as const, text: t },
+          ].slice(-12);
+          sendMonitor({ type: "agent", text: t, language: transcriptLanguage(t) });
+          if (!handedOff && isNudgeSpeech(t)) muteAgent = true;
         }
       }
 
       const toolCall = extractClientToolCall(message);
-      if (toolCall && handedOff) {
-        if (socket.readyState === SOCKET_OPEN) {
-          socket.send(
-            JSON.stringify({
-              type: "client_tool_result",
-              tool_call_id: toolCall.tool_call_id,
-              result: "A human receptionist is booking this. Stay silent. Do not call tools.",
-              is_error: false,
-            }),
-          );
-        }
-        return;
-      }
       if (toolCall) {
         toolCalls += 1;
         callLog(tag, "tool", toolCall.tool_name, toolCall.parameters);
@@ -629,7 +611,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
                 });
                 sendMonitor({ type: "handoff_ready" });
                 setTimeout(() => {
-                  muteAgent = true;
+                  if (!handedOff) muteAgent = true;
                 }, 4_500);
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
@@ -832,7 +814,18 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         addPhone: (ws, sid) => {
           phones.push({ ws, streamSid: sid });
           markPhoneJoined(callId);
+          muteAgent = false;
+          handedOff = true;
           background(callCtx.audit?.("handoff.phone.joined", { streamSid: sid }) ?? Promise.resolve());
+          sendMonitor({ type: "helper_joined" });
+          if (!patientAnnounced) {
+            announceSimulatedPatient();
+            sendEleven({ type: "user_message", text: PATIENT_SPEECH });
+            sendEleven({
+              type: "contextual_update",
+              text: "The patient is now speaking on the live phone. Continue the booking in Spanish. If they accept the offered time, take the slot. Speak. Do not stay silent.",
+            });
+          }
         },
         removePhone: (ws) => {
           const index = phones.findIndex((phone) => phone.ws === ws);
@@ -843,18 +836,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           }
         },
         freezeDisplay: () => {
-          if (handedOff) {
-            announceSimulatedPatient();
-            return;
-          }
-          handedOff = true;
-          muteAgent = true;
           sendMonitor({ type: "helper_joined" });
-          announceSimulatedPatient();
-          sendEleven({
-            type: "contextual_update",
-            text: "A human receptionist is on the phone. Transcribe what they say. Do not speak and do not call tools.",
-          });
         },
       });
 

@@ -35,7 +35,8 @@ test("live TwiML connects the phone both ways into the same call, and audits cal
   const call = new VoiceCall({ id: { toString: () => id } }, {});
   const events = [];
   const url = `https://desk.example/twiml/live/${id}?join=original&org=arenal`;
-  assert.equal((await call.fetch(new Request(url))).status, 404);
+  assert.equal((await call.fetch(new Request(url))).status, 200);
+  assert.ok((await (await call.fetch(new Request(url))).text()).includes("<Pause"));
   let frozen = 0;
   call.bridge.registerLiveSession({
     callId: "original", audit: async (type, payload) => events.push({ type, payload }),
@@ -50,7 +51,8 @@ test("live TwiML connects the phone both ways into the same call, and audits cal
   assert.ok(twiml.includes("<Connect>"));
   assert.equal(twiml.includes("<Start>"), false);
   assert.equal(twiml.includes("inbound_track"), false);
-  assert.equal(twiml.includes("<Say "), false);
+  assert.equal(twiml.includes("<Say "), true);
+  assert.equal(twiml.includes("<Pause"), true);
   const status = await call.fetch(new Request(`https://desk.example/twiml/stream-status/${id}?join=original`, {
     method: "POST", body: new URLSearchParams({ StreamEvent: "stream-started", StreamSid: "stream" }),
   }));

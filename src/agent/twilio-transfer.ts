@@ -128,6 +128,10 @@ export async function updateCallUrl(callSid: string, url: string) {
   );
 }
 
+export function liveHoldTwiml() {
+  return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs("Clínica Arenal, buenos días. ¿En qué puedo ayudarle?")}<Pause length="600"/></Response>`;
+}
+
 export function liveStreamTwiml(
   wsUrl: string,
   joinCallId: string,
@@ -139,8 +143,8 @@ export function liveStreamTwiml(
     ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
     : "";
   if (streamPhoneAudio) {
-    // Connect is bidirectional: the person on the phone must hear the agent reply.
-    return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+    // Connect lets the agent talk. Pause after it so a dead stream never hangs up the phone.
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs("Clínica Arenal, buenos días. ¿En qué puedo ayudarle?")}<Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect>${sayEs("Sigo en la línea.")}<Pause length="600"/></Response>`;
   }
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="600"/></Response>`;
 }

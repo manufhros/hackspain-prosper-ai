@@ -202,7 +202,8 @@ test("missing joins and joins into another Durable Object never start a new agen
     const phone = new Socket();
     await handleCall(phone, { ...options, liveBridge: isolated, joinOnly: true, connect: async () => { assert.fail("must not connect"); } });
     phone.message({ event: "start", start: { streamSid: "phone", callSid: "outbound", customParameters } });
-    assert.equal(phone.readyState, 3);
+    assert.equal(phone.readyState, 1);
+    phone.close();
   }
   assert.ok(bridge.getLiveSession("live"));
   caller.close();

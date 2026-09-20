@@ -26,10 +26,11 @@ test("Node handoff TwiML connects the phone both ways so the agent can reply", (
     true,
   );
   assert.equal(twiml.includes("Le pongo con recepción"), false);
-  assert.equal(twiml.includes("<Say "), false);
+  assert.equal(twiml.includes("<Say "), true);
+  assert.equal(twiml.includes("Clínica Arenal"), true);
   assert.equal(twiml.includes("<Start>"), false);
-  assert.equal(twiml.includes("<Pause"), false);
-  assert.equal(twiml.includes("Polly.Sergio-Neural"), false);
+  assert.equal(twiml.includes("<Pause"), true);
+  assert.equal(twiml.includes("Polly.Sergio-Neural"), true);
   assert.equal(twiml.includes("<Connect>"), true);
   assert.equal(twiml.includes("<Stream"), true);
   assert.equal(twiml.includes("inbound_track"), false);

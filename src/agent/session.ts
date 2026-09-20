@@ -204,7 +204,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
     clearTimeout(retentionTimer);
     clearTimeout(durationTimer);
     unregisterLiveSession(callCtx.callId);
-    for (const phone of [...phones]) phone.ws.close();
+    // Closing a Connect stream hangs up Twilio. Leave phone sockets open until they drop.
     options.onEnd?.();
     const summary = {
       callId: callCtx.callId,
@@ -607,12 +607,9 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               if (!options.demo && toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
                 sendEleven({
                   type: "contextual_update",
-                  text: "Say one short sentence: Le paso con una compañera. Then stay silent.",
+                  text: "Say one short sentence: Le paso con una compañera. Then keep talking. Greet whoever picks up.",
                 });
                 sendMonitor({ type: "handoff_ready" });
-                setTimeout(() => {
-                  if (!handedOff) muteAgent = true;
-                }, 4_500);
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
                   JSON.stringify({
@@ -705,10 +702,18 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
         elevenReady = false;
         keepTwilioAlive();
       }
-      if (!stopped && hostStillNeeded() && elevenReconnects < 3) {
-        elevenReconnects += 1;
-        callLog(tag, "reconnect eleven for live handoff", elevenReconnects);
-        if (connectEleven) background(connectEleven());
+      if (!stopped && hostStillNeeded()) {
+        if (elevenReconnects < 8) {
+          elevenReconnects += 1;
+          callLog(tag, "reconnect eleven for live handoff", elevenReconnects);
+          if (connectEleven) background(connectEleven());
+        } else {
+          keepTwilioAlive();
+        }
+        return;
+      }
+      if (hostStillNeeded()) {
+        keepTwilioAlive();
         return;
       }
       background(finish(callCtx));
@@ -753,11 +758,13 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           callLog("phone joined live agent", joinId);
           return;
         }
-        twilio.close(1008, "Live call not found");
+        callLog("live call missing, keep the phone on hold", joinId);
+        keepTwilioAlive();
         return;
       }
       if (options.joinOnly) {
-        twilio.close(1008, "Expected live call join");
+        callLog("join-only stream without a host, keep the phone on hold");
+        keepTwilioAlive();
         return;
       }
       const callId = start.start.customParameters?.call_id || start.start.callSid;
@@ -836,7 +843,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           }
         },
         freezeDisplay: () => {
-          sendMonitor({ type: "helper_joined" });
+          // TwiML is fetched when the phone rings; do not mute or end the live call.
         },
       });
 

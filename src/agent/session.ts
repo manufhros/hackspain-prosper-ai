@@ -607,12 +607,9 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
               if (!options.demo && toolCall.tool_name === "submit_escalate" && !result.includes('"error"')) {
                 sendEleven({
                   type: "contextual_update",
-                  text: "Say one short sentence: Le paso con una compañera. Then stay silent.",
+                  text: "Say one short sentence: Le paso con una compañera. Keep talking in Spanish. A colleague is joining this same line.",
                 });
                 sendMonitor({ type: "handoff_ready" });
-                setTimeout(() => {
-                  if (!handedOff) muteAgent = true;
-                }, 4_500);
               } else if (toolCall.tool_name.startsWith("submit_") && !result.includes('"error"')) {
                 socket.send(
                   JSON.stringify({
@@ -820,11 +817,11 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
           sendMonitor({ type: "helper_joined" });
           if (!patientAnnounced) {
             announceSimulatedPatient();
-            sendEleven({ type: "user_message", text: PATIENT_SPEECH });
             sendEleven({
               type: "contextual_update",
-              text: "The patient is now speaking on the live phone. Continue the booking in Spanish. If they accept the offered time, take the slot. Speak. Do not stay silent.",
+              text: "The patient just answered the phone. Greet them now in Spanish and help them book. Speak immediately. Do not stay silent.",
             });
+            sendEleven({ type: "user_message", text: PATIENT_SPEECH });
           }
         },
         removePhone: (ws) => {
@@ -835,9 +832,7 @@ export async function handleCall(twilio: CallSocket, options: CallOptions): Prom
             finishIfUnused();
           }
         },
-        freezeDisplay: () => {
-          sendMonitor({ type: "helper_joined" });
-        },
+        freezeDisplay: () => {},
       });
 
       const wallClock = setTimeout(() => {

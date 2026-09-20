@@ -140,8 +140,8 @@ export function liveStreamTwiml(
     ? ` statusCallback="${xml(statusCallback)}" statusCallbackMethod="POST"`
     : "";
   if (streamPhoneAudio) {
-    // Connect is bidirectional: the person on the phone must hear the agent reply.
-    return `<?xml version="1.0" encoding="UTF-8"?><Response><Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
+    // A short greeting plays while Connect attaches, so the phone is not silent on pickup.
+    return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs("Clínica Arenal, buenos días. ¿En qué puedo ayudarle?")}<Connect><Stream url="${xml(wsUrl)}"${status}><Parameter name="join" value="${xml(joinCallId)}"/><Parameter name="org_slug" value="${xml(orgSlug)}"/></Stream></Connect></Response>`;
   }
   return `<?xml version="1.0" encoding="UTF-8"?><Response>${sayEs(PATIENT_SPEECH)}<Pause length="600"/></Response>`;
 }

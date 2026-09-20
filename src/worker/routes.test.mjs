@@ -48,9 +48,11 @@ test("live TwiML connects the phone both ways into the same call, and audits cal
   assert.ok(twiml.includes(`/twiml/stream-status/${id}?join=original`));
   assert.equal(frozen, 1);
   assert.ok(twiml.includes("<Connect>"));
+  assert.ok(twiml.includes("<Say "));
+  assert.ok(twiml.includes("Clínica Arenal"));
   assert.equal(twiml.includes("<Start>"), false);
   assert.equal(twiml.includes("inbound_track"), false);
-  assert.equal(twiml.includes("<Say "), false);
+  assert.equal(twiml.includes("medicina general"), false);
   const status = await call.fetch(new Request(`https://desk.example/twiml/stream-status/${id}?join=original`, {
     method: "POST", body: new URLSearchParams({ StreamEvent: "stream-started", StreamSid: "stream" }),
   }));

@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { handleCall } from "../agent/session.ts";
-import { handoffTwiml, liveHoldTwiml, liveStreamTwiml } from "../agent/twilio-transfer.ts";
+import { handoffTwiml, liveStreamTwiml } from "../agent/twilio-transfer.ts";
 import { WorkerSocket, connectWorkerSocket } from "./socket.ts";
 import { readRuntimeConfig, storeCallEvent } from "./storage.ts";
 import { LiveBridge } from "../agent/live-bridge.ts";
@@ -19,14 +19,13 @@ export class VoiceCall extends DurableObject<Env> {
     if (url.pathname.startsWith("/twiml/live/")) {
       const join = url.searchParams.get("join") ?? "";
       const host = this.bridge.getLiveSession(join);
-      const xmlHeaders = { "content-type": "text/xml; charset=utf-8", "cache-control": "no-store" };
-      if (!host) return new Response(liveHoldTwiml(), { headers: xmlHeaders });
+      if (!host) return new Response("Live call not found", { status: 404 });
       const wsUrl = `${url.origin.replace(/^http/, "ws")}/ws/${sessionId}`;
       const callback = new URL(`/twiml/stream-status/${sessionId}`, url.origin);
       callback.searchParams.set("join", join);
       host.freezeDisplay();
       return new Response(liveStreamTwiml(wsUrl, join, url.searchParams.get("org") ?? "arenal", callback.toString(), true), {
-        headers: xmlHeaders,
+        headers: { "content-type": "text/xml; charset=utf-8", "cache-control": "no-store" },
       });
     }
     if (url.pathname.startsWith("/twiml/stream-status/")) {
@@ -43,6 +42,9 @@ export class VoiceCall extends DurableObject<Env> {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
     const joining = url.pathname !== "/ws";
+    if (joining && (!this.connected || !this.bridge.liveSessionIds().length)) {
+      return new Response("Live call not found", { status: 404 });
+    }
     if (!joining && this.connected) return new Response("Call already connected", { status: 409 });
     if (!joining) this.connected = true;
     const pair = new WebSocketPair();

@@ -94,7 +94,7 @@ const server = createServer((req, res) => {
     const { wsUrl, statusCallback } = streamUrls(req, join, org);
     callLog("twiml live", join.slice(0, 8), wsUrl);
     res.writeHead(200, { "content-type": "text/xml; charset=utf-8" });
-    res.end(liveStreamTwiml(wsUrl, join, org, statusCallback, true));
+    res.end(liveStreamTwiml(wsUrl, join, org, statusCallback));
     getLiveSession(join)?.freezeDisplay();
     return;
   }
@@ -131,7 +131,7 @@ const server = createServer((req, res) => {
             result?.error ?? "",
           );
         });
-      }, 12_000);
+      }, 6_000);
     });
     return;
   }

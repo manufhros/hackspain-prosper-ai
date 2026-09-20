@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dialHumanUrl, handoffVoiceUrl, joinStreamUrl, liveStreamTwiml, patientReplyFor, phoneHelperTranscript, publicHttpOrigin, splitHandoffTranscript } from "./twilio-transfer.ts";
+import { dialHumanUrl, handoffVoiceUrl, joinStreamUrl, liveStreamTwiml, patientReplyFor, publicHttpOrigin, splitHandoffTranscript } from "./twilio-transfer.ts";
 
 test("trial fallback message does not say out of scope", () => {
   const previous = process.env.TWILIO_HANDOFF_URL;
@@ -17,24 +17,23 @@ test("trial fallback message does not say out of scope", () => {
   }
 });
 
-test("Node handoff TwiML connects the phone both ways so the agent can reply", () => {
+test("Node handoff TwiML preserves patient playback", () => {
   const twiml = liveStreamTwiml(
     "wss://example.ngrok-free.app/ws",
     "call-123",
     "quironsalud",
     "https://example.ngrok-free.app/twiml/stream-status",
-    true,
   );
   assert.equal(twiml.includes("Le pongo con recepción"), false);
-  assert.equal(twiml.includes("<Say "), true);
-  assert.equal(twiml.includes("Clínica Arenal"), true);
-  assert.equal(twiml.includes("<Start>"), false);
-  assert.equal(twiml.includes("<Pause"), true);
+  assert.equal(twiml.includes("¿Tienen hueco por la mañana?"), true);
+  assert.equal(twiml.includes("¿es recepción?"), false);
+  assert.equal(twiml.includes("<Pause length=\"2\"/>"), false);
+  assert.equal((twiml.match(/<Say /g) ?? []).length, 2);
+  assert.equal(twiml.includes("esa hora me viene muy bien"), true);
   assert.equal(twiml.includes("Polly.Sergio-Neural"), true);
-  assert.equal(twiml.includes("<Connect>"), true);
-  assert.equal(twiml.includes("<Stream"), true);
-  assert.equal(twiml.includes("inbound_track"), false);
-  assert.equal(twiml.includes('name="join" value="call-123"'), true);
+  assert.equal(twiml.includes("<Connect>"), false);
+  assert.equal(twiml.includes("<Stream"), false);
+  assert.equal(twiml.includes("<Pause length=\"600\"/>"), true);
   assert.equal(
     joinStreamUrl("https://example.ngrok-free.app", "call-123", "quironsalud"),
     "wss://example.ngrok-free.app/ws/join/call-123/quironsalud",
@@ -52,10 +51,6 @@ test("handoff transcript keeps the patient and the receptionist apart", () => {
   assert.equal(patientReplyFor("Mmm."), undefined);
   assert.match(patientReplyFor("Te paso con mi compañera.") ?? "", /espero a tu compañera/);
   assert.match(patientReplyFor("¿Te viene bien a las 9:00?") ?? "", /esa hora/);
-  assert.equal(phoneHelperTranscript("Sí, esa hora me viene muy bien. Gracias."), "Sí, esa hora me viene muy bien. Gracias.");
-  assert.equal(phoneHelperTranscript("Sí, le viene bien a las 9"), "Sí, le viene bien a las 9");
-  assert.equal(phoneHelperTranscript("Hola, buenos días. Llamaba para pedir la primera cita de medicina general, lo antes posible. ¿Tienen hueco por la mañana?"), null);
-  assert.equal(phoneHelperTranscript("Sí, te cojo la cita."), "Sí, te cojo la cita.");
 });
 
 test("real-call redirect dials the human number via Url", () => {
